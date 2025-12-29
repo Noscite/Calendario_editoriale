@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useDataStore } from '../store/dataStore';
-import { Plus, Calendar, Building2, LogOut, Sparkles, Trash2, X } from 'lucide-react';
+import { Plus, Calendar, Building2, LogOut, Sparkles, Trash2, X, Shield, User } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, logout } = useAuthStore();
@@ -41,12 +41,28 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold text-[#2C3E50]">Noscite Calendar</h1>
             <p className="text-sm text-gray-500">Benvenuto, {user?.full_name || user?.email}</p>
           </div>
-          <button
-            onClick={() => { logout(); navigate('/login'); }}
-            className="flex items-center gap-2 text-gray-600 hover:text-red-600"
-          >
-            <LogOut size={20} /> Esci
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2 text-gray-600 hover:text-[#3DAFA8]"
+              title="Il mio Profilo"
+            >
+              <User size={20} />
+            </button>
+            <button
+              onClick={() => navigate('/admin')}
+              className="flex items-center gap-2 text-gray-600 hover:text-[#3DAFA8]"
+              title="Admin Dashboard"
+            >
+              <Shield size={20} />
+            </button>
+            <button
+              onClick={() => { logout(); navigate('/login'); }}
+              className="flex items-center gap-2 text-gray-600 hover:text-red-600"
+            >
+              <LogOut size={20} /> Esci
+            </button>
+          </div>
         </div>
       </header>
 

@@ -6,6 +6,8 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import BrandDetail from './pages/BrandDetail';
 import ProjectDetail from './pages/ProjectDetail';
+import AdminDashboard from './pages/AdminDashboard';
+import Profile from './pages/Profile';
 import ProjectWizard from './pages/ProjectWizard';
 
 function PrivateRoute({ children }) {
@@ -34,6 +36,8 @@ function App() {
         <Route path="/brand/:brandId" element={<PrivateRoute><BrandDetail /></PrivateRoute>} />
         <Route path="/brand/:brandId/new-project" element={<PrivateRoute><ProjectWizard /></PrivateRoute>} />
         <Route path="/project/:projectId" element={<PrivateRoute><ProjectDetail /></PrivateRoute>} />
+        <Route path="/admin" element={<PrivateRoute><AdminDashboard /></PrivateRoute>} />
+        <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="/" element={<Navigate to="/dashboard" />} />
       </Routes>
     </BrowserRouter>

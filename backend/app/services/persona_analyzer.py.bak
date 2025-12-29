@@ -32,25 +32,7 @@ Analizza le seguenti informazioni sull'azienda/brand e genera le BUYER PERSONAS 
 
 ## IL TUO COMPITO
 
-Genera 2-3 buyer personas REALISTICHE per questo brand e CALCOLA LA FREQUENZA OTTIMALE di posting.
-
-### ANALISI FREQUENZA POSTING
-Basandoti su:
-- Tipo di brand (B2B vs B2C)
-- Risorse presumibili dell'azienda
-- Comportamento delle buyer personas
-- Best practices del settore
-
-Determina quanti post a settimana per ogni piattaforma. Linee guida:
-- LinkedIn B2B: 2-4/settimana (qualità > quantità)
-- LinkedIn B2C: 3-5/settimana
-- Instagram B2B: 3-4/settimana
-- Instagram B2C: 5-7/settimana (incluse stories)
-- Facebook: 1-3/settimana (reach organico basso)
-- Newsletter: 1-2/settimana max
-- Blog: 1-2/settimana
-
-### PER OGNI PERSONA, DEFINISCI:
+Genera 2-3 buyer personas REALISTICHE per questo brand. Per ogni persona, definisci:
 
 1. **Profilo demografico**: età, genere, ruolo, area geografica, reddito
 2. **Comportamento digitale**: quando e come usa ogni piattaforma
@@ -113,14 +95,6 @@ Adatta questi orari alla SPECIFICA buyer persona (es. una mamma casalinga ha ora
       "weight": 0.6
     }}
   ],
-  "recommended_posts_per_week": {{
-    "linkedin": 3,
-    "instagram": 5,
-    "facebook": 2,
-    "newsletter": 1,
-    "blog": 1
-  }},
-  "frequency_rationale": "Spiegazione delle frequenze consigliate basata su brand e personas",
   "scheduling_strategy": {{
     "linkedin": {{
       "posts_distribution": "concentrare martedì-giovedì mattina",

@@ -21,15 +21,13 @@ const STEPS = [
 const platformIcons = {
   linkedin: Linkedin,
   instagram: Instagram,
-  facebook: Globe,
-  google_business: Globe
+  facebook: Globe
 };
 
 const platformColors = {
   linkedin: 'bg-blue-600',
   instagram: 'bg-gradient-to-r from-purple-500 to-pink-500',
-  facebook: 'bg-blue-500',
-  google_business: 'bg-green-600'
+  facebook: 'bg-blue-500'
 };
 
 export default function ProjectWizard() {
@@ -52,7 +50,7 @@ export default function ProjectWizard() {
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     platforms: ['linkedin'],
-    posts_per_week: { linkedin: 3, instagram: 4, facebook: 2, google_business: 2 },
+    posts_per_week: { linkedin: 3, instagram: 4, facebook: 2 },
     brief: '',
     target_audience: '',
     content_pillars: [],
@@ -132,14 +130,6 @@ export default function ProjectWizard() {
       const data = await res.json();
       setPersonasData(data.personas);
       
-      // Aggiorna posts_per_week con i valori suggeriti dall'AI
-      if (data.personas?.recommended_posts_per_week) {
-        setFormData(prev => ({
-          ...prev,
-          posts_per_week: { ...prev.posts_per_week, ...data.personas.recommended_posts_per_week }
-        }));
-      }
-      
     } catch (err) {
       setPersonasError(err.message);
     } finally {
@@ -168,14 +158,6 @@ export default function ProjectWizard() {
       
       const data = await res.json();
       setPersonasData(data.personas);
-      
-      // Aggiorna posts_per_week con i valori suggeriti dall'AI
-      if (data.personas?.recommended_posts_per_week) {
-        setFormData(prev => ({
-          ...prev,
-          posts_per_week: { ...prev.posts_per_week, ...data.personas.recommended_posts_per_week }
-        }));
-      }
       setPersonasFeedback('');
       setShowFeedbackInput(false);
       
@@ -350,7 +332,6 @@ export default function ProjectWizard() {
                   { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'bg-blue-600' },
                   { id: 'instagram', name: 'Instagram', icon: Instagram, color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
                   { id: 'facebook', name: 'Facebook', icon: Globe, color: 'bg-blue-500' },
-                  { id: 'google_business', name: 'Google Business', icon: Globe, color: 'bg-green-600' },
                 ].map((platform) => (
                   <div
                     key={platform.id}

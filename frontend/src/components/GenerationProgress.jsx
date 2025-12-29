@@ -21,7 +21,7 @@ export default function GenerationProgress({ projectId, isGenerating, onComplete
         const data = await res.json();
         setStatus(data);
         
-        if (data.status === 'completed') {
+        if (data.status === 'completed' || data.status === 'review') {
           clearInterval(interval);
           if (onComplete) onComplete();
         }

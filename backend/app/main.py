@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, brands, projects, posts, generation
+from app.api.routes import auth, brands, projects, posts, generation, export, admin
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -28,6 +28,8 @@ app.include_router(brands.router, prefix="/api/brands", tags=["Brands"])
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(posts.router, prefix="/api/posts", tags=["Posts"])
 app.include_router(generation.router, prefix="/api/generate", tags=["AI Generation"])
+app.include_router(export.router, prefix="/api/export", tags=["Export"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
 @app.get("/")
 def root():

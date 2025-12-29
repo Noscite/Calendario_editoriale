@@ -63,12 +63,10 @@ export default function ProjectDetail() {
   
   // AI campaign form
   const [aiCampaign, setAiCampaign] = useState({
-    platforms: [],  // Array di piattaforme selezionate
-    ai_decide_platforms: true,  // L'AI decide le piattaforme
+    platform: 'linkedin',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
     num_posts: 10,
-    ai_decide_num_posts: true,  // L'AI decide il numero
     brief: '',
     pillar: ''
   });
@@ -515,28 +513,7 @@ export default function ProjectDetail() {
                 </button>
               </div>
               
-              <button 
-                onClick={async () => {
-                  try {
-                    const token = localStorage.getItem('token');
-                    const res = await fetch(`/api/export/excel/${id}`, {
-                      headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (!res.ok) throw new Error('Export failed');
-                    const blob = await res.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `piano_editoriale_${project?.name?.replace(/ /g, '_')}.xlsx`;
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                  } catch (err) {
-                    console.error('Export error:', err);
-                    alert('Errore durante l\'export');
-                  }
-                }}
-                className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
-              >
+              <button className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
                 <Download size={18} /> Esporta
               </button>
             </div>
@@ -1248,64 +1225,21 @@ export default function ProjectDetail() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Piattaforme */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-gray-700">Piattaforme</label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={aiCampaign.ai_decide_platforms}
-                          onChange={(e) => setAiCampaign({...aiCampaign, ai_decide_platforms: e.target.checked})}
-                          className="rounded text-[#3DAFA8]"
-                        />
-                        <span className="text-purple-600 font-medium">🤖 Decidi tu AI</span>
-                      </label>
-                    </div>
-                    {!aiCampaign.ai_decide_platforms && (
-                      <div className="flex flex-wrap gap-2">
-                        {PLATFORMS.filter(p => project?.platforms?.includes(p.id)).map(p => (
-                          <label key={p.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
-                            aiCampaign.platforms?.includes(p.id) ? 'border-[#3DAFA8] bg-[#3DAFA8]/10' : 'border-gray-200 hover:border-gray-300'
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={aiCampaign.platforms?.includes(p.id)}
-                              onChange={(e) => {
-                                const platforms = e.target.checked 
-                                  ? [...(aiCampaign.platforms || []), p.id]
-                                  : (aiCampaign.platforms || []).filter(id => id !== p.id);
-                                setAiCampaign({...aiCampaign, platforms});
-                              }}
-                              className="rounded text-[#3DAFA8]"
-                            />
-                            <span className="text-sm">{p.name}</span>
-                          </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Piattaforma</label>
+                      <select
+                        value={aiCampaign.platform}
+                        onChange={(e) => setAiCampaign({...aiCampaign, platform: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        {PLATFORMS.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
-                      </div>
-                    )}
-                    {aiCampaign.ai_decide_platforms && (
-                      <p className="text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg">
-                        L'AI sceglierà le piattaforme più adatte per questa campagna
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Numero Post */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-gray-700">Numero Post</label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={aiCampaign.ai_decide_num_posts}
-                          onChange={(e) => setAiCampaign({...aiCampaign, ai_decide_num_posts: e.target.checked})}
-                          className="rounded text-[#3DAFA8]"
-                        />
-                        <span className="text-purple-600 font-medium">🤖 Decidi tu AI</span>
-                      </label>
+                      </select>
                     </div>
-                    {!aiCampaign.ai_decide_num_posts && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Numero Post</label>
                       <input
                         type="number"
                         min="1"
@@ -1314,12 +1248,7 @@ export default function ProjectDetail() {
                         onChange={(e) => setAiCampaign({...aiCampaign, num_posts: parseInt(e.target.value)})}
                         className="w-full px-3 py-2 border rounded-lg"
                       />
-                    )}
-                    {aiCampaign.ai_decide_num_posts && (
-                      <p className="text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg">
-                        L'AI deciderà il numero ottimale di post per il periodo
-                      </p>
-                    )}
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
@@ -1344,7 +1273,7 @@ export default function ProjectDetail() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Pillar/Tema (opzionale)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pillar/Tema</label>
                     <input
                       type="text"
                       value={aiCampaign.pillar}
@@ -1355,7 +1284,7 @@ export default function ProjectDetail() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Brief Campagna *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Brief Campagna</label>
                     <textarea
                       value={aiCampaign.brief}
                       onChange={(e) => setAiCampaign({...aiCampaign, brief: e.target.value})}
@@ -1371,14 +1300,8 @@ export default function ProjectDetail() {
                       <span className="font-medium">Generazione AI</span>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {aiCampaign.ai_decide_platforms && aiCampaign.ai_decide_num_posts 
-                        ? `L'AI analizzerà il brief e deciderà piattaforme e numero di post ottimali per il periodo ${aiCampaign.start_date} - ${aiCampaign.end_date}.`
-                        : aiCampaign.ai_decide_platforms 
-                          ? `L'AI genererà ${aiCampaign.num_posts} post sulle piattaforme più adatte, dal ${aiCampaign.start_date} al ${aiCampaign.end_date}.`
-                          : aiCampaign.ai_decide_num_posts
-                            ? `L'AI deciderà quanti post creare per ${aiCampaign.platforms?.map(id => PLATFORMS.find(p => p.id === id)?.name).join(', ') || 'le piattaforme selezionate'}, dal ${aiCampaign.start_date} al ${aiCampaign.end_date}.`
-                            : `L'AI genererà ${aiCampaign.num_posts} post per ${aiCampaign.platforms?.map(id => PLATFORMS.find(p => p.id === id)?.name).join(', ') || 'le piattaforme selezionate'}, dal ${aiCampaign.start_date} al ${aiCampaign.end_date}.`
-                      }
+                      L'AI genererà {aiCampaign.num_posts} post per {PLATFORMS.find(p => p.id === aiCampaign.platform)?.name}, 
+                      distribuiti dal {aiCampaign.start_date} al {aiCampaign.end_date}.
                     </p>
                   </div>
                   
