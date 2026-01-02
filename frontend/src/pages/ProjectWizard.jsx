@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/dataStore';
+import BrandDocuments from '../components/BrandDocuments';
 import { 
-  ArrowLeft, ArrowRight, Check, Calendar, FileText, Link, 
+  ArrowLeft, ArrowRight, Check, Calendar, FileText, File, Link, 
   Target, Sparkles, Loader2, Plus, X, Globe, Linkedin, Instagram,
   Users, Brain, RefreshCw, Clock, AlertCircle, Edit3
 } from 'lucide-react';
@@ -14,8 +15,9 @@ const STEPS = [
   { id: 2, title: 'Piattaforme', icon: Calendar },
   { id: 3, title: 'Contenuti', icon: Target },
   { id: 4, title: 'Riferimenti', icon: Link },
-  { id: 5, title: 'Target', icon: Users },
-  { id: 6, title: 'Genera', icon: Sparkles },
+  { id: 5, title: 'Documenti', icon: File },
+  { id: 6, title: 'Target', icon: Users },
+  { id: 7, title: 'Genera', icon: Sparkles },
 ];
 
 const platformIcons = {
@@ -225,8 +227,8 @@ export default function ProjectWizard() {
       case 2: return formData.platforms.length > 0;
       case 3: return true;
       case 4: return true;
-      case 5: return personasData !== null; // Deve aver generato le personas
-      case 6: return true;
+      case 5: return true; // Documenti - opzionale
+      case 6: return personasData !== null; // Deve aver generato le personas
       default: return true;
     }
   };
@@ -523,8 +525,27 @@ export default function ProjectWizard() {
             </div>
           )}
 
-          {/* Step 5: Buyer Personas */}
+          {/* Step 5: Documenti */}
           {currentStep === 5 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[#2C3E50] mb-2">Documenti Aziendali</h2>
+                <p className="text-gray-500">Carica documenti per arricchire la generazione dei contenuti con informazioni specifiche del tuo brand</p>
+              </div>
+              
+              <BrandDocuments brandId={brandId} />
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-700">
+                  <strong>💡 Suggerimento:</strong> Carica documenti come presentazioni aziendali, guide di stile, 
+                  cataloghi prodotti o qualsiasi materiale che descriva il tuo brand. L'AI li userà per generare 
+                  contenuti più accurati e in linea con la tua comunicazione.
+                </p>
+              </div>
+            </div>
+          )}
+          {/* Step 6: Buyer Personas */}
+          {currentStep === 6 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-[#2C3E50] mb-2">Analisi Target</h2>
@@ -677,8 +698,8 @@ export default function ProjectWizard() {
             </div>
           )}
 
-          {/* Step 6: Review & Generate */}
-          {currentStep === 6 && (
+          {/* Step 7: Review & Generate */}
+          {currentStep === 7 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-[#2C3E50] mb-2">Riepilogo e Generazione</h2>
@@ -753,7 +774,7 @@ export default function ProjectWizard() {
               <ArrowLeft size={20} /> Indietro
             </button>
             
-            {currentStep < 6 ? (
+            {currentStep < 7 ? (
               <button
                 onClick={() => setCurrentStep(prev => prev + 1)}
                 disabled={!canProceed()}

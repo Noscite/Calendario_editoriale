@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export default function GenerationProgress({ projectId, isGenerating, onComplete }) {
   const [status, setStatus] = useState({ status: 'idle', percent: 0, current_batch: 0, total_batches: 0 });
@@ -63,3 +63,4 @@ export default function GenerationProgress({ projectId, isGenerating, onComplete
     </div>
   );
 }
+// force rebuild Fri Jan  2 17:22:57 UTC 2026

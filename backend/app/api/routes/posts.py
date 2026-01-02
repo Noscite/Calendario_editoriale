@@ -452,7 +452,17 @@ async def generate_post_image(
         
         post.image_prompt = detailed_prompt
         
-        size = "1024x1024" if post.platform == "instagram" else "1792x1024"
+        # Dimensioni ottimali per piattaforma
+        platform_sizes = {
+            "instagram": "1024x1024",      # Feed quadrato
+            "instagram_story": "1024x1792", # Stories/Reels verticale
+            "linkedin": "1792x1024",        # Landscape professionale
+            "facebook": "1792x1024",        # Landscape engagement
+            "google_business": "1024x1024", # Quadrato per local
+            "twitter": "1792x1024",         # Landscape
+            "blog": "1792x1024"             # Header landscape
+        }
+        size = platform_sizes.get(post.platform, "1024x1024")
         openai_service = OpenAIService()
         image_url = await openai_service.generate_image(prompt=detailed_prompt, size=size)
         

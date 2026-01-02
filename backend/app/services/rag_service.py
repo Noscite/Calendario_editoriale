@@ -313,11 +313,11 @@ Rispondi SOLO in JSON:
             SELECT 
                 dc.id, dc.content, dc.chunk_index, dc.document_id,
                 bd.original_filename,
-                1 - (dc.embedding <=> :embedding::vector) as similarity
+                1 - (dc.embedding <=> cast(:embedding as vector)) as similarity
             FROM document_chunks dc
             JOIN brand_documents bd ON dc.document_id = bd.id
             WHERE dc.brand_id = :brand_id
-            ORDER BY dc.embedding <=> :embedding::vector
+            ORDER BY dc.embedding <=> cast(:embedding as vector)
             LIMIT :limit
         """)
         

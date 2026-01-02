@@ -3,6 +3,10 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 import threading
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 import asyncio
 
 from app.core.database import get_db, SessionLocal
@@ -52,7 +56,7 @@ async def generate_personas(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
     
-    print(f"[PERSONAS] Generating for project {project_id} - Brand: {brand.name}")
+    logger.info(f"[PERSONAS] Generating for project {project_id} - Brand: {brand.name}")
     
     # Analizza URL di riferimento
     url_context = ""
@@ -61,15 +65,15 @@ async def generate_personas(
         reference_urls = [brand.website_url]
     
     if reference_urls:
-        print(f"[PERSONAS] Analyzing {len(reference_urls)} URLs...")
+        logger.info(f"[PERSONAS] Analyzing {len(reference_urls)} URLs...")
         try:
             url_context = await get_brand_context_from_urls(
                 urls=reference_urls,
                 brand_name=brand.name
             )
-            print(f"[PERSONAS] URL context: {len(url_context)} chars")
+            logger.info(f"[PERSONAS] URL context: {len(url_context)} chars")
         except Exception as e:
-            print(f"[PERSONAS] URL analysis error: {e}")
+            logger.info(f"[PERSONAS] URL analysis error: {e}")
     
     # Genera personas
     personas_data = await analyze_buyer_personas(
@@ -88,7 +92,7 @@ async def generate_personas(
     project.buyer_personas = personas_data
     db.commit()
     
-    print(f"[PERSONAS] Generated {len(personas_data.get('personas', []))} personas")
+    logger.info(f"[PERSONAS] Generated {len(personas_data.get('personas', []))} personas")
     
     return {
         "status": "generated",
@@ -115,7 +119,7 @@ async def regenerate_personas(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
     
-    print(f"[PERSONAS] Regenerating with feedback: {request.feedback[:100]}...")
+    logger.info(f"[PERSONAS] Regenerating with feedback: {request.feedback[:100]}...")
     
     # Analizza URL
     url_context = ""
@@ -216,27 +220,27 @@ def run_generation(project_id: int):
     try:
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
-            print(f"[GEN] Project {project_id} not found")
+            logger.info(f"[GEN] Project {project_id} not found")
             return
         
         brand = db.query(Brand).filter(Brand.id == project.brand_id).first()
         if not brand:
-            print(f"[GEN] Brand not found for project {project_id}")
+            logger.info(f"[GEN] Brand not found for project {project_id}")
             return
         
-        print(f"[GEN] Starting generation for project {project_id} - Brand: {brand.name}")
+        logger.info(f"[GEN] Starting generation for project {project_id} - Brand: {brand.name}")
         
         # Recupera buyer personas (devono essere già generate/confermate)
         buyer_personas = project.buyer_personas
         if not buyer_personas:
-            print(f"[GEN] No personas found, using defaults")
+            logger.info(f"[GEN] No personas found, using defaults")
             buyer_personas = get_default_personas(project.platforms)
         
         # Analizza URL se serve contesto aggiuntivo
         url_context = ""
         reference_urls = project.reference_urls or []
         if reference_urls:
-            print(f"[GEN] Analyzing {len(reference_urls)} reference URLs...")
+            logger.info(f"[GEN] Analyzing {len(reference_urls)} reference URLs...")
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -247,9 +251,9 @@ def run_generation(project_id: int):
                     )
                 )
                 loop.close()
-                print(f"[GEN] URL context: {len(url_context)} chars")
+                logger.info(f"[GEN] URL context: {len(url_context)} chars")
             except Exception as e:
-                print(f"[GEN] URL analysis error: {e}")
+                logger.info(f"[GEN] URL analysis error: {e}")
         
         # Prepara posts_per_week
         posts_per_week = {}
@@ -298,11 +302,14 @@ def run_generation(project_id: int):
         )
         loop.close()
         
-        print(f"[GEN] Claude returned {len(posts)} posts")
+        logger.info(f"[GEN] Claude returned {len(posts)} posts")
+        
+        # Reset any failed transaction
+        db.rollback()
         
         # Delete existing posts
         deleted = db.query(Post).filter(Post.project_id == project_id).delete()
-        print(f"[GEN] Deleted {deleted} existing posts")
+        logger.info(f"[GEN] Deleted {deleted} existing posts")
         
         # Save new posts
         for post_data in posts:
@@ -326,10 +333,10 @@ def run_generation(project_id: int):
         
         project.status = ProjectStatus.review
         db.commit()
-        print(f"[GEN] ✅ Saved {len(posts)} posts, status set to review")
+        logger.info(f"[GEN] ✅ Saved {len(posts)} posts, status set to review")
         
     except Exception as e:
-        print(f"[GEN] ❌ Error: {e}")
+        logger.info(f"[GEN] ❌ Error: {e}")
         import traceback
         traceback.print_exc()
         try:

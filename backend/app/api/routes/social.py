@@ -71,11 +71,24 @@ async def get_brand_connections(
 async def authorize_social(
     platform: str,
     brand_id: int = Query(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    token: str = Query(None),
+    db: Session = Depends(get_db)
 ):
     """Inizia il flusso OAuth per una piattaforma"""
     
+    # Autentica da token query param o header
+    if token:
+        from jose import jwt
+        from app.core.config import settings
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            user_id = payload.get("sub")
+            current_user = db.query(User).filter(User.email == user_id).first()
+        except:
+            raise HTTPException(status_code=401, detail="Token non valido")
+    else:
+        raise HTTPException(status_code=401, detail="Token richiesto")
+
     # Verifica brand
     brand = db.query(Brand).filter(
         Brand.id == brand_id,
@@ -223,7 +236,7 @@ async def facebook_callback(
         db.add(connection)
         db.commit()
         
-        return RedirectResponse(f"{settings.FRONTEND_URL}/brands/{state_data['brand_id']}?social_connected=facebook")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/brand/{state_data['brand_id']}?social_connected=facebook")
         
     except Exception as e:
         return RedirectResponse(f"{settings.FRONTEND_URL}?social_error={str(e)}")
@@ -293,7 +306,7 @@ async def linkedin_callback(
         db.add(connection)
         db.commit()
         
-        return RedirectResponse(f"{settings.FRONTEND_URL}/brands/{state_data['brand_id']}?social_connected=linkedin")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/brand/{state_data['brand_id']}?social_connected=linkedin")
         
     except Exception as e:
         return RedirectResponse(f"{settings.FRONTEND_URL}?social_error={str(e)}")
@@ -361,7 +374,7 @@ async def google_callback(
         db.add(connection)
         db.commit()
         
-        return RedirectResponse(f"{settings.FRONTEND_URL}/brands/{state_data['brand_id']}?social_connected=google_business")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/brand/{state_data['brand_id']}?social_connected=google_business")
         
     except Exception as e:
         return RedirectResponse(f"{settings.FRONTEND_URL}?social_error={str(e)}")

@@ -162,7 +162,8 @@ export default function ProjectDetail() {
 
   const connectSocial = (platform) => {
     if (!project?.brand_id) return;
-    window.location.href = `/api/social/authorize/${platform}?brand_id=${project.brand_id}`;
+    const token = localStorage.getItem('token');
+    window.location.href = `/api/social/authorize/${platform}?brand_id=${project.brand_id}&token=${token}`;
   };
 
   const disconnectSocial = async (connectionId) => {
