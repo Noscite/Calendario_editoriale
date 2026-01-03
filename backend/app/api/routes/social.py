@@ -136,7 +136,7 @@ async def authorize_social(
             "client_id": settings.LINKEDIN_CLIENT_ID,
             "redirect_uri": f"{settings.BASE_URL}/api/social/callback/linkedin",
             "state": state,
-            "scope": "openid profile email w_member_social"
+            "scope": "openid profile email w_member_social w_organization_social"
         }
         auth_url = f"https://www.linkedin.com/oauth/v2/authorization?{urlencode(params)}"
         
@@ -281,6 +281,7 @@ async def linkedin_callback(
             token_data = token_response.json()
             
             if "error" in token_data:
+                logger.error(f"LinkedIn token error: {token_data}")
                 return RedirectResponse(f"{settings.FRONTEND_URL}?social_error={token_data.get('error_description', 'token_error')}")
             
             access_token = token_data["access_token"]
@@ -292,24 +293,79 @@ async def linkedin_callback(
                 headers={"Authorization": f"Bearer {access_token}"}
             )
             profile_data = profile_response.json()
+            logger.info(f"LinkedIn profile: {profile_data.get('name')}")
+            
+            # Ottieni le organizzazioni (pagine aziendali) di cui l'utente è admin
+            orgs_response = await client.get(
+                "https://api.linkedin.com/v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organization~(id,localizedName,vanityName)))",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "X-Restli-Protocol-Version": "2.0.0"
+                }
+            )
+            orgs_data = orgs_response.json()
+            logger.info(f"LinkedIn organizations response: {orgs_data}")
+            
+            organizations = []
+            if orgs_data.get("elements"):
+                for element in orgs_data["elements"]:
+                    org = element.get("organization~", {})
+                    if org:
+                        organizations.append({
+                            "id": org.get("id"),
+                            "name": org.get("localizedName"),
+                            "vanity_name": org.get("vanityName")
+                        })
+            
+            logger.info(f"LinkedIn found {len(organizations)} organizations")
         
-        # Salva connessione
-        connection = SocialConnection(
+        # Elimina vecchie connessioni LinkedIn per questo brand
+        db.query(SocialConnection).filter(
+            SocialConnection.brand_id == state_data["brand_id"],
+            SocialConnection.platform == "linkedin"
+        ).delete()
+        
+        # Salva connessione profilo personale
+        profile_connection = SocialConnection(
             brand_id=state_data["brand_id"],
             platform="linkedin",
             access_token=access_token,
             token_expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=expires_in),
             external_account_id=profile_data.get("sub", ""),
-            external_account_name=profile_data.get("name", ""),
+            external_account_name=f"{profile_data.get('name', '')} (Profilo)",
             external_account_url=f"https://linkedin.com/in/{profile_data.get('sub', '')}",
             account_type="profile",
             connected_by_user_id=state_data["user_id"]
         )
+        db.add(profile_connection)
         
-        db.query(SocialConnection).filter(
-            SocialConnection.brand_id == state_data["brand_id"],
-            SocialConnection.platform == "linkedin"
-        ).delete()
+        # Salva connessioni per ogni organizzazione
+        for org in organizations:
+            org_connection = SocialConnection(
+                brand_id=state_data["brand_id"],
+                platform="linkedin",
+                access_token=access_token,
+                token_expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=expires_in),
+                external_account_id=str(org["id"]),
+                external_account_name=f"{org['name']} (Pagina)",
+                external_account_url=f"https://linkedin.com/company/{org.get('vanity_name', org['id'])}",
+                account_type="organization",
+                connected_by_user_id=state_data["user_id"]
+            )
+            db.add(org_connection)
+        
+        db.commit()
+        
+        logger.info(f"LinkedIn connected: profile + {len(organizations)} organizations for brand {state_data['brand_id']}")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?social_connected=linkedin")
+            
+    except Exception as e:
+        logger.error(f"LinkedIn callback error: {e}")
+        return RedirectResponse(f"{settings.FRONTEND_URL}?social_error=callback_failed")
+
+
+# Placeholder per mantenere la struttura - questo verrà rimosso dal replace
+
         
         db.add(connection)
         db.commit()

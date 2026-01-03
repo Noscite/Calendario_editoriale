@@ -26,6 +26,7 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
   const [showScheduleOptions, setShowScheduleOptions] = useState(false);
   const [activeTab, setActiveTab] = useState('content');
@@ -188,6 +189,52 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
     }
     setIsUploadingImage(false);
     e.target.value = ''; // Reset input
+  };
+
+  const handleVideoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 100 * 1024 * 1024) {
+      setMessage({ type: 'error', text: '❌ Video troppo grande. Max 100MB.' });
+      return;
+    }
+    
+    setIsUploadingVideo(true);
+    setMessage({ type: 'info', text: '📤 Caricamento video in corso...' });
+    
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/api/posts/${editedPost.id}/upload-media`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Errore upload');
+      }
+      
+      const result = await response.json();
+      setEditedPost(prev => ({ 
+        ...prev, 
+        image_url: result.media_url,
+        media_type: result.media_type 
+      }));
+      setMessage({ type: 'success', text: '✅ Video caricato!' });
+      setTimeout(() => setMessage(null), 2000);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setMessage({ type: 'error', text: '❌ Errore upload: ' + error.message });
+    }
+    setIsUploadingVideo(false);
+    e.target.value = '';
   };
 
   const copyToClipboard = (text) => {
@@ -379,6 +426,38 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
 
           {activeTab === 'visual' && (
             <div className="space-y-4">
+              {/* Selettore Tipo Contenuto */}
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">📱 Tipo di Contenuto</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { value: 'post', label: '📱 Post' },
+                    { value: 'story', label: '📖 Storia' },
+                    { value: 'reel', label: '🎬 Reel' }
+                  ].map(type => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setEditedPost(prev => ({ ...prev, content_type: type.value }))}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                        (editedPost.content_type || 'post') === type.value
+                          ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-lg'
+                          : 'bg-white text-gray-600 hover:bg-gray-100 border'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+                {(editedPost.content_type === 'story' || editedPost.content_type === 'reel') && (
+                  <p className="text-sm text-amber-600 mt-3 bg-amber-50 p-2 rounded-lg">
+                    ⚠️ {editedPost.content_type === 'story' 
+                      ? 'Le storie richiedono formato verticale (9:16) e durano 24 ore' 
+                      : 'I reel richiedono un video verticale (9:16), max 90 secondi'}
+                  </p>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Suggerimento Visual / Prompt per AI</label>
                 <textarea
@@ -450,10 +529,38 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
                       <span className="animate-spin">⏳</span> Caricamento in corso...
                     </>
                   ) : (
-                    <>📤 Carica Immagine Personalizzata</>
+                    <>🖼️ Carica Immagine</>
                   )}
                 </label>
               </div>
+              
+              {/* Upload Video */}
+              <div className="relative">
+                <input
+                  type="file"
+                  id="video-upload"
+                  accept="video/mp4,video/quicktime,video/webm,video/mov"
+                  onChange={handleVideoUpload}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="video-upload"
+                  className={`w-full py-3 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    isUploadingVideo
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 shadow-lg hover:shadow-xl'
+                  }`}
+                >
+                  {isUploadingVideo ? (
+                    <>
+                      <span className="animate-spin">⏳</span> Caricamento video...
+                    </>
+                  ) : (
+                    <>🎬 Carica Video (per Reel/Storie)</>
+                  )}
+                </label>
+              </div>
+
               {!editedPost.visual_suggestion && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
                   <p className="text-red-600 font-medium">❌ Nessun suggerimento visual disponibile</p>

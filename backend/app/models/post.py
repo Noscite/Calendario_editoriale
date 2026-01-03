@@ -21,6 +21,8 @@ class Post(Base):
     cta = Column(Text)
     image_prompt = Column(Text)
     image_url = Column(Text)
+    media_type = Column(String(20), default="image")  # image, video
+    content_type = Column(String(20), default="post")  # post, story, reel
     status = Column(String(20), default="draft")
     created_at = Column(DateTime, server_default=func.now())
     

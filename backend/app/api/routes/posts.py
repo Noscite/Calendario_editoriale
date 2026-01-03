@@ -641,6 +641,62 @@ import uuid
 
 UPLOAD_DIR = "/var/www/noscite-calendar/backend/uploads/posts"
 
+class MediaResponse(BaseModel):
+    media_url: str
+    media_type: str
+
+@router.post("/{post_id}/upload-media", response_model=MediaResponse)
+async def upload_post_media(
+    post_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload immagine o video per un post"""
+    post = db.query(Post).join(Project).join(Brand).filter(
+        Post.id == post_id,
+        Brand.organization_id == current_user.organization_id
+    ).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post non trovato")
+    
+    # Valida file - supporta immagini e video
+    image_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    video_types = ["video/mp4", "video/quicktime", "video/webm", "video/mov"]
+    allowed_types = image_types + video_types
+    
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail="Tipo file non supportato. Usa JPG, PNG, WEBP, GIF per immagini o MP4, MOV, WEBM per video."
+        )
+    
+    # Determina se è immagine o video
+    media_type = "video" if file.content_type in video_types else "image"
+    
+    # Genera nome univoco
+    ext = file.filename.split(".")[-1] if "." in file.filename else ("mp4" if media_type == "video" else "jpg")
+    filename = f"{post_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    
+    # Salva file
+    try:
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        with open(filepath, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Aggiorna post con URL media
+        media_url = f"/uploads/posts/{filename}"
+        post.image_url = media_url
+        post.media_type = media_type
+        db.commit()
+        
+        return {"media_url": media_url, "media_type": media_type}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore upload: {str(e)}")
+
+# Mantieni retrocompatibilità con vecchio endpoint
 @router.post("/{post_id}/upload-image", response_model=ImageResponse)
 async def upload_post_image(
     post_id: int,
@@ -648,7 +704,7 @@ async def upload_post_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload immagine custom per un post"""
+    """Upload immagine custom per un post (retrocompatibile)"""
     post = db.query(Post).join(Project).join(Brand).filter(
         Post.id == post_id,
         Brand.organization_id == current_user.organization_id
@@ -676,6 +732,7 @@ async def upload_post_image(
         # Aggiorna post con URL immagine
         image_url = f"/uploads/posts/{filename}"
         post.image_url = image_url
+        post.media_type = "image"
         db.commit()
         
         return {"image_url": image_url}
