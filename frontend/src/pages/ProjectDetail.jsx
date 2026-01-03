@@ -731,24 +731,27 @@ export default function ProjectDetail() {
                         const isSelected = selectedPostIds.includes(post.id);
                         
                         return (
-                          <div
-                            key={post.id}
-                            onClick={() => openEditModal(post)}
-                            className={`text-xs p-1.5 rounded cursor-pointer transition-all ${getPlatformColor(post.platform)} text-white truncate flex items-center gap-1 ${
-                              isSelected ? 'ring-2 ring-purple-500 ring-offset-1' : ''
-                            } ${selectionMode ? 'hover:ring-2 hover:ring-purple-300' : 'hover:opacity-80'}`}
-                          >
-                            {selectionMode && (
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => {}}
-                                className="w-3 h-3 rounded"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            )}
-                            <Icon size={12} />
-                            <span className="truncate">{post.content?.substring(0, 25) || 'Post'}</span>
+                          <div key={post.id} className="flex items-center gap-1">
+                            {post.publication_status === 'scheduled' && <span title="Pianificato" className="text-sm">📅</span>}
+                            {post.publication_status === 'published' && <span title="Pubblicato" className="text-sm">✅</span>}
+                            <div
+                              onClick={() => openEditModal(post)}
+                              className={`flex-1 text-xs p-1.5 rounded cursor-pointer transition-all ${getPlatformColor(post.platform)} text-white truncate flex items-center gap-1 ${
+                                isSelected ? 'ring-2 ring-purple-500 ring-offset-1' : ''
+                              } ${selectionMode ? 'hover:ring-2 hover:ring-purple-300' : 'hover:opacity-80'}`}
+                            >
+                              {selectionMode && (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {}}
+                                  className="w-3 h-3 rounded"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              )}
+                              <Icon size={12} />
+                              <span className="truncate">{post.content?.substring(0, 25) || 'Post'}</span>
+                            </div>
                           </div>
                         );
                       })}

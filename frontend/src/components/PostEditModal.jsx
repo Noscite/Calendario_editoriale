@@ -335,6 +335,21 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
                 </span>
                 <span className="bg-white/20 px-3 py-1 rounded text-sm">{editedPost.scheduled_time}</span>
                 <span className="bg-orange-500 px-3 py-1 rounded text-sm font-medium">{editedPost.pillar}</span>
+                {editedPost.publication_status === 'scheduled' && (
+                  <span className="bg-blue-500 px-3 py-1 rounded text-sm font-medium flex items-center gap-1">
+                    📅 Pianificato
+                  </span>
+                )}
+                {editedPost.publication_status === 'published' && (
+                  <span className="bg-green-500 px-3 py-1 rounded text-sm font-medium flex items-center gap-1">
+                    ✅ Pubblicato
+                  </span>
+                )}
+                {editedPost.publication_status === 'failed' && (
+                  <span className="bg-red-500 px-3 py-1 rounded text-sm font-medium flex items-center gap-1">
+                    ❌ Fallito
+                  </span>
+                )}
               </div>
             </div>
             <button onClick={onClose} className="text-white/70 hover:text-white text-3xl leading-none">×</button>

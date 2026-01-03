@@ -172,9 +172,9 @@ export default function CalendarGridView({ posts, onPostsUpdate, apiUrl }) {
                     <div
                       key={post.id || i}
                       onClick={() => openEditModal(post)}
-                      className={`${platformColors[post.platform]} text-white text-xs px-2 py-1 rounded cursor-pointer truncate hover:opacity-90 hover:translate-y-[-1px] transition-all shadow-sm`}
+                      className={`${platformColors[post.platform]} text-white text-xs px-2 py-1 rounded cursor-pointer truncate hover:opacity-90 hover:translate-y-[-1px] transition-all shadow-sm`} style={post.publication_status === "scheduled" ? {boxShadow: "0 0 0 3px #facc15"} : post.publication_status === "published" ? {boxShadow: "0 0 0 3px #22c55e"} : {}}
                     >
-                      {platformIcons[post.platform]} {post.scheduled_time?.slice(0,5)} {post.pillar?.slice(0, 12)}
+                      {post.publication_status === 'scheduled' && '📅 '}{post.publication_status === 'published' && '✅ '}{platformIcons[post.platform]} {post.scheduled_time?.slice(0,5)} {post.pillar?.slice(0, 12)}
                     </div>
                   ))}
                   {dayPosts.length > 4 && (

@@ -35,6 +35,9 @@ class PostResponse(PostBase):
     project_id: int
     status: str
     image_url: Optional[str] = None
+    media_type: Optional[str] = None
+    content_type: Optional[str] = None
+    publication_status: Optional[str] = None
     created_at: Optional[datetime] = None
     
     class Config:
