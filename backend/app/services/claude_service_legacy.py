@@ -63,7 +63,8 @@ def generate_image_prompt(
     pillar: str,
     brand_name: str = "",
     brand_sector: str = "",
-    brand_colors: str = ""
+    brand_colors: str = "",
+    visual_suggestion: str = ""
 ) -> str:
     """Genera prompt per immagine AI"""
     
@@ -71,8 +72,8 @@ def generate_image_prompt(
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=500,
-            messages=[{"role": "user", "content": f"Crea prompt immagine per {platform}.\nPOST: {post_content}\nBRAND: {brand_name}, {brand_sector}"}],
-            system="Genera un prompt in inglese per DALL-E/Midjourney. Solo il prompt, niente altro."
+            messages=[{"role": "user", "content": f"Crea prompt immagine per {platform}.\nPOST: {post_content}\nBRAND: {brand_name}, {brand_sector}\nSTILE RICHIESTO: {visual_suggestion}"}],
+            system="Genera un prompt in inglese per DALL-E. IMPORTANTE: NON includere MAI testo, scritte, parole o numeri nell'immagine. Solo elementi visivi. Solo il prompt, niente altro."
         )
         return response.content[0].text.strip()
     except Exception as e:

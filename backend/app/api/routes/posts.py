@@ -370,7 +370,7 @@ def batch_replace_posts(
 @router.post("/{post_id}/regenerate", response_model=PostResponse)
 def regenerate_post(
     post_id: int,
-    request: RegenerateRequest,
+    request: RegenerateRequest = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -390,7 +390,7 @@ def regenerate_post(
             post_content=post.content or "",
             platform=post.platform,
             pillar=post.pillar or "",
-            user_prompt=request.prompt,
+            user_prompt=request.prompt if request else "",
             brand_context=f"{brand.name} - {brand.sector}" if brand else "",
             tone_of_voice=brand.tone_of_voice if brand else "",
             brand_style_guide=brand.style_guide if brand else ""
@@ -447,7 +447,8 @@ async def generate_post_image(
             pillar=post.pillar or "",
             brand_name=brand.name if brand else "",
             brand_sector=brand.sector if brand else "",
-            brand_colors=brand.colors if brand else ""
+            brand_colors=brand.colors if brand else "",
+            visual_suggestion=post.visual_suggestion or ""
         )
         
         post.image_prompt = detailed_prompt
@@ -464,7 +465,32 @@ async def generate_post_image(
         }
         size = platform_sizes.get(post.platform, "1024x1024")
         openai_service = OpenAIService()
-        image_url = await openai_service.generate_image(prompt=detailed_prompt, size=size)
+        dalle_result = await openai_service.generate_image(prompt=detailed_prompt, size=size)
+        
+        # Salva l'immagine localmente
+        import httpx
+        import uuid
+        import base64
+        
+        filename = f"{post.id}_{uuid.uuid4().hex[:8]}.png"
+        filepath = f"/var/www/noscite-calendar/backend/uploads/posts/{filename}"
+        
+        if dalle_result.startswith("data:image"):
+            # Base64 da gpt-image-1
+            base64_data = dalle_result.split(",")[1]
+            with open(filepath, "wb") as f:
+                f.write(base64.b64decode(base64_data))
+            image_url = f"/uploads/posts/{filename}"
+        else:
+            # URL da DALL-E 3
+            async with httpx.AsyncClient() as client:
+                img_response = await client.get(dalle_result)
+                if img_response.status_code == 200:
+                    with open(filepath, "wb") as f:
+                        f.write(img_response.content)
+                    image_url = f"/uploads/posts/{filename}"
+                else:
+                    image_url = dalle_result
         
         post.image_url = image_url
         db.commit()

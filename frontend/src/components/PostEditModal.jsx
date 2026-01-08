@@ -110,7 +110,7 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.detail || 'Errore nella rigenerazione');
+        throw new Error(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || 'Errore nella rigenerazione');
       }
       
       const regenerated = await response.json();

@@ -515,7 +515,8 @@ def generate_image_prompt(
     pillar: str,
     brand_name: str,
     brand_sector: str,
-    brand_colors: str = ""
+    brand_colors: str = "",
+    visual_suggestion: str = ""
 ) -> str:
     """Generate a detailed DALL-E prompt for a post image"""
     import anthropic
@@ -533,6 +534,7 @@ Pillar: {pillar}
 Nome: {brand_name}
 Settore: {brand_sector}
 Colori: {brand_colors or 'Non specificati'}
+Stile richiesto: {visual_suggestion or 'Non specificato'}
 
 ## ISTRUZIONI
 - Crea un prompt in inglese per DALL-E

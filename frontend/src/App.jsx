@@ -9,6 +9,9 @@ import ProjectDetail from './pages/ProjectDetail';
 import AdminDashboard from './pages/AdminDashboard';
 import Profile from './pages/Profile';
 import ProjectWizard from './pages/ProjectWizard';
+import SelectGoogleLocation from './pages/SelectGoogleLocation';
+import Privacy from './pages/Privacy';
+import Home from './pages/Home';
 
 function PrivateRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -38,7 +41,9 @@ function App() {
         <Route path="/project/:projectId" element={<PrivateRoute><ProjectDetail /></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute><AdminDashboard /></PrivateRoute>} />
         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
-        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/select-google-location" element={<SelectGoogleLocation />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/" element={<Home />} />
       </Routes>
     </BrowserRouter>
   );

@@ -156,6 +156,11 @@ async def authorize_social(
     
     return RedirectResponse(url=auth_url)
 
+# Storage temporaneo per pagine Facebook (in produzione usare Redis)
+pending_facebook_pages = {}
+# Storage temporaneo per locations Google Business
+pending_google_locations = {}
+
 @router.get("/callback/facebook")
 async def facebook_callback(
     code: str = None,
@@ -163,46 +168,31 @@ async def facebook_callback(
     error: str = None,
     db: Session = Depends(get_db)
 ):
-    """Callback OAuth Facebook"""
+    """Callback OAuth Facebook - reindirizza a selezione pagina"""
     if error or not code or not state:
         return RedirectResponse(f"{settings.FRONTEND_URL}?social_error={error or 'missing_code'}")
     
-    # Verifica state
     state_data = oauth_states.pop(state, None)
     if not state_data:
         return RedirectResponse(f"{settings.FRONTEND_URL}?social_error=invalid_state")
     
     try:
-        # Scambia code per access_token
         async with httpx.AsyncClient() as client:
-            token_params = {
+            token_response = await client.get(
+                "https://graph.facebook.com/v18.0/oauth/access_token",
+                params={
                     "client_id": settings.META_APP_ID,
                     "client_secret": settings.META_APP_SECRET,
                     "redirect_uri": f"{settings.BASE_URL}/api/social/callback/facebook",
                     "code": code
                 }
-            logger.info(f"Facebook token request params: {token_params}")
-            token_response = await client.get(
-                "https://graph.facebook.com/v18.0/oauth/access_token",
-                params=token_params
             )
-            logger.info(f"Facebook response status: {token_response.status_code}")
-            logger.info(f"Facebook response body: {token_response.text}")
             token_data = token_response.json()
-            logger.info(f"Facebook token response: {token_response.status_code} - {token_data}")
             
             if "error" in token_data:
-                logger.error(f"Facebook token error: {token_data}")
                 return RedirectResponse(f"{settings.FRONTEND_URL}?social_error={token_data['error'].get('message', 'unknown')}")
             
             access_token = token_data["access_token"]
-            
-            # Ottieni info utente e pagine
-            me_response = await client.get(
-                "https://graph.facebook.com/v18.0/me",
-                params={"access_token": access_token, "fields": "id,name"}
-            )
-            me_data = me_response.json()
             
             # Ottieni pagine gestite
             pages_response = await client.get(
@@ -210,44 +200,121 @@ async def facebook_callback(
                 params={"access_token": access_token}
             )
             pages_data = pages_response.json()
+            logger.info(f"Facebook pages received: {len(pages_data.get('data', []))} pages - {pages_data}")
             
-            # Per ora salviamo la prima pagina (in futuro: far scegliere all'utente)
-            if pages_data.get("data"):
+            if not pages_data.get("data") or len(pages_data["data"]) == 0:
+                # Nessuna pagina - usa profilo
+                me_response = await client.get(
+                    "https://graph.facebook.com/v18.0/me",
+                    params={"access_token": access_token, "fields": "id,name"}
+                )
+                me_data = me_response.json()
+                
+                connection = SocialConnection(
+                    brand_id=state_data["brand_id"],
+                    platform="facebook",
+                    access_token=access_token,
+                    external_account_id=me_data["id"],
+                    external_account_name=me_data["name"],
+                    external_account_url=f"https://facebook.com/{me_data['id']}",
+                    account_type="profile",
+                    connected_by_user_id=state_data["user_id"]
+                )
+                db.query(SocialConnection).filter(
+                    SocialConnection.brand_id == state_data["brand_id"],
+                    SocialConnection.platform == "facebook"
+                ).delete()
+                db.add(connection)
+                db.commit()
+                return RedirectResponse(f"{settings.FRONTEND_URL}/?social_connected=facebook")
+            
+            if len(pages_data["data"]) == 1:
+                # Solo una pagina - salva direttamente
                 page = pages_data["data"][0]
-                page_token = page["access_token"]
-                page_id = page["id"]
-                page_name = page["name"]
-            else:
-                # Nessuna pagina, usa profilo personale
-                page_token = access_token
-                page_id = me_data["id"]
-                page_name = me_data["name"]
-        
-        # Salva connessione
-        connection = SocialConnection(
-            brand_id=state_data["brand_id"],
-            platform="facebook",
-            access_token=page_token,
-            external_account_id=page_id,
-            external_account_name=page_name,
-            external_account_url=f"https://facebook.com/{page_id}",
-            account_type="page" if pages_data.get("data") else "profile",
-            connected_by_user_id=state_data["user_id"]
-        )
-        
-        # Rimuovi vecchia connessione se esiste
-        db.query(SocialConnection).filter(
-            SocialConnection.brand_id == state_data["brand_id"],
-            SocialConnection.platform == "facebook"
-        ).delete()
-        
-        db.add(connection)
-        db.commit()
-        
-        return RedirectResponse(f"{settings.FRONTEND_URL}/brand/{state_data['brand_id']}?social_connected=facebook")
+                connection = SocialConnection(
+                    brand_id=state_data["brand_id"],
+                    platform="facebook",
+                    access_token=page["access_token"],
+                    external_account_id=page["id"],
+                    external_account_name=page["name"],
+                    external_account_url=f"https://facebook.com/{page['id']}",
+                    account_type="page",
+                    connected_by_user_id=state_data["user_id"]
+                )
+                db.query(SocialConnection).filter(
+                    SocialConnection.brand_id == state_data["brand_id"],
+                    SocialConnection.platform == "facebook"
+                ).delete()
+                db.add(connection)
+                db.commit()
+                return RedirectResponse(f"{settings.FRONTEND_URL}/?social_connected=facebook")
+            
+            # Multiple pagine - salva temporaneamente e reindirizza a selezione
+            selection_token = secrets.token_urlsafe(32)
+            pending_facebook_pages[selection_token] = {
+                "brand_id": state_data["brand_id"],
+                "user_id": state_data["user_id"],
+                "pages": [{"id": p["id"], "name": p["name"], "access_token": p["access_token"]} for p in pages_data["data"]],
+                "created_at": datetime.now(timezone.utc)
+            }
+            
+            return RedirectResponse(f"{settings.FRONTEND_URL}/select-facebook-page?token={selection_token}")
         
     except Exception as e:
+        logger.error(f"Facebook callback error: {e}")
         return RedirectResponse(f"{settings.FRONTEND_URL}?social_error={str(e)}")
+
+@router.get("/facebook-pages/{token}")
+async def get_facebook_pages(token: str):
+    """Restituisce le pagine Facebook disponibili per la selezione"""
+    data = pending_facebook_pages.get(token)
+    if not data:
+        raise HTTPException(status_code=404, detail="Token non valido o scaduto")
+    
+    return {"pages": [{"id": p["id"], "name": p["name"]} for p in data["pages"]]}
+
+@router.post("/facebook-pages/{token}/select")
+async def select_facebook_page(
+    token: str,
+    page_id: str,
+    db: Session = Depends(get_db)
+):
+    """Salva la pagina Facebook selezionata"""
+    data = pending_facebook_pages.pop(token, None)
+    if not data:
+        raise HTTPException(status_code=404, detail="Token non valido o scaduto")
+    
+    # Trova la pagina selezionata
+    selected_page = None
+    for page in data["pages"]:
+        if page["id"] == page_id:
+            selected_page = page
+            break
+    
+    if not selected_page:
+        raise HTTPException(status_code=400, detail="Pagina non trovata")
+    
+    # Rimuovi vecchia connessione
+    db.query(SocialConnection).filter(
+        SocialConnection.brand_id == data["brand_id"],
+        SocialConnection.platform == "facebook"
+    ).delete()
+    
+    # Salva nuova connessione
+    connection = SocialConnection(
+        brand_id=data["brand_id"],
+        platform="facebook",
+        access_token=selected_page["access_token"],
+        external_account_id=selected_page["id"],
+        external_account_name=selected_page["name"],
+        external_account_url=f"https://facebook.com/{selected_page['id']}",
+        account_type="page",
+        connected_by_user_id=data["user_id"]
+    )
+    db.add(connection)
+    db.commit()
+    
+    return {"success": True, "page_name": selected_page["name"]}
 
 @router.get("/callback/linkedin")
 async def linkedin_callback(
@@ -411,37 +478,130 @@ async def google_callback(
             refresh_token = token_data.get("refresh_token")
             expires_in = token_data.get("expires_in", 3600)
             
-            # Ottieni info account
-            userinfo_response = await client.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
+            # Ottieni accounts Google Business Profile
+            accounts_response = await client.get(
+                "https://mybusinessaccountmanagement.googleapis.com/v1/accounts",
                 headers={"Authorization": f"Bearer {access_token}"}
             )
-            userinfo = userinfo_response.json()
-        
-        connection = SocialConnection(
-            brand_id=state_data["brand_id"],
-            platform="google_business",
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=expires_in),
-            external_account_id=userinfo.get("id", ""),
-            external_account_name=userinfo.get("name", userinfo.get("email", "")),
-            account_type="business",
-            connected_by_user_id=state_data["user_id"]
-        )
-        
-        db.query(SocialConnection).filter(
-            SocialConnection.brand_id == state_data["brand_id"],
-            SocialConnection.platform == "google_business"
-        ).delete()
-        
-        db.add(connection)
-        db.commit()
-        
-        return RedirectResponse(f"{settings.FRONTEND_URL}/brand/{state_data['brand_id']}?social_connected=google_business")
+            accounts_data = accounts_response.json()
+            logger.info(f"Google Business accounts: {accounts_data}")
+            
+            if "accounts" not in accounts_data or not accounts_data["accounts"]:
+                return RedirectResponse(f"{settings.FRONTEND_URL}?social_error=no_google_business_accounts")
+            
+            # Prendi il primo account
+            account = accounts_data["accounts"][0]
+            account_name = account["name"]
+            
+            # Ottieni locations per questo account
+            locations_response = await client.get(
+                f"https://mybusinessbusinessinformation.googleapis.com/v1/{account_name}/locations",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"readMask": "name,title"}
+            )
+            locations_data = locations_response.json()
+            logger.info(f"Google Business locations: {locations_data}")
+            
+            locations = locations_data.get("locations", [])
+            
+            if not locations:
+                return RedirectResponse(f"{settings.FRONTEND_URL}?social_error=no_google_business_locations")
+            
+            if len(locations) == 1:
+                # Una sola location - salva direttamente
+                location = locations[0]
+                connection = SocialConnection(
+                    brand_id=state_data["brand_id"],
+                    platform="google_business",
+                    access_token=access_token,
+                    refresh_token=refresh_token,
+                    token_expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=expires_in),
+                    external_account_id=location["name"],
+                    external_account_name=location.get("title", "Google Business"),
+                    account_type="location",
+                    connected_by_user_id=state_data["user_id"]
+                )
+                
+                db.query(SocialConnection).filter(
+                    SocialConnection.brand_id == state_data["brand_id"],
+                    SocialConnection.platform == "google_business"
+                ).delete()
+                
+                db.add(connection)
+                db.commit()
+                
+                return RedirectResponse(f"{settings.FRONTEND_URL}/brand/{state_data['brand_id']}?social_connected=google_business")
+            
+            # Multiple locations - salva temporaneamente e reindirizza a selezione
+            selection_token = secrets.token_urlsafe(32)
+            pending_google_locations[selection_token] = {
+                "brand_id": state_data["brand_id"],
+                "user_id": state_data["user_id"],
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "expires_in": expires_in,
+                "locations": [{"id": loc["name"], "name": loc.get("title", loc["name"])} for loc in locations],
+                "created_at": datetime.now(timezone.utc)
+            }
+            
+            return RedirectResponse(f"{settings.FRONTEND_URL}/select-google-location?token={selection_token}")
         
     except Exception as e:
+        logger.error(f"Google Business callback error: {str(e)}")
         return RedirectResponse(f"{settings.FRONTEND_URL}?social_error={str(e)}")
+
+@router.get("/google-locations/{token}")
+async def get_google_locations(token: str):
+    """Restituisce le locations Google Business disponibili per la selezione"""
+    data = pending_google_locations.get(token)
+    if not data:
+        raise HTTPException(status_code=404, detail="Token non valido o scaduto")
+    
+    return {"locations": data["locations"]}
+
+@router.post("/google-locations/{token}/select")
+async def select_google_location(
+    token: str,
+    location_id: str,
+    db: Session = Depends(get_db)
+):
+    """Salva la location Google Business selezionata"""
+    data = pending_google_locations.pop(token, None)
+    if not data:
+        raise HTTPException(status_code=404, detail="Token non valido o scaduto")
+    
+    # Trova la location selezionata
+    selected_location = None
+    for loc in data["locations"]:
+        if loc["id"] == location_id:
+            selected_location = loc
+            break
+    
+    if not selected_location:
+        raise HTTPException(status_code=400, detail="Location non trovata")
+    
+    # Rimuovi vecchia connessione
+    db.query(SocialConnection).filter(
+        SocialConnection.brand_id == data["brand_id"],
+        SocialConnection.platform == "google_business"
+    ).delete()
+    
+    # Salva nuova connessione
+    connection = SocialConnection(
+        brand_id=data["brand_id"],
+        platform="google_business",
+        access_token=data["access_token"],
+        refresh_token=data["refresh_token"],
+        token_expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=data["expires_in"]),
+        external_account_id=selected_location["id"],
+        external_account_name=selected_location["name"],
+        account_type="location",
+        connected_by_user_id=data["user_id"]
+    )
+    db.add(connection)
+    db.commit()
+    
+    return {"success": True, "location_name": selected_location["name"]}
 
 @router.get("/callback/instagram")
 async def instagram_callback(
