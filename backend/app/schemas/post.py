@@ -36,6 +36,10 @@ class PostResponse(PostBase):
     status: str
     image_url: Optional[str] = None
     media_type: Optional[str] = None
+    image_format: Optional[str] = None
+    carousel_images: Optional[list] = None
+    carousel_prompts: Optional[list] = None
+    is_carousel: Optional[bool] = False
     content_type: Optional[str] = None
     publication_status: Optional[str] = None
     created_at: Optional[datetime] = None

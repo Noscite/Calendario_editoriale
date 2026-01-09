@@ -44,6 +44,19 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
           ? post.hashtags.map(h => h.startsWith('#') ? h.slice(1) : h).join(', ') 
           : ''
       });
+      // Carica immagini carosello se presenti
+      if (post.carousel_images && post.carousel_images.length > 0) {
+        setCarouselImages(post.carousel_images);
+        setIsCarousel(true);
+        setNumSlides(post.carousel_images.length);
+      } else {
+        setCarouselImages([]);
+        setIsCarousel(false);
+      }
+      // Carica formato immagine se presente
+      if (post.image_format) {
+        setImageFormat(post.image_format);
+      }
       setActiveTab('content');
       setMessage(null);
     }
@@ -136,14 +149,17 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
     setIsGeneratingImage(true);
     setMessage(null);
     try {
-      const response = await fetch(`${API_URL}/api/posts/${editedPost.id}/generate-image`, {
+      const response = await fetch(`${API_URL}/api/posts/${editedPost.id}/generate-carousel`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
-          visual_suggestion: editedPost.visual_suggestion
+          visual_suggestion: editedPost.visual_suggestion,
+          image_format: imageFormat,
+          is_carousel: isCarousel,
+          num_slides: isCarousel ? numSlides : 1
         })
       });
 
@@ -153,8 +169,23 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
       }
       
       const result = await response.json();
-      setEditedPost(prev => ({ ...prev, image_url: result.image_url }));
-      setMessage({ type: 'success', text: '🎨 Immagine generata con successo!' });
+      // Aggiorna stato con le immagini generate
+      const mainImage = result.images?.[0] || result.image_url;
+      setEditedPost(prev => ({ 
+        ...prev, 
+        image_url: mainImage,
+        carousel_images: result.images || [],
+        image_format: result.image_format || imageFormat,
+        is_carousel: result.is_carousel || false
+      }));
+      // Aggiorna stato carosello locale
+      if (result.images && result.images.length > 1) {
+        setCarouselImages(result.images);
+        setMessage({ type: 'success', text: `🎠 Carosello generato: ${result.images.length} immagini!` });
+      } else {
+        setCarouselImages([]);
+        setMessage({ type: 'success', text: '🎨 Immagine generata con successo!' });
+      }
     } catch (error) {
       setMessage({ type: 'error', text: '❌ ' + error.message });
     } finally {
@@ -489,12 +520,22 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
 
               {editedPost.image_url && (
                 <div className="bg-gray-50 rounded-xl p-4">
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">Immagine Generata</label>
-                  <img 
-                    src={editedPost.image_url} 
-                    alt="Generated" 
-                    className="w-full max-w-lg rounded-xl shadow-lg mx-auto" 
-                  />
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    {editedPost.media_type === 'video' ? '🎬 Video Caricato' : '🖼️ Immagine Generata'}
+                  </label>
+                  {editedPost.media_type === 'video' ? (
+                    <video 
+                      src={editedPost.image_url} 
+                      controls 
+                      className="w-full max-w-lg rounded-xl shadow-lg mx-auto"
+                    />
+                  ) : (
+                    <img 
+                      src={editedPost.image_url} 
+                      alt="Generated" 
+                      className="w-full max-w-lg rounded-xl shadow-lg mx-auto" 
+                    />
+                  )}
                   <div className="mt-3 text-center">
                     <a 
                       href={editedPost.image_url} 
@@ -502,7 +543,7 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
                       rel="noopener noreferrer"
                       className="text-teal-600 hover:text-teal-700 text-sm font-medium"
                     >
-                      🔗 Apri immagine in nuova tab
+                      🔗 Apri {editedPost.media_type === 'video' ? 'video' : 'immagine'} in nuova tab
                     </a>
                   </div>
                 </div>
