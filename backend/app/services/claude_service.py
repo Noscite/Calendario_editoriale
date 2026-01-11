@@ -111,6 +111,11 @@ async def generate_calendar_posts(
         
         logger.info(f"[CLAUDE] Batch {batch_num + 1}/{batches}: {batch_start} to {batch_end}")
         
+        # Aggiorna progress tracker
+        if project_id:
+            percent = int((batch_num / batches) * 100)
+            update_generation_status(project_id, batch_num, batches, percent)
+        
         if batch_num > 0:
             logger.info("[CLAUDE] Waiting 8s for rate limit...")
             await asyncio.sleep(8)
@@ -201,6 +206,17 @@ Piattaforme: {', '.join(platforms)}
 Post per settimana: {json.dumps(posts_per_week)}
 Temi: {', '.join(themes) if themes else 'Generici per il settore'}
 Brief: {project_info.get('brief', 'N/A')}
+Obiettivi: {', '.join(project_info.get('objectives', [])) or 'brand_awareness'}
+
+## CALL TO ACTION
+Genera una CTA specifica e coinvolgente per OGNI post basandoti sugli obiettivi del progetto:
+- Per **lead_generation**: invita a scaricare risorse, prenotare call, richiedere preventivi, iscriversi
+- Per **brand_awareness**: invita a seguire, condividere, taggare altri
+- Per **engagement**: stimola commenti, risposte, interazioni, opinioni
+- Per **sales**: spingi all'acquisto, offerte, promozioni
+- Per **traffic**: rimanda al sito, blog, link in bio
+
+IMPORTANTE: Il campo "call_to_action" è OBBLIGATORIO per ogni post. La CTA deve essere naturale, contestuale al contenuto e coerente con l'obiettivo
 
 ## LINEE GUIDA
 {style_guide}
@@ -217,7 +233,7 @@ Brief: {project_info.get('brief', 'N/A')}
 4. VARIA i formati (post/story/reel) secondo le percentuali raccomandate per ogni piattaforma
 5. Per STORY: testo breve, call-to-action diretta, emoji, interattività (sondaggi, domande)
 6. Per REEL: testo brevissimo (hook iniziale), descrizione video, hashtag trending
-7. Ogni contenuto deve avere: platform, scheduled_date, scheduled_time, content, hashtags, content_type (post/story/reel), post_type, pillar, visual_suggestion
+7. Ogni contenuto deve avere: platform, scheduled_date, scheduled_time, content, hashtags, content_type (post/story/reel), post_type, pillar, visual_suggestion, call_to_action
 
 ## FORMATO OUTPUT (JSON array)
 [

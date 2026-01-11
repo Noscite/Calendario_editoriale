@@ -41,6 +41,7 @@ class ProjectResponse(ProjectBase):
     status: str
     created_at: datetime
     buyer_personas: Optional[Dict[str, Any]] = None
+    objectives: Optional[List[str]] = None
     
     class Config:
         from_attributes = True

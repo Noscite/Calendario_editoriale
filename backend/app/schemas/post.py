@@ -42,6 +42,7 @@ class PostResponse(PostBase):
     is_carousel: Optional[bool] = False
     content_type: Optional[str] = None
     publication_status: Optional[str] = None
+    call_to_action: Optional[str] = None
     created_at: Optional[datetime] = None
     
     class Config:

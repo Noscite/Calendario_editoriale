@@ -18,6 +18,7 @@ class Post(Base):
     post_type = Column(String(50))
     visual_prompt = Column(Text)
     visual_suggestion = Column(Text)
+    call_to_action = Column(Text)
     cta = Column(Text)
     image_prompt = Column(Text)
     image_url = Column(Text)

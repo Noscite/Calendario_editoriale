@@ -191,7 +191,8 @@ async def analyze_buyer_personas(
     brand_values: list = None,
     tone_of_voice: str = None,
     url_context: str = None,
-    platforms: list = None
+    platforms: list = None,
+    objectives: list = None
 ) -> dict:
     """
     Analizza brand e genera buyer personas con scheduling ottimale.
@@ -262,7 +263,8 @@ async def analyze_buyer_personas(
                         sector=sector or "generico",
                         platform=platform,
                         buyer_persona=combined_personas,
-                        country="Italia"
+                        country="Italia",
+                        objective=objectives[0] if objectives else "engagement"
                     )
                     
                     # Aggiorna scheduling_strategy con dati Perplexity
@@ -300,7 +302,8 @@ async def analyze_buyer_personas(
         return get_default_personas(platforms)
 
 
-def get_default_personas(platforms: list = None) -> dict:
+def get_default_personas(platforms: list = None,
+    objectives: list = None) -> dict:
     """Personas di fallback se l'analisi AI fallisce"""
     return {
         "personas": [

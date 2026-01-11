@@ -28,6 +28,7 @@ class Project(Base):
     # Nuovi campi
     reference_urls = Column(JSON, default=list)
     target_audience = Column(Text)
+    objectives = Column(JSON, default=list)  # lead_generation, brand_awareness, engagement, sales, traffic
     content_pillars = Column(JSON, default=list)
     competitors = Column(JSON, default=list)
     special_dates = Column(JSON, default=list)

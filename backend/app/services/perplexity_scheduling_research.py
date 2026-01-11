@@ -46,31 +46,37 @@ async def research_optimal_schedule(
     
     # Costruisci query per Perplexity
     query = f"""
-Ricerca gli orari migliori per pubblicare su {platform} nel {datetime.now().year} per:
-
+Ricerca, in base ai dati più recenti disponibili (studi 2024-{datetime.now().year}, analisi di milioni di post e report di social media marketing), i MIGLIORI giorni e orari per pubblicare su {platform} nel {datetime.now().year} per:
 - Tipo azienda: {business_type}
 - Settore: {sector}
-- Target/Buyer Persona: {buyer_persona}
+- Target / Buyer Persona: {buyer_persona}
 - Paese: {country}
-- Obiettivo: {objective}
+- Obiettivo principale: {objective}
 
-Basati su studi recenti, statistiche e best practices aggiornate.
+LINEE GUIDA PER LA RICERCA:
+- Usa solo fonti con dati aggregati e affidabili (analisi di grandi volumi di post, report di piattaforme/tool di social media).
+- Considera che:
+  - Contenuti B2B e professionali tendono a performare meglio nei giorni feriali e in orario lavorativo/pausa pranzo.
+  - Contenuti orientati a studenti, genitori o pubblico consumer possono avere picchi anche nel tardo pomeriggio/sera e NEL WEEKEND.
+  - Per Instagram e Facebook B2C il weekend (sabato/domenica) è spesso molto efficace.
+- Adatta la risposta al fuso orario locale del paese indicato.
+- NON limitarti a martedì-mercoledì-giovedì se i dati suggeriscono altri giorni migliori.
 
-Rispondi SOLO con un JSON valido in questo formato esatto:
+FORMATO RISPOSTA - Rispondi SOLO con questo JSON:
 {{
-    "best_days": ["martedì", "giovedì"],
-    "best_days_numbers": [1, 3],
-    "best_times": ["08:30", "12:30"],
-    "avoid_days": ["domenica"],
-    "avoid_times": ["dopo le 22:00"],
-    "confidence": "high",
-    "notes": "Spiegazione breve del perché questi orari"
+  "best_days": ["lunedì", "mercoledì", "venerdì"],
+  "best_days_numbers": [0, 2, 4],
+  "best_times": ["09:00", "12:30", "18:00"],
+  "avoid_days": ["domenica"],
+  "avoid_times": ["dopo le 22:00"],
+  "confidence": "high",
+  "notes": "Breve spiegazione (max 2 frasi) con pattern principali e fonti."
 }}
 
-IMPORTANTE: 
-- best_days_numbers usa 0=lunedì, 1=martedì, ..., 6=domenica
-- best_times in formato HH:MM
-- confidence può essere "high", "medium", "low"
+REGOLE:
+- best_days_numbers: 0=lunedì, 1=martedì, 2=mercoledì, 3=giovedì, 4=venerdì, 5=sabato, 6=domenica
+- best_times in formato 24h HH:MM, ordinati dal più precoce al più tardo
+- Includi weekend se appropriato per il target
 - Rispondi SOLO con il JSON, niente altro testo
 """
 

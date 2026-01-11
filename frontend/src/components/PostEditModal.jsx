@@ -465,8 +465,8 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Call to Action</label>
                 <input
                   type="text"
-                  value={editedPost.cta || ''}
-                  onChange={(e) => handleChange('cta', e.target.value)}
+                  value={editedPost.call_to_action || ''}
+                  onChange={(e) => handleChange('call_to_action', e.target.value)}
                   className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-teal-500 focus:outline-none"
                   placeholder="Scopri di più sul nostro sito..."
                 />

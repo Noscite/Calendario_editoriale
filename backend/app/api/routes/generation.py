@@ -88,11 +88,18 @@ async def generate_personas(
         brand_values=brand.brand_values,
         tone_of_voice=brand.tone_of_voice,
         url_context=url_context,
-        platforms=project.platforms
+        platforms=project.platforms,
+        objectives=project.objectives
     )
     
     # Salva nel progetto (non ancora confermate)
     project.buyer_personas = personas_data
+    
+    # Aggiorna automaticamente posts_per_week con i suggerimenti AI
+    if personas_data.get("recommended_posts_per_week"):
+        # Filtra solo le piattaforme selezionate
+        recommended = personas_data["recommended_posts_per_week"]
+        project.posts_per_week = {p: recommended.get(p, 3) for p in (project.platforms or [])}
     db.commit()
     
     logger.info(f"[PERSONAS] Generated {len(personas_data.get('personas', []))} personas")
@@ -151,11 +158,18 @@ async def regenerate_personas(
         brand_values=brand.brand_values,
         tone_of_voice=brand.tone_of_voice,
         url_context=url_context,
-        platforms=project.platforms
+        platforms=project.platforms,
+        objectives=project.objectives
     )
     
     # Aggiorna
     project.buyer_personas = personas_data
+    
+    # Aggiorna automaticamente posts_per_week con i suggerimenti AI
+    if personas_data.get("recommended_posts_per_week"):
+        # Filtra solo le piattaforme selezionate
+        recommended = personas_data["recommended_posts_per_week"]
+        project.posts_per_week = {p: recommended.get(p, 3) for p in (project.platforms or [])}
     db.commit()
     
     return {
@@ -278,7 +292,8 @@ def run_generation(project_id: int):
         project_info = {
             "brief": project.brief,
             "target_audience": project.target_audience,
-            "custom_prompt": project.custom_prompt
+            "custom_prompt": project.custom_prompt,
+            "objectives": project.objectives or []
         }
         
         themes = project.content_pillars or project.themes or []
@@ -333,6 +348,7 @@ def run_generation(project_id: int):
                 post_type=post_data.get("post_type", ""),
                 content_type=post_data.get("content_type", "post"),
                 visual_suggestion=post_data.get("visual_suggestion", ""),
+                call_to_action=post_data.get("call_to_action", ""),
                 cta=post_data.get("cta", "")
             )
             db.add(post)

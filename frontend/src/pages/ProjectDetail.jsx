@@ -129,7 +129,8 @@ export default function ProjectDetail() {
         content_pillars: projectRes.data.content_pillars || [],
         reference_urls: projectRes.data.reference_urls || [],
         competitors: projectRes.data.competitors || [],
-        custom_prompt: projectRes.data.custom_prompt || ''
+        custom_prompt: projectRes.data.custom_prompt || '',
+        objectives: projectRes.data.objectives || []
       });
       
       // Carica connessioni social
@@ -864,6 +865,39 @@ export default function ProjectDetail() {
                       placeholder="Chi è il pubblico target..."
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#3DAFA8]"
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">🎯 Obiettivi del Progetto</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: 'lead_generation', label: '📥 Lead Generation', desc: 'Acquisire contatti' },
+                        { value: 'brand_awareness', label: '🌟 Brand Awareness', desc: 'Farsi conoscere' },
+                        { value: 'engagement', label: '💬 Engagement', desc: 'Interazioni' },
+                        { value: 'sales', label: '💰 Vendite', desc: 'Conversioni' },
+                        { value: 'traffic', label: '🔗 Traffico', desc: 'Visite al sito' }
+                      ].map(obj => (
+                        <button
+                          key={obj.value}
+                          type="button"
+                          onClick={() => {
+                            const current = settingsForm.objectives || [];
+                            const updated = current.includes(obj.value)
+                              ? current.filter(o => o !== obj.value)
+                              : [...current, obj.value];
+                            updateSettingsForm('objectives', updated);
+                          }}
+                          className={`px-4 py-2 rounded-lg font-medium transition-all flex flex-col items-center ${
+                            (settingsForm.objectives || []).includes(obj.value)
+                              ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-lg'
+                              : 'bg-white text-gray-600 hover:bg-gray-100 border'
+                          }`}
+                        >
+                          <span>{obj.label}</span>
+                          <span className="text-xs opacity-75">{obj.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Seleziona uno o più obiettivi. Influenzeranno le CTA generate dall'AI.</p>
                   </div>
                 </div>
               </section>
