@@ -15,6 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Sovrascrive il default route('login') — questa è un'API pura, nessuna route login
+        $middleware->redirectGuestsTo(fn () => null);
+
         $middleware->alias([
             'api.key'             => \App\Http\Middleware\PublicApiAuth::class,
             'ensure.organization' => \App\Http\Middleware\EnsureOrganization::class,
