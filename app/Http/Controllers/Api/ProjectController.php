@@ -31,6 +31,7 @@ final class ProjectController extends Controller
             'id'               => $p->id,
             'brand_id'         => $p->brand_id,
             'name'             => $p->name,
+            'description'      => $p->description ?? '',
             'start_date'       => (string) $p->start_date?->format('Y-m-d'),
             'end_date'         => (string) $p->end_date?->format('Y-m-d'),
             'platforms'        => $p->platforms ?? [],
@@ -45,6 +46,8 @@ final class ProjectController extends Controller
             'competitors'      => $p->competitors ?? [],
             'special_dates'    => $p->special_dates ?? [],
             'buyer_personas'   => $p->buyer_personas,
+            'posts_count'      => $p->posts_count ?? $p->posts()->count(),
+            'created_at'       => $p->created_at?->toIso8601String(),
         ];
     }
 
@@ -54,10 +57,10 @@ final class ProjectController extends Controller
         $brandId = $request->query('brand_id');
 
         if ($brandId) {
-            $projects = $this->projectService->listByBrand((int) $brandId);
+            $projects = $this->projectService->listByBrand((int) $brandId)->loadCount('posts');
         } else {
             // Tutti i progetti dell'organizzazione (via BelongsToOrganization scope)
-            $projects = Project::all();
+            $projects = Project::withCount('posts')->get();
         }
 
         return response()->json($projects->map(fn ($p) => $this->toDict($p))->values());
