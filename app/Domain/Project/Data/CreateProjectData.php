@@ -22,22 +22,42 @@ final class CreateProjectData extends Data
         public readonly string $start_date,
         #[Required, DateFormat('Y-m-d'), AfterOrEqual('start_date')]
         public readonly string $end_date,
-        /** @var array<string> */
-        public readonly array $platforms = ['linkedin', 'instagram'],
-        /** @var array<string, int> */
-        public readonly array $posts_per_week = ['linkedin' => 3, 'instagram' => 4],
-        /** @var array<string> */
-        public readonly array $themes = [],
+        /** @var array<string>|null */
+        public readonly ?array $platforms = ['linkedin', 'instagram'],
+        /** @var array<string, int>|null */
+        public readonly ?array $posts_per_week = ['linkedin' => 3, 'instagram' => 4],
+        /** @var array<string>|null */
+        public readonly ?array $themes = null,
         public readonly Optional|string $brief = new Optional(),
-        /** @var array<string> */
-        public readonly array $reference_urls = [],
+        /** @var array<string>|null */
+        public readonly ?array $reference_urls = null,
         public readonly Optional|string $target_audience = new Optional(),
-        /** @var array<string> */
-        public readonly array $content_pillars = [],
-        /** @var array<string> */
-        public readonly array $competitors = [],
-        /** @var array<array<string, mixed>> */
-        public readonly array $special_dates = [],
+        /** @var array<string>|null */
+        public readonly ?array $content_pillars = null,
+        /** @var array<string>|null */
+        public readonly ?array $competitors = null,
+        /** @var array<array<string, mixed>>|null */
+        public readonly ?array $special_dates = null,
         public readonly Optional|string $custom_prompt = new Optional(),
     ) {}
+
+    public function toArray(): array
+    {
+        return [
+            'brand_id'        => $this->brand_id,
+            'name'            => $this->name,
+            'start_date'      => $this->start_date,
+            'end_date'        => $this->end_date,
+            'platforms'       => $this->platforms       ?? ['linkedin', 'instagram'],
+            'posts_per_week'  => $this->posts_per_week  ?? ['linkedin' => 3, 'instagram' => 4],
+            'themes'          => $this->themes          ?? [],
+            'brief'           => $this->brief instanceof Optional ? null : $this->brief,
+            'reference_urls'  => $this->reference_urls  ?? [],
+            'target_audience' => $this->target_audience instanceof Optional ? null : $this->target_audience,
+            'content_pillars' => $this->content_pillars ?? [],
+            'competitors'     => $this->competitors      ?? [],
+            'special_dates'   => $this->special_dates   ?? [],
+            'custom_prompt'   => $this->custom_prompt instanceof Optional ? null : $this->custom_prompt,
+        ];
+    }
 }
