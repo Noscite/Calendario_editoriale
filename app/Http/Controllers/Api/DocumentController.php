@@ -14,6 +14,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
+
 /**
  * Upload e gestione documenti brand — corrisponde a documents.py (Python).
  */
@@ -51,7 +52,7 @@ final class DocumentController extends Controller
             'original_filename'   => $file->getClientOriginalName(),
             'file_type'           => $ext,
             'file_size'           => $file->getSize(),
-            'file_path'           => storage_path("app/{$path}"),
+            'file_path'           => Storage::disk('local')->path($path),
             'description'         => $request->input('description'),
             'uploaded_by_user_id' => $request->user()->id,
         ]);
