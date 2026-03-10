@@ -47,8 +47,8 @@ use App\Domain\User\Services\UserService;
 use App\Domain\Subscription\Services\BillingService;
 use App\Domain\Subscription\Services\UsageTracker;
 
-// ── AI Service Stub Implementations ────────────────────────────
-use App\Domain\Generation\Services\StubContentGenerator;
+// ── AI Service Implementations ──────────────────────────────────
+use App\Domain\Generation\Services\ClaudeContentGenerator;
 use App\Domain\Generation\Services\StubImageGenerator;
 use App\Domain\Generation\Services\StubTrendResearcher;
 
@@ -102,7 +102,7 @@ final class DomainServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     private array $aiServices = [
-        ContentGeneratorInterface::class  => StubContentGenerator::class,
+        ContentGeneratorInterface::class  => ClaudeContentGenerator::class,
         ImageGeneratorInterface::class    => StubImageGenerator::class,
         TrendResearcherInterface::class   => StubTrendResearcher::class,
     ];
