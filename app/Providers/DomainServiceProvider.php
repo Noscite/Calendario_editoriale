@@ -49,8 +49,8 @@ use App\Domain\Subscription\Services\UsageTracker;
 
 // ── AI Service Implementations ──────────────────────────────────
 use App\Domain\Generation\Services\ClaudeContentGenerator;
-use App\Domain\Generation\Services\StubImageGenerator;
-use App\Domain\Generation\Services\StubTrendResearcher;
+use App\Domain\Generation\Services\DalleImageGenerator;
+use App\Domain\Generation\Services\PerplexityTrendResearcher;
 
 /**
  * Registra tutti i binding Domain: Repository e Service.
@@ -103,8 +103,8 @@ final class DomainServiceProvider extends ServiceProvider
      */
     private array $aiServices = [
         ContentGeneratorInterface::class  => ClaudeContentGenerator::class,
-        ImageGeneratorInterface::class    => StubImageGenerator::class,
-        TrendResearcherInterface::class   => StubTrendResearcher::class,
+        ImageGeneratorInterface::class    => DalleImageGenerator::class,
+        TrendResearcherInterface::class   => PerplexityTrendResearcher::class,
     ];
 
     // ────────────────────────────────────────────────────────────

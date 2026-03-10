@@ -151,8 +151,6 @@ final class DocumentController extends Controller
 
         $limit = $data['limit'] ?? 5;
 
-        // TODO: Semantic search tramite RAG service (embeddings)
-        // Per ora restituisce ricerca full-text semplice
         $chunks = DocumentChunk::where('brand_id', $brandId)
             ->where('content', 'ilike', "%{$data['query']}%")
             ->limit($limit)

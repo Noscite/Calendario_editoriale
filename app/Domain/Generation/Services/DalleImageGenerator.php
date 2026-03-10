@@ -105,7 +105,9 @@ final class DalleImageGenerator implements ImageGeneratorInterface
         $post->update(['image_url' => $savedPath]);
 
         // Usage tracking
-        $this->trackUsage($brand->organization_id, 1, $promptTokens);
+        if ($brand) {
+            $this->trackUsage($brand->organization_id, 1, $promptTokens);
+        }
 
         return $savedPath;
     }
@@ -192,7 +194,7 @@ final class DalleImageGenerator implements ImageGeneratorInterface
         }
 
         // Usage tracking
-        if (! empty($generatedImages)) {
+        if (! empty($generatedImages) && $brand) {
             $this->trackUsage($brand->organization_id, count($generatedImages), 0);
         }
 
@@ -522,22 +524,22 @@ PROMPT;
     {
         $suffixPart = $suffix ? "_{$suffix}" : '';
         $filename   = "{$postId}{$suffixPart}_" . Str::random(8) . '.png';
-        $storagePath = "public/posts/{$filename}";
+        $disk = Storage::disk('public');
 
         // Assicurati che la directory esista
-        Storage::makeDirectory('public/posts');
+        $disk->makeDirectory('posts');
 
         if (str_starts_with($imageData, 'data:image')) {
             // Base64 da gpt-image-1
             $base64 = explode(',', $imageData, 2)[1] ?? '';
-            Storage::put($storagePath, base64_decode($base64));
+            $disk->put("posts/{$filename}", base64_decode($base64));
         } else {
             // URL da DALL-E 3 — scarica
             try {
                 $response = Http::timeout(30)->get($imageData);
 
                 if ($response->successful()) {
-                    Storage::put($storagePath, $response->body());
+                    $disk->put("posts/{$filename}", $response->body());
                 } else {
                     // Fallback: salva URL come riferimento
                     return $imageData;

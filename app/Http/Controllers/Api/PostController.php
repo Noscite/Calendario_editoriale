@@ -365,7 +365,7 @@ final class PostController extends Controller
         $filename  = "{$id}_" . Str::random(8) . ".{$ext}";
 
         $file->storeAs('posts', $filename, 'public');
-        $mediaUrl = "/uploads/posts/{$filename}";
+        $mediaUrl = "/storage/posts/{$filename}";
 
         $post->image_url  = $mediaUrl;
         $post->media_type = $mediaType;
@@ -391,7 +391,7 @@ final class PostController extends Controller
         $filename = "{$id}_" . Str::random(8) . ".{$ext}";
 
         $file->storeAs('posts', $filename, 'public');
-        $imageUrl = "/uploads/posts/{$filename}";
+        $imageUrl = "/storage/posts/{$filename}";
 
         $post->image_url  = $imageUrl;
         $post->media_type = 'image';
@@ -414,6 +414,10 @@ final class PostController extends Controller
 
         $result = $this->imageGenerator->generateCarouselImages($id, $data);
 
+        if (empty($result['images'])) {
+            return response()->json(['detail' => 'Generazione immagine fallita. Riprova tra qualche secondo.'], 500);
+        }
+
         return response()->json($result);
     }
 
@@ -427,10 +431,27 @@ final class PostController extends Controller
     // POST /api/posts/{id}/publish
     public function publish(int $id, Request $request): JsonResponse
     {
-        // TODO: implementare pubblicazione immediata
+        $post = $this->postService->getById($id);
+
+        $data = $request->validate([
+            'connection_id' => 'nullable|integer',
+        ]);
+
+        $post->update([
+            'publication_status' => 'pending',
+            'scheduled_for'      => now(),
+        ]);
+
+        \App\Domain\Social\Jobs\PublishPostJob::dispatch(
+            $id,
+            $data['connection_id'] ?? null,
+        );
+
         return response()->json([
             'success' => true,
-            'message' => "Pubblicazione del post {$id} non ancora implementata",
+            'message' => 'Pubblicazione avviata',
+            'post_id' => $id,
+            'status'  => 'pending',
         ]);
     }
 }

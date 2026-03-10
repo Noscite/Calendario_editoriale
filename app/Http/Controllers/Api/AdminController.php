@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Organization\Models\ActivityLog;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
@@ -260,9 +261,30 @@ final class AdminController extends Controller
     {
         $currentUser = $this->requireAdmin($request);
 
-        // TODO: Implementare ActivityLog model quando verrà creata la migration
-        // Per ora restituisce array vuoto
-        return response()->json([]);
+        $query = ActivityLog::with('user')
+            ->orderByDesc('created_at')
+            ->limit(100);
+
+        if ($currentUser->role !== 'superuser') {
+            $query->where('organization_id', $currentUser->organization_id);
+        } elseif ($request->query('organization_id')) {
+            $query->where('organization_id', $request->query('organization_id'));
+        }
+
+        $logs = $query->get()->map(fn ($log) => [
+            'id'           => $log->id,
+            'user_id'      => $log->user_id,
+            'username'     => $log->user?->name ?? $log->user?->email ?? 'system',
+            'action'       => $log->action,
+            'entity_type'  => $log->entity_type,
+            'entity_id'    => $log->entity_id,
+            'entity_name'  => $log->entity_name,
+            'details'      => $log->details,
+            'ip_address'   => $log->ip_address,
+            'created_at'   => $log->created_at?->toIso8601String(),
+        ]);
+
+        return response()->json($logs);
     }
 
     // ─── Stats ─────────────────────────────────────────────────
