@@ -72,7 +72,20 @@ return [
     */
 
     'anthropic' => [
-        'api_key' => env('ANTHROPIC_API_KEY'),
+        'api_key'             => env('ANTHROPIC_API_KEY'),
+        'requests_per_minute' => env('ANTHROPIC_REQUESTS_PER_MINUTE', 50),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Stripe
+    |--------------------------------------------------------------------------
+    */
+
+    'stripe' => [
+        'key'            => env('STRIPE_KEY'),
+        'secret'         => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
     'openai' => [

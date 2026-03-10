@@ -21,9 +21,12 @@ use Illuminate\Support\Facades\Log;
  * Viene eseguito ogni minuto via Laravel Scheduler.
  *
  * Logica:
- * 1. Trova post con scheduled_date = oggi E scheduled_time (HH:MM) = ora corrente
- * 2. Filtra per publication_status IN (scheduled, pending)
- * 3. Per ogni post trovato, dispatcha un PublishPostJob
+ * 1. Trova post con scheduled_date = oggi E scheduled_time (HH:MM) in finestra ±2 min
+ * 2. Filtra per publication_status IN (scheduled)
+ * 3. Per ogni post trovato:
+ *    - Applica lock ottimistico impostando publication_status = 'publishing'
+ *      (evita doppia pubblicazione con più worker paralleli)
+ *    - Dispatcha un PublishPostJob
  *
  * Registrare in routes/console.php:
  *   Schedule::job(new PublishScheduledPostsJob)->everyMinute();
@@ -37,26 +40,38 @@ class PublishScheduledPostsJob implements ShouldQueue
 
     public function handle(): void
     {
-        $currentDate = now()->toDateString();
-        $currentTime = now()->format('H:i');
+        $currentDate  = now()->toDateString();
+        $windowStart  = now()->subMinutes(2)->format('H:i');
+        $windowEnd    = now()->addMinutes(2)->format('H:i');
 
-        Log::info("Scheduler check: {$currentDate} {$currentTime}");
+        Log::info("Scheduler check: {$currentDate} finestra [{$windowStart} - {$windowEnd}]");
 
-        // Trova post da pubblicare (replica esatta della query Python)
-        // Confronta solo HH:MM (ignora secondi se presenti nel campo scheduled_time)
+        // Trova post da pubblicare con finestra temporale ±2 minuti.
+        // Usa SUBSTRING per confrontare solo HH:MM (ignora secondi nel campo scheduled_time).
         $posts = Post::where('scheduled_date', $currentDate)
-            ->where(DB::raw("SUBSTRING(scheduled_time, 1, 5)"), $currentTime)
-            ->whereIn('publication_status', [
-                PublicationStatus::Scheduled,
-                'scheduled',
-                'pending',
-            ])
+            ->whereBetween(
+                DB::raw("SUBSTRING(scheduled_time, 1, 5)"),
+                [$windowStart, $windowEnd]
+            )
+            ->where('publication_status', PublicationStatus::Scheduled)
             ->get();
 
-        Log::info("Found {$posts->count()} posts to publish");
+        Log::info("Scheduler: trovati {$posts->count()} post da pubblicare");
 
         foreach ($posts as $post) {
-            // Dispatcha un job separato per ogni post (isolamento errori)
+            // Lock ottimistico: aggiorna a 'publishing' solo se ancora 'scheduled'.
+            // updateOrFail lancerebbe eccezione, usiamo update() con where() per sicurezza.
+            $locked = Post::where('id', $post->id)
+                ->where('publication_status', PublicationStatus::Scheduled)
+                ->update(['publication_status' => PublicationStatus::Publishing]);
+
+            if ($locked === 0) {
+                // Un altro worker ha già preso in carico questo post — saltiamo.
+                Log::info("Scheduler: post {$post->id} già in elaborazione da altro worker, skippato");
+                continue;
+            }
+
+            Log::info("Scheduler: dispatch PublishPostJob per post {$post->id}");
             PublishPostJob::dispatch($post->id);
         }
     }

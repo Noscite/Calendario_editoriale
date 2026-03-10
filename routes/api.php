@@ -16,6 +16,7 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\ApiKeyController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\StripeWebhookController;
 use App\Http\Controllers\Api\AzureAuthController;
 use App\Http\Controllers\Api\BrandController;
 use App\Http\Controllers\Api\DocumentController;
@@ -36,6 +37,13 @@ use App\Http\Controllers\PublicApi\OpenApiController;
 use App\Http\Controllers\PublicApi\PostApiController;
 use App\Http\Controllers\PublicApi\ProjectApiController;
 use Illuminate\Support\Facades\Route;
+
+// ═══════════════════════════════════════════════════════════════
+// STRIPE WEBHOOK — /api/webhooks/stripe  (no auth, no CSRF)
+// ═══════════════════════════════════════════════════════════════
+
+Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle'])
+    ->withoutMiddleware(['auth:sanctum', \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 // ═══════════════════════════════════════════════════════════════
 // HEALTH — /api/health
@@ -127,6 +135,9 @@ Route::prefix('social')->group(function () {
     Route::get('/callback/instagram', [SocialController::class, 'callbackInstagram']);
     Route::get('/callback/linkedin', [SocialController::class, 'callbackLinkedin']);
     Route::get('/callback/google', [SocialController::class, 'callbackGoogle']);
+
+    // Authorize — pubblica: il token JWT è nel query string, auth gestita nel controller
+    Route::get('/authorize/{platform}', [SocialController::class, 'authorize']);
 
     // Token-based (il token dal flusso OAuth è nel path, non serve auth)
     Route::get('/facebook-pages/{token}', [SocialController::class, 'facebookPages']);
@@ -276,7 +287,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('social')->group(function () {
         Route::get('/connections/{brand_id}', [SocialController::class, 'connections']);
-        Route::get('/authorize/{platform}', [SocialController::class, 'authorize']);
         Route::delete('/disconnect/{connection_id}', [SocialController::class, 'disconnect']);
 
         // ─── SOCIAL STATS — /api/social/stats  (prefix Python: /api/social/stats)

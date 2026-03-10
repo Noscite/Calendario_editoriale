@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Social\Services;
 
+use App\Domain\Notification\Models\Notification;
 use App\Domain\Post\Enums\Platform;
 use App\Domain\Post\Enums\PublicationStatus;
 use App\Domain\Post\Models\Post;
+use App\Domain\Social\Exceptions\TokenRefreshFailedException;
 use App\Domain\Social\Models\PostPublication;
 use App\Domain\Social\Models\SocialConnection;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +21,8 @@ use Illuminate\Support\Facades\Log;
  *
  * Ruota la chiamata al publisher specifico della piattaforma,
  * aggiorna lo stato del post e crea/aggiorna il record PostPublication.
+ *
+ * Dalla FASE 1.3: chiama TokenRefreshService prima di ogni pubblicazione.
  */
 class SocialPublishService
 {
@@ -26,6 +30,8 @@ class SocialPublishService
         private readonly LinkedInPublisher $linkedInPublisher,
         private readonly FacebookPublisher $facebookPublisher,
         private readonly InstagramPublisher $instagramPublisher,
+        private readonly GoogleBusinessPublisher $googleBusinessPublisher,
+        private readonly TokenRefreshService $tokenRefreshService,
     ) {}
 
     /**
@@ -37,16 +43,36 @@ class SocialPublishService
     public function publishPost(Post $post, SocialConnection $connection): array
     {
         Log::info("Publishing post", [
-            'post_id' => $post->id,
+            'post_id'  => $post->id,
             'platform' => $connection->platform->value,
         ]);
 
+        // Aggiorna il token se in scadenza (FASE 1.3)
+        try {
+            $connection = $this->tokenRefreshService->refreshIfNeeded($connection);
+        } catch (TokenRefreshFailedException $e) {
+            Log::error("Token refresh fallito prima della pubblicazione", [
+                'post_id'  => $post->id,
+                'platform' => $connection->platform->value,
+                'error'    => $e->getMessage(),
+            ]);
+
+            $post->update([
+                'publication_status' => PublicationStatus::Failed,
+                'error_message'      => $e->getMessage(),
+            ]);
+
+            $this->notifyTokenFailure($post, $connection, $e->getMessage());
+
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+
         // Route al publisher specifico (come Python: publish_post)
         $result = match ($connection->platform) {
-            Platform::LinkedIn => $this->linkedInPublisher->publish($post, $connection),
-            Platform::Facebook => $this->facebookPublisher->publish($post, $connection),
-            Platform::Instagram => $this->instagramPublisher->publish($post, $connection),
-            default => ['success' => false, 'error' => "Piattaforma non supportata: {$connection->platform->value}"],
+            Platform::LinkedIn       => $this->linkedInPublisher->publish($post, $connection),
+            Platform::Facebook       => $this->facebookPublisher->publish($post, $connection),
+            Platform::Instagram      => $this->instagramPublisher->publish($post, $connection),
+            Platform::GoogleBusiness => $this->googleBusinessPublisher->publish($post, $connection),
         };
 
         // Aggiorna stato e crea/aggiorna PostPublication (come Python: publish_single_post)
@@ -73,20 +99,20 @@ class SocialPublishService
             // Crea o aggiorna record PostPublication (upsert come Python)
             PostPublication::updateOrCreate(
                 [
-                    'post_id' => $post->id,
+                    'post_id'             => $post->id,
                     'social_connection_id' => $connection->id,
                 ],
                 [
-                    'status' => 'published',
-                    'published_at' => now(),
+                    'status'           => 'published',
+                    'published_at'     => now(),
                     'external_post_id' => $result['external_post_id'] ?? null,
                     'external_post_url' => $result['external_post_url'] ?? null,
-                    'error_message' => null,
+                    'error_message'    => null,
                 ]
             );
 
             Log::info("Post published successfully", [
-                'post_id' => $post->id,
+                'post_id'      => $post->id,
                 'external_url' => $result['external_post_url'] ?? null,
             ]);
         } else {
@@ -98,18 +124,18 @@ class SocialPublishService
             // Crea o aggiorna record PostPublication con errore (come Python)
             PostPublication::updateOrCreate(
                 [
-                    'post_id' => $post->id,
+                    'post_id'             => $post->id,
                     'social_connection_id' => $connection->id,
                 ],
                 [
-                    'status' => 'failed',
+                    'status'        => 'failed',
                     'error_message' => $result['error'] ?? 'Unknown error',
                 ]
             );
 
             Log::error("Post publish failed", [
                 'post_id' => $post->id,
-                'error' => $result['error'] ?? 'Unknown error',
+                'error'   => $result['error'] ?? 'Unknown error',
             ]);
         }
     }
@@ -130,5 +156,37 @@ class SocialPublishService
             ->where('platform', $post->platform)
             ->where('is_active', true)
             ->first();
+    }
+
+    /**
+     * Notifica l'utente in caso di fallimento del refresh del token.
+     */
+    private function notifyTokenFailure(Post $post, SocialConnection $connection, string $error): void
+    {
+        try {
+            $project = $post->project;
+            if (!$project) {
+                return;
+            }
+
+            // Recupera l'utente che ha collegato la connessione
+            $userId = $connection->connected_by_user_id;
+            if (!$userId) {
+                return;
+            }
+
+            Notification::create([
+                'user_id'    => $userId,
+                'type'       => 'token_expired',
+                'title'      => 'Token scaduto — ' . $connection->platform->label(),
+                'message'    => "Il token OAuth per {$connection->external_account_name} è scaduto. "
+                    . "Ricollega l'account per riprendere la pubblicazione automatica.",
+                'post_id'    => $post->id,
+                'project_id' => $project->id,
+                'brand_id'   => $project->brand_id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning("Impossibile creare notifica token failure", ['error' => $e->getMessage()]);
+        }
     }
 }
