@@ -45,15 +45,22 @@ final class PromptBuilder
         array   $buyerPersonas,
         array   $contentMixData,
     ): string {
-        $schedulingInfo  = $this->formatSchedulingFromPersonas($buyerPersonas, $platforms);
-        $contentMixInfo  = !empty($contentMixData)
+        $schedulingInfo   = $this->formatSchedulingFromPersonas($buyerPersonas, $platforms);
+        $contentMixInfo   = !empty($contentMixData)
             ? $this->formatContentMixForPrompt($contentMixData)
             : 'Usa mix standard: 60% post, 25% stories, 15% reel (dove supportati)';
-        $personasText    = $this->formatPersonasForPrompt($buyerPersonas);
-        $platformsList   = implode(', ', $platforms);
+        $personasText     = $this->formatPersonasForPrompt($buyerPersonas);
+        $platformsList    = implode(', ', $platforms);
         $postsPerWeekJson = json_encode($postsPerWeek, JSON_UNESCAPED_UNICODE);
-        $themesList      = !empty($themes) ? implode(', ', $themes) : 'Generici per il settore';
-        $objectivesList  = implode(', ', $projectInfo['objectives'] ?? ['brand_awareness']);
+        $themesList       = !empty($themes) ? implode(', ', $themes) : 'Generici per il settore';
+        $objectivesList   = implode(', ', $projectInfo['objectives'] ?? ['brand_awareness']);
+        $objectives       = $projectInfo['objectives'] ?? ['brand_awareness'];
+
+        $platformGuidelines = $this->buildPlatformGuidelines($platforms);
+        $ctaExamples        = $this->buildCtaExamples($objectives);
+        $styleSection       = ($styleGuide !== '')
+            ? "### Stile del brand\n{$styleGuide}\n\n"
+            : '';
 
         return <<<PROMPT
 Genera contenuti per il calendario editoriale.
@@ -74,6 +81,25 @@ Valori: {$this->arrJson($brandInfo, 'brand_values', '[]')}
 ## BUYER PERSONAS
 {$personasText}
 
+## STRATEGIA CONTENUTI PER PERSONAS
+Per ogni post, considera quale persona stai indirizzando e adatta:
+
+- LINGUAGGIO: usa termini e riferimenti familiari alla persona target
+  (un responsabile acquisti parla di "ROI e TCO", un artigiano parla di
+  "qualità del lavoro" e "clienti soddisfatti")
+
+- PAIN POINT: ogni post deve toccare almeno uno dei pain points della persona
+  o offrire una soluzione concreta a un suo problema reale
+
+- LIVELLO DI CONSAPEVOLEZZA:
+  - Se la persona è "problem aware" → contenuto educativo/informativo
+  - Se è "solution aware" → contenuto comparativo/differenziante
+  - Se è "product aware" → contenuto social proof/offerta
+
+- TONO: adatta il registro in base alla persona
+  (formale per B2B executive, diretto per artigiani/PMI operative,
+  ispirazionale per settori creativi/moda/food)
+
 ## SCHEDULING OTTIMALE (basato sulle personas)
 {$schedulingInfo}
 
@@ -89,17 +115,37 @@ Brief: {$this->arr($projectInfo, 'brief', 'N/A')}
 Obiettivi: {$objectivesList}
 
 ## CALL TO ACTION
-Genera una CTA specifica e coinvolgente per OGNI post basandoti sugli obiettivi del progetto:
-- Per **lead_generation**: invita a scaricare risorse, prenotare call, richiedere preventivi, iscriversi
-- Per **brand_awareness**: invita a seguire, condividere, taggare altri
-- Per **engagement**: stimola commenti, risposte, interazioni, opinioni
-- Per **sales**: spingi all'acquisto, offerte, promozioni
-- Per **traffic**: rimanda al sito, blog, link in bio
+La CTA è obbligatoria per ogni post. Deve essere:
+- Specifica (non "scopri di più" generico, ma "prenota la tua consulenza gratuita")
+- Contestuale al contenuto del post (deve sembrare naturale, non appiccicata)
+- Adatta alla piattaforma (vedi regole per piattaforma)
+- Coerente con l'obiettivo del progetto
 
-IMPORTANTE: Il campo "call_to_action" è OBBLIGATORIO per ogni post. La CTA deve essere naturale, contestuale al contenuto e coerente con l'obiettivo
+{$ctaExamples}
+
+IMPORTANTE: Il campo "call_to_action" è OBBLIGATORIO per ogni post. Non usare mai
+CTA vaghe come "clicca qui", "visita il sito", "scopri di più" senza specificare
+cosa troverà l'utente.
 
 ## LINEE GUIDA
-{$styleGuide}
+{$styleSection}{$platformGuidelines}
+## STRATEGIA HASHTAG
+- Usa il MIX 1/3 rule:
+  1/3 hashtag brand/settore specifici (alta rilevanza, basso volume)
+  1/3 hashtag di nicchia (medio volume, buona rilevanza)
+  1/3 hashtag trending pertinenti (alto volume, visibilità)
+
+- MAI hashtag in italiano generico (#marketing, #lavoro, #azienda)
+  se esiste una versione più specifica (#marketingdigitale, #PMI, #imprenditoria)
+
+- Per LinkedIn: privilegia hashtag settoriali italiani e internazionali
+  (#Manifatturiero, #SupplyChain, #B2BMarketing)
+
+- Per Instagram: mix italiano/inglese, hashtag visivi se il contenuto è fotografico
+  (#MadeInItaly, #ArtigianatoItaliano solo se genuinamente pertinente)
+
+- NON ripetere gli stessi hashtag in ogni post — variali per non sembrare bot
+- Per Google Business Profile: NON usare hashtag (non supportati)
 
 ## FORMATI CONTENUTO DISPONIBILI
 - **post**: Contenuto standard (immagine + testo). Per tutti i canali.
@@ -114,6 +160,16 @@ IMPORTANTE: Il campo "call_to_action" è OBBLIGATORIO per ogni post. La CTA deve
 5. Per STORY: testo breve, call-to-action diretta, emoji, interattività (sondaggi, domande)
 6. Per REEL: testo brevissimo (hook iniziale), descrizione video, hashtag trending
 7. Ogni contenuto deve avere: platform, scheduled_date, scheduled_time, content, hashtags, content_type (post/story/reel), post_type, pillar, visual_suggestion, call_to_action
+8. STRUTTURA DEL TESTO — framework AIDA adattato per piattaforma:
+   - Attention:  prima frase/riga — cattura l'attenzione con un hook
+                 (domanda, dato sorprendente, affermazione bold, problema noto)
+   - Interest:   sviluppa con valore reale (insight, consiglio, dato)
+   - Desire:     collega il contenuto al beneficio concreto per il lettore
+   - Action:     CTA specifica e contestuale (vedi sezione CALL TO ACTION)
+
+   Per INSTAGRAM/FACEBOOK: AIDA compressa, hook visibile sopra il fold
+   Per LINKEDIN:           AIDA espansa, hook + sviluppo argomentato
+   Per GBP:                Solo Attention + Action (testo breve e diretto)
 
 ## FORMATO OUTPUT (JSON array)
 [
@@ -126,7 +182,8 @@ IMPORTANTE: Il campo "call_to_action" è OBBLIGATORIO per ogni post. La CTA deve
     "content_type": "post",
     "post_type": "educational",
     "pillar": "thought leadership",
-    "visual_suggestion": "Carousel con 5 slide infografiche"
+    "visual_suggestion": "Carousel con 5 slide infografiche",
+    "call_to_action": "Testo della CTA"
   }
 ]
 
@@ -238,6 +295,17 @@ Tono di voce: {$toneOfVoice}
 
 ## ISTRUZIONI UTENTE
 {$userPrompt}
+
+## TIPI DI HOOK (varia rispetto al post originale)
+Scegli un tipo di hook DIVERSO da quello del post originale:
+
+- Domanda diretta:      "Sai quante PMI italiane non hanno ancora..."
+- Dato sorprendente:    "Il 73% delle aziende fa ancora questo errore..."
+- Affermazione bold:    "Il marketing sui social è sopravvalutato. Eccetto quando..."
+- Storia/scenario:      "Immagina di aprire LinkedIn e trovare..."
+- Problema condiviso:   "Anche tu perdi ore ogni settimana su..."
+- Contro-intuizione:    "Meno post, più risultati. Ecco perché..."
+- Lista numerata:       "3 cose che nessuno ti dice sul content marketing..."
 
 ## LINEE GUIDA
 {$styleGuideText}
@@ -419,7 +487,7 @@ PROMPT;
         string $brandColors = '',
         string $visualSuggestion = '',
     ): string {
-        $colorsText    = $this->str($brandColors, 'Non specificati');
+        $colorsText     = $this->str($brandColors, 'Non specificati');
         $suggestionText = $this->str($visualSuggestion, 'Non specificato');
 
         return <<<PROMPT
@@ -547,6 +615,122 @@ PROMPT;
     // ──────────────────────────────────────────────────────────
     //  Helpers privati
     // ──────────────────────────────────────────────────────────
+
+    /**
+     * Genera la sezione "REGOLE PER PIATTAFORMA" mostrando solo le piattaforme
+     * effettivamente attive nel progetto.
+     */
+    private function buildPlatformGuidelines(array $platforms): string
+    {
+        $rules = [];
+
+        if (in_array('instagram', $platforms, true)) {
+            $rules[] = <<<'RULE'
+### INSTAGRAM
+- Testo: 138-150 caratteri per massimo engagement (non oltre 2200)
+- Caption: inizia con un hook forte nelle prime 2 righe (visibili senza "altro")
+- Hashtag: 5-10 hashtag, mix brand + niche + trending, mai inseriti nel corpo del testo
+- Emoji: usale strategicamente per spezzare il testo, max 3-5
+- CTA: sempre in ultima riga, separata da una riga vuota
+- Reel: prima frase = hook entro 3 secondi, testo brevissimo
+- Story: max 2 righe di testo, domanda o sondaggio quando possibile
+RULE;
+        }
+
+        if (in_array('linkedin', $platforms, true)) {
+            $rules[] = <<<'RULE'
+### LINKEDIN
+- Testo: 1300 caratteri ideali per post organico (max 3000)
+- Struttura: hook (1-2 righe) → problema/insight → sviluppo → CTA
+- Tono: professionale ma umano, prima persona quando possibile
+- Hashtag: max 3-5, solo hashtag di settore rilevanti
+- Emoji: usarle con parsimonia, solo come separatori visivi
+- No gergo troppo tecnico: il target sono decision maker, non tecnici
+- CTA: domanda aperta per stimolare commenti preferita a link esterni
+RULE;
+        }
+
+        if (in_array('facebook', $platforms, true)) {
+            $rules[] = <<<'RULE'
+### FACEBOOK
+- Testo: 40-80 caratteri per post con immagine, fino a 400 per post solo testo
+- Tono: più informale rispetto a LinkedIn, conversazionale
+- CTA: diretta e visibile, invita alla condivisione
+- Hashtag: max 2-3, non indispensabili su Facebook
+- Video/Reel: descrizione breve, i primi 3 secondi sono cruciali
+RULE;
+        }
+
+        if (in_array('google_business', $platforms, true)) {
+            $rules[] = <<<'RULE'
+### GOOGLE BUSINESS PROFILE
+- Testo: max 1500 caratteri, ideale 150-300
+- Tono: locale, concreto, orientato all'azione immediata
+- Includi sempre un riferimento geografico o contestuale se pertinente
+- CTA: "Chiama ora", "Prenota", "Scopri di più", "Vieni a trovarci"
+- Hashtag: NON usare (non supportati su GBP)
+- Aggiorna con offerte, eventi, novità concrete — non contenuti generici
+RULE;
+        }
+
+        if (empty($rules)) {
+            return '';
+        }
+
+        return "## REGOLE PER PIATTAFORMA\n" . implode("\n\n", $rules) . "\n\n";
+    }
+
+    /**
+     * Genera esempi di CTA calibrati sugli obiettivi del progetto.
+     * Mostra solo gli obiettivi attivi.
+     */
+    private function buildCtaExamples(array $objectives): string
+    {
+        $allExamples = [
+            'lead_generation' => <<<'CTA'
+Esempi per lead_generation:
+- "Prenota una call gratuita → link in bio"
+- "Scarica la guida gratuita, link nei commenti"
+- "Rispondimi in DM con 'INFO' per ricevere i dettagli"
+CTA,
+            'brand_awareness' => <<<'CTA'
+Esempi per brand_awareness:
+- "Tagga un collega che deve leggere questo"
+- "Salva questo post per rileggerlo con calma"
+- "Sei d'accordo? Dimmi la tua nei commenti"
+CTA,
+            'engagement' => <<<'CTA'
+Esempi per engagement:
+- "Tu come gestiresti questa situazione?"
+- "Cosa ne pensi? ⬇️"
+- "Vota nelle stories: A o B?"
+CTA,
+            'sales' => <<<'CTA'
+Esempi per sales:
+- "Solo per questa settimana — link in bio"
+- "Scrivici per il preventivo personalizzato"
+- "Disponibilità limitata — contattaci oggi"
+CTA,
+            'traffic' => <<<'CTA'
+Esempi per traffic:
+- "Articolo completo sul blog → link in bio"
+- "Tutti i dettagli su [sito] — link nei commenti"
+CTA,
+        ];
+
+        $lines = [];
+        foreach ($objectives as $obj) {
+            if (isset($allExamples[$obj])) {
+                $lines[] = $allExamples[$obj];
+            }
+        }
+
+        if (empty($lines)) {
+            $lines[] = $allExamples['brand_awareness'];
+        }
+
+        return implode("\n\n", $lines);
+    }
 
     /**
      * Formatta le buyer personas per inserirle nel prompt batch.
