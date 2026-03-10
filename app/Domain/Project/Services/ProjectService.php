@@ -82,6 +82,9 @@ final class ProjectService implements ProjectServiceInterface
     {
         $project = $this->projectRepository->findOrFail($projectId);
 
+        // Elimina prima i post (FK constraint posts_project_id_fkey)
+        $project->posts()->delete();
+
         $this->projectRepository->delete($project);
     }
 
