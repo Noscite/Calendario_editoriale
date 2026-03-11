@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+:root {
+  --noscite-teal: #3DAFA8;
+  --noscite-terracotta: #E89548;
+  --noscite-dark: #2C3E50;
+}

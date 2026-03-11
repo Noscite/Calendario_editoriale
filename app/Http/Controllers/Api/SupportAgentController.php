@@ -156,7 +156,7 @@ final class SupportAgentController extends Controller
         string $articlesContext,
     ): string {
         return <<<PROMPT
-Sei Aria, l'assistente virtuale di Noscite Calendar.
+Sei Kalen, l'assistente virtuale di Noscite Calendar.
 
 Noscite Calendar è una piattaforma italiana che aiuta le PMI a creare
 e pubblicare automaticamente calendari editoriali sui social media,
