@@ -47,8 +47,10 @@ use App\Domain\Organization\Models\ApiKey;
  */
 function createPlan(array $overrides = []): Plan
 {
-    return Plan::create(array_merge([
-        'name' => 'test',
+    $name = $overrides['name'] ?? 'test';
+
+    return Plan::firstOrCreate(['name' => $name], array_merge([
+        'name' => $name,
         'display_name' => 'Test Plan',
         'price_monthly' => 29.00,
         'price_yearly' => 290.00,
@@ -107,7 +109,8 @@ function createBrand(Organization $org, array $overrides = []): Brand
  */
 function createProject(Brand $brand, array $overrides = []): Project
 {
-    return Project::create(array_merge([
+    return Project::withoutGlobalScope('organization')->create(array_merge([
+        'organization_id' => $brand->organization_id,
         'brand_id' => $brand->id,
         'name' => 'Test Project',
         'start_date' => now()->toDateString(),
@@ -122,7 +125,8 @@ function createProject(Brand $brand, array $overrides = []): Project
  */
 function createPost(Project $project, array $overrides = []): Post
 {
-    return Post::create(array_merge([
+    return Post::withoutGlobalScope('organization')->create(array_merge([
+        'organization_id' => $project->organization_id,
         'project_id' => $project->id,
         'platform' => 'instagram',
         'scheduled_date' => now()->addDays(3)->toDateString(),

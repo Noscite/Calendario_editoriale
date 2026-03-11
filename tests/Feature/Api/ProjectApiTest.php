@@ -129,6 +129,93 @@ describe('DELETE /api/projects/{id}', function () {
         $response->assertOk()
             ->assertJson(['message' => 'Project deleted successfully']);
 
-        expect(Project::find($project->id))->toBeNull();
+        expect(Project::withoutGlobalScope('organization')->find($project->id))->toBeNull();
+    });
+});
+
+// ── Cross-tenant isolation ──────────────────────────────────────
+
+describe('Cross-tenant isolation', function () {
+    it('cannot read a project from another organization', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brand = createBrand($orgA);
+        $project = createProject($brand);
+
+        // User B tries to access User A's project → 404
+        $response = $this->actingAs($userB)->getJson("/api/projects/{$project->id}");
+        $response->assertNotFound();
+    });
+
+    it('cannot update a project from another organization', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brand = createBrand($orgA);
+        $project = createProject($brand);
+
+        $response = $this->actingAs($userB)->putJson("/api/projects/{$project->id}", [
+            'name' => 'Hacked',
+        ]);
+        $response->assertNotFound();
+    });
+
+    it('cannot delete a project from another organization', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brand = createBrand($orgA);
+        $project = createProject($brand);
+
+        $response = $this->actingAs($userB)->deleteJson("/api/projects/{$project->id}");
+        $response->assertNotFound();
+
+        // Verify project still exists
+        expect(Project::withoutGlobalScope('organization')->find($project->id))->not->toBeNull();
+    });
+
+    it('lists only own organization projects', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brandA = createBrand($orgA);
+        $brandB = createBrand($orgB, ['name' => 'Brand B']);
+        createProject($brandA, ['name' => 'Project A']);
+        createProject($brandB, ['name' => 'Project B']);
+
+        $responseA = $this->actingAs($userA)->getJson('/api/projects');
+        $responseA->assertOk();
+        expect($responseA->json())->toHaveCount(1);
+        expect($responseA->json('0.name'))->toBe('Project A');
+
+        $responseB = $this->actingAs($userB)->getJson('/api/projects');
+        $responseB->assertOk();
+        expect($responseB->json())->toHaveCount(1);
+        expect($responseB->json('0.name'))->toBe('Project B');
     });
 });

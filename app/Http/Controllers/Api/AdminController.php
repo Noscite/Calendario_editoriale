@@ -296,12 +296,12 @@ final class AdminController extends Controller
         $orgFilter   = $request->query('organization_id');
 
         if ($currentUser->role === 'superuser' && ! $orgFilter) {
-            // Totali globali
+            // Totali globali — bypass tenant scope
             return response()->json([
                 'users'         => User::where('is_active', true)->count(),
-                'brands'        => Brand::count(),
-                'projects'      => Project::count(),
-                'posts'         => Post::count(),
+                'brands'        => Brand::withoutGlobalScope('organization')->count(),
+                'projects'      => Project::withoutGlobalScope('organization')->count(),
+                'posts'         => Post::withoutGlobalScope('organization')->count(),
                 'organizations' => Organization::count(),
             ]);
         }
@@ -311,9 +311,9 @@ final class AdminController extends Controller
             : $currentUser->organization_id;
 
         $usersCount    = User::where('organization_id', $orgId)->where('is_active', true)->count();
-        $brandsCount   = Brand::where('organization_id', $orgId)->count();
-        $projectsCount = Project::whereHas('brand', fn ($q) => $q->where('organization_id', $orgId))->count();
-        $postsCount    = Post::whereHas('project.brand', fn ($q) => $q->where('organization_id', $orgId))->count();
+        $brandsCount   = Brand::withoutGlobalScope('organization')->where('organization_id', $orgId)->count();
+        $projectsCount = Project::withoutGlobalScope('organization')->where('organization_id', $orgId)->count();
+        $postsCount    = Post::withoutGlobalScope('organization')->where('organization_id', $orgId)->count();
 
         return response()->json([
             'users'    => $usersCount,

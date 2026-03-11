@@ -68,6 +68,9 @@ final class PostController extends Controller
     // GET /api/posts/project/{project_id}
     public function byProject(int $projectId): JsonResponse
     {
+        // Project ha BelongsToOrganization → 404 se non appartiene all'org dell'utente
+        \App\Domain\Project\Models\Project::findOrFail($projectId);
+
         $posts = $this->postService->listByProject($projectId);
 
         return response()->json($posts->map(fn ($p) => $this->toResponse($p))->values());

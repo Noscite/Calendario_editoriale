@@ -192,3 +192,111 @@ describe('POST /api/posts/check-overlap/{project_id}', function () {
             ->assertJsonFragment(['has_overlap' => false]);
     });
 });
+
+// ── Cross-tenant isolation ──────────────────────────────────────
+
+describe('Cross-tenant isolation', function () {
+    it('cannot read a post from another organization', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brand = createBrand($orgA);
+        $project = createProject($brand);
+        $post = createPost($project, ['content' => 'Secret post']);
+
+        // User B tries to access User A's post → 404
+        $response = $this->actingAs($userB)->getJson("/api/posts/{$post->id}");
+        $response->assertNotFound();
+    });
+
+    it('cannot update a post from another organization', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brand = createBrand($orgA);
+        $project = createProject($brand);
+        $post = createPost($project);
+
+        $response = $this->actingAs($userB)->putJson("/api/posts/{$post->id}", [
+            'content' => 'Hacked content',
+        ]);
+        $response->assertNotFound();
+    });
+
+    it('cannot delete a post from another organization', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brand = createBrand($orgA);
+        $project = createProject($brand);
+        $post = createPost($project);
+
+        $response = $this->actingAs($userB)->deleteJson("/api/posts/{$post->id}");
+        $response->assertNotFound();
+
+        // Verify post still exists
+        expect(Post::withoutGlobalScope('organization')->find($post->id))->not->toBeNull();
+    });
+
+    it('cannot batch-delete posts from another organization', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brand = createBrand($orgA);
+        $project = createProject($brand);
+        $post = createPost($project);
+
+        $response = $this->actingAs($userB)->postJson('/api/posts/batch-delete', [
+            'post_ids' => [$post->id],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonFragment(['deleted_count' => 0]);
+
+        // Post still exists
+        expect(Post::withoutGlobalScope('organization')->find($post->id))->not->toBeNull();
+    });
+
+    it('lists only own organization posts for a project', function () {
+        [$userA, $orgA] = createAuthenticatedUser();
+        [$userB, $orgB] = createAuthenticatedUser([
+            'email' => 'userB@test.com',
+        ], [
+            'name' => 'Org B',
+            'slug' => 'org-b-' . \Illuminate\Support\Str::random(5),
+            'email' => 'orgB@test.com',
+        ]);
+
+        $brandA = createBrand($orgA);
+        $projectA = createProject($brandA);
+        createPost($projectA, ['content' => 'Post A']);
+
+        // User B tries to list posts for User A's project → 404
+        $response = $this->actingAs($userB)->getJson("/api/posts/project/{$projectA->id}");
+        $response->assertNotFound();
+    });
+});

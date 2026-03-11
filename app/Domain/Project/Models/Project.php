@@ -5,16 +5,19 @@ namespace App\Domain\Project\Models;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Enums\ProjectStatus;
+use App\Domain\Shared\Traits\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Project extends Model
 {
-    use HasFactory;
+    use BelongsToOrganization, HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'organization_id',
         'brand_id',
         'name',
         'start_date',

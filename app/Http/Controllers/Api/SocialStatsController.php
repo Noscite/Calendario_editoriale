@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Brand\Models\Brand;
+use App\Domain\Post\Models\Post;
 use App\Domain\Social\Jobs\CollectSocialMetricsJob;
 use App\Domain\Social\Models\PostPublication;
 use App\Domain\Social\Models\SocialConnection;
@@ -22,7 +24,10 @@ final class SocialStatsController extends Controller
     // GET /api/social/stats/brand/{brand_id}
     public function brandStats(int $brandId, Request $request): JsonResponse
     {
-        $connections = SocialConnection::where('brand_id', $brandId)
+        // Brand ha BelongsToOrganization → 404 automatico se non è dell'org dell'utente
+        $brand = Brand::findOrFail($brandId);
+
+        $connections = SocialConnection::where('brand_id', $brand->id)
             ->where('is_active', true)
             ->pluck('id');
 
@@ -47,7 +52,7 @@ final class SocialStatsController extends Controller
         ])->values();
 
         return response()->json([
-            'brand_id' => $brandId,
+            'brand_id' => $brand->id,
             'metrics'  => $stats,
         ]);
     }
@@ -55,7 +60,9 @@ final class SocialStatsController extends Controller
     // POST /api/social/stats/fetch/{brand_id}
     public function fetchStats(int $brandId, Request $request): JsonResponse
     {
-        $connections = SocialConnection::where('brand_id', $brandId)
+        $brand = Brand::findOrFail($brandId);
+
+        $connections = SocialConnection::where('brand_id', $brand->id)
             ->where('is_active', true)
             ->get();
 
@@ -73,7 +80,7 @@ final class SocialStatsController extends Controller
         return response()->json([
             'success'    => true,
             'message'    => "Raccolta metriche avviata per {$connections->count()} connessioni",
-            'brand_id'   => $brandId,
+            'brand_id'   => $brand->id,
             'dispatched' => $connections->count(),
         ]);
     }
@@ -81,8 +88,11 @@ final class SocialStatsController extends Controller
     // GET /api/social/stats/post/{publication_id}
     public function postStats(int $publicationId, Request $request): JsonResponse
     {
-        $publication = PostPublication::with('metrics', 'socialConnection')
+        $publication = PostPublication::with('metrics', 'socialConnection', 'post')
             ->findOrFail($publicationId);
+
+        // Verifica ownership tramite post → organizzazione (Post ha BelongsToOrganization)
+        Post::findOrFail($publication->post_id);
 
         $metric = $publication->metrics->sortByDesc('fetched_at')->first();
 

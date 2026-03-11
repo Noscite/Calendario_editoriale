@@ -7,19 +7,22 @@ use App\Domain\Post\Enums\Platform;
 use App\Domain\Post\Enums\PostStatus;
 use App\Domain\Post\Enums\PublicationStatus;
 use App\Domain\Project\Models\Project;
+use App\Domain\Shared\Traits\BelongsToOrganization;
 use App\Domain\Social\Models\PostPublication;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Post extends Model
 {
-    use HasFactory;
+    use BelongsToOrganization, HasFactory, SoftDeletes;
 
     const UPDATED_AT = null;
 
     protected $fillable = [
+        'organization_id',
         'project_id',
         'platform',
         'scheduled_date',
