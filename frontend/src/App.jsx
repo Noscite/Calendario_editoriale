@@ -28,6 +28,9 @@ import TermsOfService from './pages/TermsOfService';
 import DataDeletion from './pages/DataDeletion';
 import HelpCenterPage from './pages/HelpCenterPage';
 import HelpArticlePage from './pages/HelpArticlePage';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import AcceptInvitation from './pages/AcceptInvitation';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -54,6 +57,9 @@ function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/data-deletion" element={<DataDeletion />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/invitation/:token" element={<AcceptInvitation />} />
 
         {/* Protected routes with layout */}
         <Route

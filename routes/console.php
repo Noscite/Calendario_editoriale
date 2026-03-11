@@ -18,3 +18,7 @@ Schedule::job(new PublishScheduledPostsJob)->everyMinute();
 // ── Social Metrics ────────────────────────────────────────────────
 // Raccolta metriche da Facebook/LinkedIn ogni 6 ore
 Schedule::job(new CollectSocialMetricsJob)->everySixHours();
+
+// ── Trial Reminder ───────────────────────────────────────────────
+// Invia email di promemoria per trial in scadenza (7, 3, 1 giorno)
+Schedule::command('trial:send-reminders')->dailyAt('09:00');

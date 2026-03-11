@@ -13,9 +13,11 @@
         "laravel/reverb": "^1.7",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^2.10.1",
+        "sentry/sentry-laravel": "^4.21",
         "spatie/laravel-data": "^4.19",
         "spatie/laravel-permission": "^7.1",
-        "stancl/tenancy": "^3.9"
+        "stancl/tenancy": "^3.9",
+        "stripe/stripe-php": "^19.4"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

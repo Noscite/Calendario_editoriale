@@ -1,6 +1,7 @@
-import { HelpCircle, Search } from 'lucide-react';
+import { HelpCircle, Search, Clock } from 'lucide-react';
 import NotificationBell from '../NotificationBell';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 
 const pageTitles = {
   '/dashboard': { title: 'Dashboard', subtitle: 'Panoramica delle tue attività' },
@@ -16,6 +17,14 @@ const pageTitles = {
 
 export default function TopBar() {
   const location = useLocation();
+  const { user } = useAuthStore();
+
+  // Trial banner
+  const trialDaysLeft = (() => {
+    if (user?.subscription_status !== 'trial' || !user?.trial_ends_at) return null;
+    const diff = Math.ceil((new Date(user.trial_ends_at) - new Date()) / (1000 * 60 * 60 * 24));
+    return diff >= 0 ? diff : 0;
+  })();
   
   // Get page info, handle dynamic routes
   const getPageInfo = () => {
@@ -52,6 +61,26 @@ export default function TopBar() {
           <p className="text-sm text-gray-500">{pageInfo.subtitle}</p>
         )}
       </div>
+
+      {/* Trial Banner */}
+      {trialDaysLeft !== null && (
+        <Link
+          to="/settings"
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            trialDaysLeft <= 3
+              ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+              : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+          }`}
+        >
+          <Clock size={14} />
+          {trialDaysLeft === 0
+            ? 'Trial scade oggi!'
+            : trialDaysLeft === 1
+              ? 'Trial: 1 giorno rimanente'
+              : `Trial: ${trialDaysLeft} giorni rimanenti`}
+          <span className="ml-1 underline">Attiva il piano →</span>
+        </Link>
+      )}
 
       {/* Right: Actions */}
       <div className="flex items-center gap-3">

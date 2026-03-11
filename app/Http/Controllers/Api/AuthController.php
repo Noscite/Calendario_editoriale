@@ -7,10 +7,14 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\User\Data\ChangePasswordData;
 use App\Domain\User\Models\User;
+use App\Mail\PasswordResetMail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 /**
  * Autenticazione — corrisponde a auth.py (Python).
@@ -95,6 +99,8 @@ final class AuthController extends Controller
             'country'           => $user->country,
             'vat_number'        => $user->vat_number,
             'notes'             => $user->notes,
+            'subscription_status' => $org?->subscription_status?->value,
+            'trial_ends_at'       => $org?->trial_ends_at?->toIso8601String(),
         ]);
     }
 
@@ -134,6 +140,71 @@ final class AuthController extends Controller
         $user->save();
 
         return response()->json(['message' => 'Password cambiata con successo']);
+    }
+
+    // POST /api/auth/forgot-password
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $request->validate(['email' => 'required|email']);
+
+        $user = User::where('email', $request->input('email'))->first();
+
+        if ($user) {
+            $token = Str::random(64);
+
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $user->email],
+                ['token' => Hash::make($token), 'created_at' => now()],
+            );
+
+            Mail::to($user)->send(new PasswordResetMail($token, $user));
+        }
+
+        // Rispondi sempre 200 per non rivelare quali email sono registrate
+        return response()->json([
+            'message' => 'Se l\'email è registrata, riceverai un link a breve.',
+        ]);
+    }
+
+    // POST /api/auth/reset-password
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token'    => 'required|string',
+            'email'    => 'required|email',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $record = DB::table('password_reset_tokens')
+            ->where('email', $data['email'])
+            ->first();
+
+        if (! $record || ! Hash::check($data['token'], $record->token)) {
+            return response()->json(['detail' => 'Token non valido o scaduto.'], 400);
+        }
+
+        // Verifica scadenza (60 minuti)
+        if (now()->diffInMinutes($record->created_at) > 60) {
+            DB::table('password_reset_tokens')->where('email', $data['email'])->delete();
+            return response()->json(['detail' => 'Token scaduto. Richiedi un nuovo link.'], 400);
+        }
+
+        $user = User::where('email', $data['email'])->first();
+
+        if (! $user) {
+            return response()->json(['detail' => 'Utente non trovato.'], 404);
+        }
+
+        $user->password = Hash::make($data['password']);
+        $user->save();
+
+        // Elimina il token usato
+        DB::table('password_reset_tokens')->where('email', $data['email'])->delete();
+
+        // Revoca tutti i token Sanctum per sicurezza
+        $user->tokens()->delete();
+
+        return response()->json(['message' => 'Password reimpostata con successo.']);
     }
 
     // POST /api/auth/refresh

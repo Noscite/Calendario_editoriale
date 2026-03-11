@@ -35,7 +35,9 @@ class PublishPostJob implements ShouldQueue
     public function __construct(
         private readonly int $postId,
         private readonly ?int $connectionId = null,
-    ) {}
+    ) {
+        $this->onQueue('pubblicazione');
+    }
 
     public function handle(SocialPublishService $publishService): void
     {
@@ -75,6 +77,10 @@ class PublishPostJob implements ShouldQueue
      */
     public function failed(\Throwable $exception): void
     {
+        if (function_exists('\Sentry\captureException')) {
+            \Sentry\captureException($exception);
+        }
+
         Log::error("PublishPostJob failed permanently", [
             'post_id' => $this->postId,
             'error' => $exception->getMessage(),

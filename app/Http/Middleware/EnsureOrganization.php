@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Domain\Organization\Enums\OrganizationStatus;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -50,6 +51,19 @@ class EnsureOrganization
             return response()->json([
                 'detail' => 'Organizzazione disattivata. Contatta il supporto.',
             ], 403);
+        }
+
+        // Check trial scaduto
+        if (
+            $organization->subscription_status === OrganizationStatus::Trial
+            && $organization->trial_ends_at !== null
+            && $organization->trial_ends_at->isPast()
+        ) {
+            return response()->json([
+                'detail'      => 'Il periodo di prova è scaduto.',
+                'code'        => 'TRIAL_EXPIRED',
+                'upgrade_url' => config('services.frontend_url') . '/settings/upgrade',
+            ], 402);
         }
 
         // Rendi l'organizzazione disponibile nel request per evitare query duplicate

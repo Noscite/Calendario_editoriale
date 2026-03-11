@@ -35,7 +35,9 @@ final class ProcessDocumentJob implements ShouldQueue
 
     public function __construct(
         private readonly int $documentId,
-    ) {}
+    ) {
+        $this->onQueue('default');
+    }
 
     public function handle(): void
     {
@@ -101,6 +103,10 @@ final class ProcessDocumentJob implements ShouldQueue
 
     public function failed(?\Throwable $exception): void
     {
+        if ($exception && function_exists('\Sentry\captureException')) {
+            \Sentry\captureException($exception);
+        }
+
         Log::error("[DOC] ❌ Processing failed for {$this->documentId}: " . ($exception?->getMessage() ?? 'unknown'));
 
         try {

@@ -38,6 +38,11 @@ class PublishScheduledPostsJob implements ShouldQueue
     public int $tries = 1;
     public int $timeout = 60;
 
+    public function __construct()
+    {
+        $this->onQueue('pubblicazione');
+    }
+
     public function handle(): void
     {
         $currentDate  = now()->toDateString();

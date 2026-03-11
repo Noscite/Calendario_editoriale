@@ -41,12 +41,12 @@ final class StripeWebhookController extends Controller
 
         // Verifica firma crittografica Stripe
         try {
-            if (class_exists(\Stripe\Webhook::class) && $secret) {
-                $event = \Stripe\Webhook::constructEvent($payload, $signature, $secret);
-            } else {
-                // Fallback senza SDK Stripe (per ambienti di test)
-                $event = json_decode($payload, true);
+            if (! $secret) {
+                Log::warning('[STRIPE] STRIPE_WEBHOOK_SECRET non configurato');
+                return response('Webhook secret not configured', 500);
             }
+
+            $event = \Stripe\Webhook::constructEvent($payload, $signature, $secret);
         } catch (\UnexpectedValueException $e) {
             Log::warning('[STRIPE] Payload invalido', ['error' => $e->getMessage()]);
             return response('Invalid payload', 400);
@@ -55,8 +55,8 @@ final class StripeWebhookController extends Controller
             return response('Invalid signature', 400);
         }
 
-        $eventType = is_array($event) ? ($event['type'] ?? '') : ($event->type ?? '');
-        $eventData = is_array($event) ? ($event['data']['object'] ?? []) : (array) ($event->data->object ?? []);
+        $eventType = $event->type ?? '';
+        $eventData = (array) ($event->data->object ?? []);
 
         Log::info("[STRIPE] Evento ricevuto: {$eventType}");
 

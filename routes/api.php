@@ -16,6 +16,7 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\ApiKeyController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\StripeWebhookController;
 use App\Http\Controllers\Api\AzureAuthController;
 use App\Http\Controllers\Api\BrandController;
@@ -81,8 +82,19 @@ Route::prefix('help')->group(function () {
 
 Route::prefix('auth')->group(function () {
     // Pubbliche (no auth)
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login'])
+        ->middleware('throttle:5,1');
+    Route::post('/register', [AuthController::class, 'register'])
+        ->middleware('throttle:3,1');
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])
+        ->middleware('throttle:3,10');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])
+        ->middleware('throttle:5,10');
+
+    // Inviti — pubbliche
+    Route::get('/invitation/{token}', [InvitationController::class, 'validateToken']);
+    Route::post('/invitation/{token}/accept', [InvitationController::class, 'accept'])
+        ->middleware('throttle:5,10');
 
     // Azure AD (Microsoft) OAuth — pubbliche
     Route::get('/azure/login', [AzureAuthController::class, 'login']);
@@ -387,6 +399,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/users/{id}/permanent', [AdminController::class, 'permanentDeleteUser']);
         Route::get('/activity', [AdminController::class, 'activity']);
         Route::get('/stats', [AdminController::class, 'stats']);
+
+        // Inviti
+        Route::post('/invitations', [InvitationController::class, 'invite']);
+        Route::get('/invitations', [InvitationController::class, 'index']);
+        Route::delete('/invitations/{id}', [InvitationController::class, 'revoke']);
     });
 
     // ─── API KEYS — /api/api-keys  (prefix Python: /api/api-keys) ─

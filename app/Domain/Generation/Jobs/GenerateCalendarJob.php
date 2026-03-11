@@ -44,9 +44,6 @@ final class GenerateCalendarJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * Tentativi massimi.
-     */
     public int $tries = 3;
 
     /**
@@ -57,7 +54,9 @@ final class GenerateCalendarJob implements ShouldQueue
     public function __construct(
         private readonly int $projectId,
         private readonly string $historyContext = '',
-    ) {}
+    ) {
+        $this->onQueue('generazione');
+    }
 
     // ──────────────────────────────────────────────────────────
     //  handle() — replica di run_generation()
@@ -196,6 +195,10 @@ final class GenerateCalendarJob implements ShouldQueue
 
     public function failed(?\Throwable $exception): void
     {
+        if ($exception && function_exists('\Sentry\captureException')) {
+            \Sentry\captureException($exception);
+        }
+
         Log::error("[GEN] ❌ Error: " . ($exception?->getMessage() ?? 'unknown'));
 
         try {

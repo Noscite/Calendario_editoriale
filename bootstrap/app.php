@@ -4,6 +4,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -28,5 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Restituisce 401 JSON per tutte le richieste API non autenticate
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             return response()->json(['detail' => 'Non autenticato.'], 401);
+        });
+
+        // Restituisce 429 JSON per rate limiting
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            return response()->json([
+                'detail' => 'Troppi tentativi. Riprova tra qualche minuto.',
+            ], 429);
         });
     })->create();

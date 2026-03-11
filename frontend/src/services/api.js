@@ -57,6 +57,10 @@ export const auth = {
   }),
   register: (data) => api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
+  validateInvitation: (token) => api.get(`/auth/invitation/${token}`),
+  acceptInvitation: (token, data) => api.post(`/auth/invitation/${token}/accept`, data),
 };
 
 export const brands = {
@@ -143,4 +147,10 @@ export const support = {
       conversation_history: history,
       context,
     }),
+};
+
+export const invitations = {
+  list: () => api.get('/admin/invitations'),
+  invite: (data) => api.post('/admin/invitations', data),
+  revoke: (id) => api.delete(`/admin/invitations/${id}`),
 };
