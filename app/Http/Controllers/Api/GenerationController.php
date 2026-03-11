@@ -10,6 +10,7 @@ use App\Domain\Generation\Contracts\ImageGeneratorInterface;
 use App\Domain\Generation\Data\RegeneratePersonasRequestData;
 use App\Domain\Generation\Data\RegeneratePostRequestData;
 use App\Domain\Generation\Jobs\GenerateCalendarJob;
+use App\Domain\Generation\Services\EditionHistoryService;
 use App\Domain\Generation\Services\GenerationTracker;
 use App\Domain\Post\Contracts\PostServiceInterface;
 use App\Domain\Post\Models\Post;
@@ -114,10 +115,16 @@ final class GenerationController extends Controller
                 : 'generated';
         }
 
+        // Build edition history context if this is an edition
+        $historyContext = '';
+        if ($project->isEdition()) {
+            $historyContext = app(EditionHistoryService::class)->buildContext($project);
+        }
+
         $project->status = ProjectStatus::Generating;
         $project->save();
 
-        GenerateCalendarJob::dispatch($projectId);
+        GenerateCalendarJob::dispatch($projectId, $historyContext);
 
         return response()->json([
             'status'          => 'generating',

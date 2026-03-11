@@ -56,6 +56,7 @@ final class GenerateCalendarJob implements ShouldQueue
 
     public function __construct(
         private readonly int $projectId,
+        private readonly string $historyContext = '',
     ) {}
 
     // ──────────────────────────────────────────────────────────
@@ -122,6 +123,7 @@ final class GenerateCalendarJob implements ShouldQueue
             'target_audience' => $project->target_audience,
             'custom_prompt'   => $project->custom_prompt,
             'objectives'      => $project->objectives ?? [],
+            'history_context' => $this->historyContext,
         ];
 
         $themes = $project->content_pillars ?? $project->themes ?? [];
@@ -156,6 +158,7 @@ final class GenerateCalendarJob implements ShouldQueue
         // ── 7. Salva nuovi post (commit individuali come il Python) ──
         foreach ($posts as $postData) {
             Post::create([
+                'organization_id'   => $project->organization_id,
                 'project_id'        => $this->projectId,
                 'platform'          => $postData['platform'] ?? '',
                 'scheduled_date'    => $postData['scheduled_date'] ?? null,

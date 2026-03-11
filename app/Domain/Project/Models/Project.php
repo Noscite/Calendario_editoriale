@@ -19,6 +19,8 @@ class Project extends Model
     protected $fillable = [
         'organization_id',
         'brand_id',
+        'parent_project_id',
+        'edition_number',
         'name',
         'start_date',
         'end_date',
@@ -70,5 +72,40 @@ class Project extends Model
     public function posts(): HasMany
     {
         return $this->hasMany(Post::class);
+    }
+
+    // ── Edition relations ─────────────────────────────────────
+
+    public function parentProject(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_project_id');
+    }
+
+    public function editions(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_project_id')->orderBy('edition_number');
+    }
+
+    // ── Edition helpers ───────────────────────────────────────
+
+    public function isEdition(): bool
+    {
+        return $this->parent_project_id !== null;
+    }
+
+    public function isParent(): bool
+    {
+        return ! $this->isEdition() && $this->editions()->exists();
+    }
+
+    /**
+     * Returns the next edition number for this parent project.
+     */
+    public function nextEditionNumber(): int
+    {
+        $maxChild = (int) $this->editions()->max('edition_number');
+        $own = (int) $this->edition_number;
+
+        return max($maxChild, $own) + 1;
     }
 }

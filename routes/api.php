@@ -29,6 +29,8 @@ use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\SocialController;
 use App\Http\Controllers\Api\SocialStatsController;
 use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\HelpController;
+use App\Http\Controllers\Api\SupportAgentController;
 use App\Http\Controllers\Api\VoiceProfilingController;
 use App\Http\Controllers\PublicApi\BrandApiController;
 use App\Http\Controllers\PublicApi\ContextController;
@@ -53,6 +55,17 @@ Route::get('/health', fn () => response()->json([
     'status'  => 'healthy',
     'service' => 'noscite-calendar',
 ]));
+
+// ═══════════════════════════════════════════════════════════════
+// HELP CENTER — /api/help  (pubblico, no auth)
+// ═══════════════════════════════════════════════════════════════
+
+Route::prefix('help')->group(function () {
+    Route::get('/categories', [HelpController::class, 'categories']);
+    Route::get('/articles', [HelpController::class, 'articles']);
+    Route::get('/articles/{slug}', [HelpController::class, 'article']);
+    Route::get('/search', [HelpController::class, 'search']);
+});
 
 // ═══════════════════════════════════════════════════════════════
 // AUTH — /api/auth  (prefix Python: /api/auth)
@@ -186,6 +199,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [ProjectController::class, 'store']);
         Route::put('/{id}', [ProjectController::class, 'update']);
         Route::delete('/{id}', [ProjectController::class, 'destroy']);
+
+        // Editions
+        Route::post('/{id}/editions', [ProjectController::class, 'addEdition']);
+        Route::get('/{id}/history-context', [ProjectController::class, 'historyContext']);
     });
 
     // ─── POSTS — /api/posts  (prefix Python: /api/posts) ──────
@@ -379,6 +396,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [ApiKeyController::class, 'store']);
         Route::delete('/{key_id}', [ApiKeyController::class, 'destroy']);
     });
+
+    // ─── SUPPORT AI CHAT — /api/support/chat ─────────────────────
+
+    Route::post('/support/chat', [SupportAgentController::class, 'chat'])
+        ->middleware('throttle:20,1');
 });
 
 // ═══════════════════════════════════════════════════════════════

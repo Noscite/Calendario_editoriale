@@ -62,9 +62,15 @@ final class PromptBuilder
             ? "### Stile del brand\n{$styleGuide}\n\n"
             : '';
 
+        // Edition history context (injected via projectInfo)
+        $historyContext = $projectInfo['history_context'] ?? '';
+        $historySection = ($historyContext !== '')
+            ? "\n{$historyContext}\n\n## ISTRUZIONI CONTINUITÀ EDITORIALE\nQuesta è una NUOVA EDIZIONE del piano editoriale. Analizza lo storico sopra e:\n- EVITA di ripetere gli stessi argomenti e hook già usati\n- MANTIENI coerenza di tono e stile con le edizioni precedenti\n- EVOLVI i temi trattati, approfondendo o esplorando nuovi angoli\n- RIPRENDI eventuali topic di successo con prospettive fresche\n- ASSICURA continuità narrativa per il brand\n\n"
+            : '';
+
         return <<<PROMPT
 Genera contenuti per il calendario editoriale.
-
+{$historySection}
 ## BRAND
 Nome: {$brandName}
 Settore: {$this->arr($brandInfo, 'sector', 'N/A')}
