@@ -88,6 +88,10 @@ class User extends Authenticatable
      */
     public function setPasswordAttribute(string $value): void
     {
+        // Se il valore non è già un hash bcrypt/argon, hashalo automaticamente
+        if (! str_starts_with($value, '$2y$') && ! str_starts_with($value, '$2b$') && ! str_starts_with($value, '$argon2')) {
+            $value = \Illuminate\Support\Facades\Hash::make($value);
+        }
         $this->attributes['hashed_password'] = $value;
     }
 

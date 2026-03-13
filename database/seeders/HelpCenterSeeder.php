@@ -23,9 +23,11 @@ class HelpCenterSeeder extends Seeder
 
             foreach ($articles as $articleData) {
                 $articleData['help_category_id'] = $category->id;
-                HelpArticle::firstOrCreate(
-                    ['slug' => $articleData['slug']],
-                    $articleData
+                $slug = $articleData['slug'];
+                unset($articleData['slug']);
+                HelpArticle::updateOrCreate(
+                    ['slug' => $slug],
+                    array_merge(['slug' => $slug], $articleData)
                 );
             }
         }
@@ -111,9 +113,9 @@ Il Piano Editoriale definisce il periodo, le piattaforme e gli obiettivi del tuo
 
 ## Come si fa
 
-Dalla pagina del tuo Brand, clicca **+ Nuovo Piano Editoriale**. Si apre un wizard in 6 passi.
+Dalla pagina del tuo Brand, clicca **+ Nuovo Piano Editoriale**. Si apre un wizard in 7 passi.
 
-## I 6 passi del wizard
+## I 7 passi del wizard
 
 **Passo 1 — Date e piattaforme**
 Scegli il periodo (es. 3 mesi) e le piattaforme: Instagram, Facebook, LinkedIn, Google Business.
@@ -133,9 +135,12 @@ Carica documenti aziendali opzionali (cataloghi, comunicati stampa). L'AI li usa
 **Passo 6 — Buyer Personas**
 Clicca **Genera Personas** e l'AI crea i profili del tuo target. Puoi modificarli o aggiungerli manualmente.
 
+**Passo 7 — Preview del Calendario**
+Prima di generare, vedi un riepilogo completo: post per piattaforma, distribuzione dei contenuti, personas attive, eventuali avvisi e una stima del tempo di generazione. Clicca **Genera Calendario** per confermare o **Modifica parametri** per tornare indietro.
+
 ## Avviare la generazione
 
-Al termine clicca **Genera Calendario**. L'AI impiega 1-3 minuti. Puoi chiudere la pagina: riceverai una notifica quando è pronto.
+Al termine del Passo 7 clicca **Genera Calendario**. L'AI impiega 1-3 minuti. Puoi chiudere la pagina: riceverai una notifica quando è pronto.
 
 > 💡 **Consiglio:** più informazioni dai nel brief e nei documenti, più i contenuti saranno pertinenti e pronti senza modifiche.
 MD,
@@ -186,6 +191,57 @@ Richiede un profilo Business collegato a una Pagina Facebook.
 - Per Instagram verifica che il profilo sia impostato come **Business**
 
 > ⚠️ Non collegare profili personali. Le API social richiedono pagine aziendali per la pubblicazione automatica.
+MD,
+                ],
+                [
+                    'slug' => 'intervista-ai-brand',
+                    'title' => 'Intervista AI per la profilazione del Brand',
+                    'is_featured' => true,
+                    'sort_order' => 3,
+                    'excerpt' => 'L\'AI fa domande sul tuo brand e costruisce automaticamente il profilo. Scegli tra intervista vocale o chat testuale.',
+                    'content' => <<<'MD'
+# Intervista AI per la profilazione del Brand
+
+L'Intervista AI è il modo più veloce per compilare il profilo del tuo brand. Invece di riempire campi manualmente, rispondi a domande e l'AI estrae automaticamente nome, settore, tono di voce, target e valori.
+
+## Come avviare l'intervista
+
+**Dal Dashboard:**
+Clicca il pulsante **AI Assistant** nella barra in alto. Se hai un solo brand, l'intervista si apre direttamente. Se ne hai più d'uno, scegli il brand dal selettore che appare.
+
+**Dalla pagina del Brand:**
+Cerca il link "Avvia intervista AI" o "Compila con AI".
+
+## Scegliere la modalità
+
+Quando si apre la schermata di selezione, hai due opzioni:
+
+**Modalità Voce** — parla direttamente con l'AI tramite microfono. L'AI registra e trascrive le tue risposte in tempo reale. Richiede permesso al microfono. Se la connessione vocale non è disponibile, passa automaticamente alla chat.
+
+**Modalità Chat** — rispondi alle domande per iscritto. Stessa qualità del risultato, nessun requisito tecnico.
+
+## Come funziona la chat
+
+L'AI ti fa una serie di domande sul tuo brand, una alla volta:
+- Nome dell'azienda
+- Settore di attività
+- Sito web
+- Tono di voce
+- Target di riferimento
+- Valori del brand
+
+Una barra di avanzamento mostra quante domande restano.
+
+## Confermare e salvare
+
+Al termine dell'intervista appare la schermata **Conferma dati**. Qui puoi:
+- Verificare tutti i campi estratti dall'AI
+- Modificare qualsiasi informazione prima di salvare
+- Aggiungere o rimuovere i valori del brand (appaiono come tag)
+
+Clicca **Salva Profilo** per salvare. Verrai reindirizzato alla creazione del primo Piano Editoriale.
+
+> 💡 **Consiglio:** se qualcosa non è stato captato correttamente nella modalità voce, correggilo nella schermata di conferma prima di salvare.
 MD,
                 ],
                 [
@@ -339,6 +395,51 @@ Clicca **Pubblica ora** per pubblicare immediatamente.
 Apri il post pianificato e clicca **Annulla pianificazione**. Il post torna allo stato Bozza.
 
 > ⚠️ Per pubblicare automaticamente devi avere i profili social collegati.
+MD,
+                ],
+                [
+                    'slug' => 'preview-calendario',
+                    'title' => 'Leggere il Preview del Calendario',
+                    'sort_order' => 5,
+                    'excerpt' => 'Prima di generare il calendario vedi esattamente quanti post verranno creati, come sono distribuiti e se mancano informazioni importanti.',
+                    'content' => <<<'MD'
+# Leggere il Preview del Calendario
+
+Il **Passo 7** del wizard mostra un'anteprima completa prima che la generazione parta. Puoi così verificare le impostazioni e correggere eventuali problemi senza sprecare crediti AI.
+
+## Cosa trovi nel preview
+
+### Riepilogo piattaforme
+Per ogni piattaforma selezionata vedi:
+- Numero totale di post che verranno generati
+- Post per settimana
+- Tipo di contenuti prevalenti (informativo, promozionale, engagement)
+- Orari ottimali suggeriti (calcolati dalle Buyer Personas)
+
+### Distribuzione dei contenuti
+Una barra mostra come i post si dividono tra i temi che hai impostato nel piano.
+
+### Temi e brief
+I temi principali e il brief creativo che hai inserito vengono mostrati in sintesi, così puoi verificare che tutto sia corretto.
+
+### Buyer Personas attive
+Le personas associate al piano. Se non ne hai ancora create, compare un avviso con il link diretto al Passo 6 per aggiungerle.
+
+### Avvisi
+Se ci sono configurazioni incomplete o potenzialmente problematiche, appaiono in un riquadro arancione. Esempi comuni:
+- Nessuna persona configurata
+- Nessun documento caricato (la generazione funziona ma con meno contesto)
+- Frequenza molto alta (rischio qualità)
+
+### Stima
+Un riquadro verde mostra il numero stimato di post totali e il tempo di generazione previsto (in minuti).
+
+## Cosa puoi fare dal preview
+
+- **Genera Calendario** — avvia la generazione con le impostazioni attuali
+- **Modifica parametri** — torna indietro al wizard per cambiare qualcosa
+
+> 💡 **Consiglio:** se compare l'avviso "Nessuna Buyer Persona", crea almeno una persona prima di generare. I contenuti saranno significativamente più mirati.
 MD,
                 ],
                 [

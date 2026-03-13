@@ -295,6 +295,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/personas/{project_id}/{index}/regenerate', [GenerationController::class, 'regenerateSinglePersona']);
 
         // Calendario
+        Route::get('/preview/{project_id}', [GenerationController::class, 'preview']);
         Route::post('/calendar/{project_id}', [GenerationController::class, 'generateCalendar']);
         Route::get('/status/{project_id}', [GenerationController::class, 'status']);
 

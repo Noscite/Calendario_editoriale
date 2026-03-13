@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Domain\Generation\Jobs\GenerateCalendarJob;
 use App\Domain\Project\Models\Project;
+use Illuminate\Support\Facades\Bus;
 
 describe('POST /api/generate/personas/{project_id}', function () {
     it('generates buyer personas for a project', function () {
@@ -89,6 +91,8 @@ describe('GET /api/generate/personas/{project_id}', function () {
 
 describe('POST /api/generate/calendar/{project_id}', function () {
     it('starts calendar generation', function () {
+        Bus::fake([GenerateCalendarJob::class]);
+
         [$user, $org] = createAuthenticatedUser();
         $brand = createBrand($org);
         $project = createProject($brand, [
@@ -103,6 +107,8 @@ describe('POST /api/generate/calendar/{project_id}', function () {
 
         $project->refresh();
         expect($project->status->value)->toBe('generating');
+
+        Bus::assertDispatched(GenerateCalendarJob::class);
     });
 });
 

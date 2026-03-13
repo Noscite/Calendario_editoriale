@@ -180,6 +180,7 @@ final class PostApiController extends Controller
         }
 
         $post = Post::create([
+            'organization_id'    => $project->organization_id,
             'project_id'         => $data['project_id'],
             'platform'           => $data['platform'],
             'scheduled_date'     => $data['scheduled_date'],
@@ -245,6 +246,7 @@ final class PostApiController extends Controller
                 }
 
                 $post = Post::create([
+                    'organization_id'    => $project->organization_id,
                     'project_id'         => $postData['project_id'],
                     'platform'           => $postData['platform'],
                     'scheduled_date'     => $postData['scheduled_date'],

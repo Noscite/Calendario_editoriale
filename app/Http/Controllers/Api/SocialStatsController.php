@@ -21,39 +21,70 @@ use Illuminate\Routing\Controller;
  */
 final class SocialStatsController extends Controller
 {
-    // GET /api/social/stats/brand/{brand_id}
+    // GET /api/social/stats/brand/{brand_id}?days=30
     public function brandStats(int $brandId, Request $request): JsonResponse
     {
         // Brand ha BelongsToOrganization → 404 automatico se non è dell'org dell'utente
         $brand = Brand::findOrFail($brandId);
 
+        $days        = max(1, (int) $request->query('days', 30));
+        $periodStart = now()->subDays($days)->startOfDay();
+        $periodEnd   = now()->endOfDay();
+
+        // Connessioni attive con la loro ultima metrica account-level
         $connections = SocialConnection::where('brand_id', $brand->id)
             ->where('is_active', true)
-            ->pluck('id');
+            ->get();
 
-        $metrics = SocialMetric::whereIn('social_connection_id', $connections)
-            ->whereNull('post_publication_id')
-            ->orderByDesc('fetched_at')
-            ->get()
-            ->groupBy('social_connection_id')
-            ->map(fn ($rows) => $rows->first());
+        $platforms = $connections->map(function ($conn) use ($periodStart) {
+            // Ultima metrica account-level (post_publication_id IS NULL)
+            $metric = SocialMetric::where('social_connection_id', $conn->id)
+                ->whereNull('post_publication_id')
+                ->where('fetched_at', '>=', $periodStart)
+                ->orderByDesc('fetched_at')
+                ->first();
 
-        $stats = $metrics->map(fn ($m) => [
-            'connection_id'   => $m->social_connection_id,
-            'impressions'     => $m->impressions,
-            'reach'           => $m->reach,
-            'engagement'      => $m->engagement,
-            'likes'           => $m->likes,
-            'comments'        => $m->comments,
-            'shares'          => $m->shares,
-            'clicks'          => $m->clicks,
-            'followers_count' => $m->followers_count,
-            'fetched_at'      => $m->fetched_at?->toIso8601String(),
-        ])->values();
+            return [
+                'platform'       => $conn->platform->value ?? $conn->platform,
+                'account_name'   => $conn->external_account_name ?? '',
+                'impressions'    => $metric?->impressions ?? 0,
+                'reach'          => $metric?->reach ?? 0,
+                'engagement'     => $metric?->engagement ?? 0,
+                'likes'          => $metric?->likes ?? 0,
+                'comments'       => $metric?->comments ?? 0,
+                'shares'         => $metric?->shares ?? 0,
+                'clicks'         => $metric?->clicks ?? 0,
+                'followers_count'=> $metric?->followers_count,
+                'fetched_at'     => $metric?->fetched_at?->toIso8601String(),
+            ];
+        })->values();
+
+        // Post pubblicati nel periodo (via project → brand)
+        $projectIds = $brand->projects()->pluck('id');
+        $totalPosts = Post::whereIn('project_id', $projectIds)->count();
+        $publishedPosts = PostPublication::whereIn(
+            'post_id',
+            Post::whereIn('project_id', $projectIds)->pluck('id')
+        )
+            ->where('status', 'published')
+            ->whereBetween('published_at', [$periodStart, $periodEnd])
+            ->count();
+
+        // Engagement rate aggregato
+        $totalReach      = $platforms->sum('reach');
+        $totalEngagement = $platforms->sum('engagement');
+        $engagementRate  = $totalReach > 0
+            ? round(($totalEngagement / $totalReach) * 100, 2)
+            : 0;
 
         return response()->json([
-            'brand_id' => $brand->id,
-            'metrics'  => $stats,
+            'brand_id'        => $brand->id,
+            'period_start'    => $periodStart->toIso8601String(),
+            'period_end'      => $periodEnd->toIso8601String(),
+            'platforms'       => $platforms,
+            'engagement_rate' => $engagementRate,
+            'published_posts' => $publishedPosts,
+            'total_posts'     => $totalPosts,
         ]);
     }
 

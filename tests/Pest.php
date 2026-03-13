@@ -70,17 +70,21 @@ function createPlan(array $overrides = []): Plan
 function createAuthenticatedUser(array $userOverrides = [], array $orgOverrides = []): array
 {
     $plan = createPlan();
+
+    $orgEmail  = $orgOverrides['email']  ?? 'org-'  . \Illuminate\Support\Str::random(8) . '@test.com';
+    $userEmail = $userOverrides['email'] ?? 'user-' . \Illuminate\Support\Str::random(8) . '@test.com';
+
     $org = Organization::create(array_merge([
         'name' => 'Test Org',
-        'slug' => 'test-org-' . \Illuminate\Support\Str::random(5),
-        'email' => 'org@test.com',
+        'slug' => 'test-org-' . \Illuminate\Support\Str::random(8),
+        'email' => $orgEmail,
         'plan_id' => $plan->id,
         'subscription_status' => 'active',
         'is_active' => true,
     ], $orgOverrides));
 
     $user = User::create(array_merge([
-        'email' => 'user@test.com',
+        'email' => $userEmail,
         'password' => 'password',
         'full_name' => 'Test User',
         'organization_id' => $org->id,
@@ -143,11 +147,11 @@ function createPost(Project $project, array $overrides = []): Post
  */
 function createApiKey(Organization $org, User $user, array $scopes = ['read', 'write']): array
 {
-    $rawKey = 'nc_test_' . \Illuminate\Support\Str::random(32);
+    $rawKey = 'nc_' . \Illuminate\Support\Str::random(4) . '_' . \Illuminate\Support\Str::random(28);
     $apiKey = ApiKey::create([
         'organization_id' => $org->id,
         'user_id' => $user->id,
-        'name' => 'Test Key',
+        'name' => 'Test Key ' . \Illuminate\Support\Str::random(4),
         'key_hash' => ApiKey::hashKey($rawKey),
         'key_prefix' => substr($rawKey, 0, 8),
         'scopes' => $scopes,

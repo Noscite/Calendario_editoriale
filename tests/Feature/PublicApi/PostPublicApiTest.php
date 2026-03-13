@@ -100,17 +100,19 @@ describe('GET /api/v1/posts/{id} (read scope)', function () {
         [$apiKey, $rawKey] = createApiKey($this->org, $this->user, ['read']);
 
         $otherOrg = \App\Domain\Organization\Models\Organization::create([
-            'name' => 'Other', 'slug' => 'other-pub', 'email' => 'op@t.com',
+            'name' => 'Other', 'slug' => 'other-' . \Illuminate\Support\Str::random(6), 'email' => 'other-' . \Illuminate\Support\Str::random(6) . '@test.com',
             'subscription_status' => 'active', 'is_active' => true,
         ]);
         $otherBrand = \App\Domain\Brand\Models\Brand::withoutGlobalScope('organization')->create([
             'organization_id' => $otherOrg->id, 'name' => 'OB',
         ]);
-        $otherProject = \App\Domain\Project\Models\Project::create([
+        $otherProject = \App\Domain\Project\Models\Project::withoutGlobalScope('organization')->create([
+            'organization_id' => $otherOrg->id,
             'brand_id' => $otherBrand->id, 'name' => 'OP',
             'start_date' => now(), 'end_date' => now()->addMonth(),
         ]);
-        $otherPost = Post::create([
+        $otherPost = Post::withoutGlobalScope('organization')->create([
+            'organization_id' => $otherOrg->id,
             'project_id' => $otherProject->id, 'platform' => 'instagram',
             'scheduled_date' => now(), 'content' => 'secret',
         ]);

@@ -20,11 +20,8 @@ use Illuminate\Support\Facades\Http;
  */
 describe('TokenRefreshService', function () {
 
-    beforeEach(function () {
-        Http::fake();
-    });
-
     it('non esegue il refresh se il token non scade entro 1 ora', function () {
+        Http::fake();
         [$user, $org] = createAuthenticatedUser();
         $brand = createBrand($org);
 
@@ -46,6 +43,7 @@ describe('TokenRefreshService', function () {
     });
 
     it('non esegue il refresh se token_expires_at è null', function () {
+        Http::fake();
         [$user, $org] = createAuthenticatedUser();
         $brand = createBrand($org);
 
