@@ -6,7 +6,7 @@ namespace App\Domain\Generation\Services;
 
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Contracts\ImageGeneratorInterface;
-use App\Domain\Organization\Models\UsageLog;
+use App\Domain\Subscription\Models\UsageLog;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
 use Illuminate\Support\Facades\Http;

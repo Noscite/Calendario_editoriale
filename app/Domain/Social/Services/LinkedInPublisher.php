@@ -206,17 +206,27 @@ class LinkedInPublisher
      */
     private function getImageContent(string $imageUrl): ?string
     {
-        // Path locale (es. /uploads/posts/xxx.png)
-        if (str_starts_with($imageUrl, '/')) {
-            $localPath = storage_path('app/public' . $imageUrl);
+        // Path locale Laravel: /storage/posts/xxx.png → disk public → posts/xxx.png
+        if (str_starts_with($imageUrl, '/storage/')) {
+            $diskPath = substr($imageUrl, strlen('/storage/'));
+            if (Storage::disk('public')->exists($diskPath)) {
+                return Storage::disk('public')->get($diskPath);
+            }
+        }
+
+        // Path locale legacy Python: /uploads/posts/xxx.png
+        if (str_starts_with($imageUrl, '/uploads/')) {
+            $localPath = '/var/www/noscite-calendar/uploads/' . substr($imageUrl, strlen('/uploads/'));
             if (file_exists($localPath)) {
                 return file_get_contents($localPath);
             }
+        }
 
-            // Prova anche con il percorso storage diretto
-            $storagePath = ltrim($imageUrl, '/');
-            if (Storage::disk('public')->exists($storagePath)) {
-                return Storage::disk('public')->get($storagePath);
+        // Qualsiasi altro path assoluto
+        if (str_starts_with($imageUrl, '/')) {
+            $localPath = storage_path('app/public/' . ltrim($imageUrl, '/'));
+            if (file_exists($localPath)) {
+                return file_get_contents($localPath);
             }
         }
 

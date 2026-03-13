@@ -455,7 +455,7 @@ TXT;
         Log::info("[TOKENS] Org #{$organizationId}: {$tokens} tokens ({$operation})");
         try {
             $now = now();
-            \App\Domain\Organization\Models\UsageLog::updateOrCreate([
+            \App\Domain\Subscription\Models\UsageLog::updateOrCreate([
                 'organization_id' => $organizationId,
                 'period_start'    => $now->copy()->startOfMonth()->toDateString(),
                 'period_end'      => $now->copy()->endOfMonth()->toDateString(),

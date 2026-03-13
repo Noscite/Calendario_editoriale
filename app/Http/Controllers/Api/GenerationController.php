@@ -236,6 +236,145 @@ final class GenerationController extends Controller
         return response()->json($result);
     }
 
+    // GET /api/generate/preview/{project_id}
+    public function preview(int $projectId): JsonResponse
+    {
+        $project = Project::with('brand')->findOrFail($projectId);
+        $brand = $project->brand;
+
+        $startDate = $project->start_date;
+        $endDate = $project->end_date;
+        $weeks = max(1, (int) ceil($startDate->diffInDays($endDate) / 7));
+
+        $platforms = $project->platforms ?? [];
+        $postsPerWeek = $project->posts_per_week ?? [];
+
+        $platformPostTypes = [
+            'instagram' => ['feed', 'carousel', 'reel'],
+            'linkedin' => ['article', 'update'],
+            'facebook' => ['post', 'link', 'video'],
+            'google_business' => ['update', 'offer'],
+        ];
+
+        $defaultTimes = [
+            'instagram' => ['09:00', '12:00', '18:00'],
+            'linkedin' => ['08:00', '12:00', '17:00'],
+            'facebook' => ['09:00', '13:00', '19:00'],
+            'google_business' => ['10:00', '14:00'],
+        ];
+
+        $personasTimes = [];
+        $personas = $project->buyer_personas;
+        if ($personas && !empty($personas['scheduling_strategy'])) {
+            foreach ($personas['scheduling_strategy'] as $platform => $strategy) {
+                if (!empty($strategy['optimal_slots'])) {
+                    $personasTimes[$platform] = array_values(array_unique(
+                        array_map(fn ($s) => $s['time'] ?? '09:00', array_slice($strategy['optimal_slots'], 0, 3))
+                    ));
+                }
+            }
+        }
+
+        $totalPosts = 0;
+        $platformDetails = [];
+        foreach ($platforms as $platform) {
+            $ppw = $postsPerWeek[$platform] ?? 3;
+            $platformTotal = $weeks * $ppw;
+            $totalPosts += $platformTotal;
+
+            $platformDetails[] = [
+                'platform' => $platform,
+                'posts_per_week' => $ppw,
+                'total_posts' => $platformTotal,
+                'post_types' => $platformPostTypes[$platform] ?? ['post'],
+                'optimal_times' => $personasTimes[$platform] ?? $defaultTimes[$platform] ?? ['09:00'],
+            ];
+        }
+
+        $pillars = $project->content_pillars ?? [];
+        if (!empty($pillars)) {
+            $share = (int) floor(100 / count($pillars));
+            $remainder = 100 - ($share * count($pillars));
+            $distribution = [];
+            foreach (array_values($pillars) as $i => $pillar) {
+                $distribution[] = ['pillar' => $pillar, 'percentage' => $share + ($i === 0 ? $remainder : 0)];
+            }
+        } else {
+            $distribution = [
+                ['pillar' => 'Educational',  'percentage' => 40],
+                ['pillar' => 'Promotional',  'percentage' => 25],
+                ['pillar' => 'Engagement',   'percentage' => 35],
+            ];
+        }
+
+        $personasList = [];
+        $personasCount = 0;
+        if ($personas && !empty($personas['personas'])) {
+            $personasCount = count($personas['personas']);
+            foreach ($personas['personas'] as $p) {
+                $personasList[] = [
+                    'name' => $p['name'] ?? 'Senza nome',
+                    'role' => $p['demographics']['role'] ?? $p['role'] ?? '',
+                    'platforms' => $p['preferred_platforms'] ?? $platforms,
+                ];
+            }
+        }
+
+        $documentsCount = \App\Domain\Document\Models\BrandDocument::where('brand_id', $brand->id)->count();
+
+        $editionContext = [
+            'is_edition' => $project->isEdition(),
+            'previous_editions' => $project->isEdition()
+                ? ($project->parentProject?->editions()->where('id', '<', $project->id)->count() ?? 0)
+                : 0,
+            'topics_to_avoid' => [],
+        ];
+
+        $estimatedTokens = $totalPosts * 800;
+        $estimatedMinutes = max(1, (int) ceil($totalPosts / 30));
+
+        $warnings = [];
+        if ($personasCount === 0) {
+            $warnings[] = 'Nessuna buyer persona confermata: gli orari di pubblicazione saranno generici';
+        }
+        if ($documentsCount === 0) {
+            $warnings[] = 'Nessun documento caricato: i contenuti saranno basati solo sul brief';
+        }
+        if ($weeks > 13) {
+            $warnings[] = "Periodo molto lungo ({$weeks} settimane): la generazione potrebbe richiedere 5+ minuti";
+        }
+        if ($totalPosts > 200) {
+            $warnings[] = "Molti post da generare ({$totalPosts}): considera di ridurre il periodo o la frequenza";
+        }
+
+        $briefSummary = $project->brief
+            ? (mb_strlen($project->brief) > 200 ? mb_substr($project->brief, 0, 200) . '...' : $project->brief)
+            : null;
+
+        return response()->json([
+            'project_name' => $project->name,
+            'brand_name' => $brand->name,
+            'period' => [
+                'start' => $startDate->format('Y-m-d'),
+                'end' => $endDate->format('Y-m-d'),
+                'weeks' => $weeks,
+            ],
+            'total_posts' => $totalPosts,
+            'platforms' => $platformDetails,
+            'content_distribution' => $distribution,
+            'themes' => $project->themes ?? [],
+            'personas_count' => $personasCount,
+            'personas' => $personasList,
+            'brief_summary' => $briefSummary,
+            'has_documents' => $documentsCount > 0,
+            'documents_count' => $documentsCount,
+            'edition_context' => $editionContext,
+            'estimated_tokens' => $estimatedTokens,
+            'estimated_duration_minutes' => $estimatedMinutes,
+            'warnings' => $warnings,
+        ]);
+    }
+
     // POST /api/generate/check-overlap/{project_id}
     public function checkOverlap(int $projectId, Request $request): JsonResponse
     {

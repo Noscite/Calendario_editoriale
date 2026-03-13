@@ -7,7 +7,7 @@ namespace App\Domain\Generation\Jobs;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Contracts\ContentGeneratorInterface;
 use App\Domain\Generation\Services\GenerationTracker;
-use App\Domain\Organization\Models\UsageLog;
+use App\Domain\Subscription\Models\UsageLog;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Enums\ProjectStatus;
 use App\Domain\Project\Models\Project;

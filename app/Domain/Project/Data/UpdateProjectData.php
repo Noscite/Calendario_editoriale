@@ -40,5 +40,7 @@ final class UpdateProjectData extends Data
         /** @var array<string, mixed>|Optional */
         public readonly Optional|array $buyer_personas = new Optional(),
         public readonly Optional|string $custom_prompt = new Optional(),
+        /** @var array<string>|Optional */
+        public readonly Optional|array $objectives = new Optional(),
     ) {}
 }

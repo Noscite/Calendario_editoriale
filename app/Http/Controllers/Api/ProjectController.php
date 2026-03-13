@@ -45,6 +45,7 @@ final class ProjectController extends Controller
             'status'            => $p->status?->value ?? 'draft',
             'reference_urls'    => $p->reference_urls ?? [],
             'target_audience'   => $p->target_audience ?? '',
+            'objectives'        => $p->objectives ?? [],
             'content_pillars'   => $p->content_pillars ?? [],
             'competitors'       => $p->competitors ?? [],
             'special_dates'     => $p->special_dates ?? [],
@@ -115,7 +116,31 @@ final class ProjectController extends Controller
     // PUT /api/projects/{id}
     public function update(int $id, Request $request): JsonResponse
     {
-        $dto  = UpdateProjectData::from($request);
+        // Normalizza le date in Y-m-d prima della validazione
+        // (alcuni browser inviano formati localizzati es. "13/03/2026")
+        $input = $request->all();
+        foreach (['start_date', 'end_date'] as $field) {
+            if (!empty($input[$field]) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $input[$field])) {
+                try {
+                    $input[$field] = \Carbon\Carbon::parse($input[$field])->format('Y-m-d');
+                } catch (\Throwable) {
+                    $input[$field] = null; // lascia che la validazione gestisca il null
+                }
+            }
+        }
+        $request = $request->duplicate(null, null, null, null, null, null);
+        $request->replace($input);
+
+        try {
+            $dto = UpdateProjectData::from($request);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Illuminate\Support\Facades\Log::error("ProjectController::update validation failed", [
+                'project_id' => $id,
+                'errors'     => $e->errors(),
+                'input'      => $input,
+            ]);
+            throw $e;
+        }
         $data = $dto->toArray();
 
         // Converti status string in enum, come il Python
