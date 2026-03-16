@@ -216,12 +216,21 @@ return [
         'production' => [
             'supervisor-1' => [
                 'connection'   => 'redis',
-                'queue'        => ['pubblicazione', 'generazione', 'default', 'email'],
+                'queue'        => ['pubblicazione', 'default', 'email'],
                 'balance'      => 'auto',
                 'minProcesses' => 1,
-                'maxProcesses' => 5,
+                'maxProcesses' => 4,
                 'tries'        => 3,
                 'timeout'      => 180,
+            ],
+            'supervisor-generazione' => [
+                'connection'   => 'redis',
+                'queue'        => ['generazione'],
+                'balance'      => 'simple',
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+                'tries'        => 0,
+                'timeout'      => 1800,
             ],
         ],
 

@@ -44,12 +44,13 @@ final class GenerateCalendarJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 0;
+    public int $maxExceptions = 1;
 
     /**
-     * Timeout in secondi (10 minuti — generazioni grandi possono richiedere tempo).
+     * Timeout in secondi (30 minuti — generazioni grandi con molti batch richiedono tempo).
      */
-    public int $timeout = 600;
+    public int $timeout = 1800;
 
     public function __construct(
         private readonly int $projectId,
