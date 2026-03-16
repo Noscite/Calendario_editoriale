@@ -2,13 +2,13 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
 });
 
 // Client dedicato per auth/refresh per evitare loop negli interceptor
 const authApi = axios.create({
   baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
 });
 
 api.interceptors.request.use((config) => {

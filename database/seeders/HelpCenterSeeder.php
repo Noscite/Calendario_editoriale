@@ -40,6 +40,7 @@ class HelpCenterSeeder extends Seeder
             $this->calendario(),
             $this->pubblicazione(),
             $this->immagini(),
+            $this->insights(),
             $this->account(),
         ];
     }
@@ -672,6 +673,71 @@ MD,
         ];
     }
 
+    private function insights(): array
+    {
+        return [
+            'slug' => 'insights',
+            'title' => 'Insights e Statistiche',
+            'description' => 'Monitorare le performance dei tuoi contenuti social con dati in tempo reale',
+            'icon' => 'BarChart3',
+            'sort_order' => 5,
+            'articles' => [
+                [
+                    'slug' => 'leggere-insights',
+                    'title' => 'Leggere gli Insights dei tuoi social',
+                    'is_featured' => true,
+                    'sort_order' => 1,
+                    'excerpt' => 'Impressioni, copertura, engagement e follower per ogni piattaforma. Tutto in un\'unica pagina, aggiornabile con un click.',
+                    'content' => <<<'MD'
+# Leggere gli Insights dei tuoi social
+
+La pagina **Insights** raccoglie le statistiche di performance di tutti i tuoi profili social collegati, in un'unica vista.
+
+## Come accedere
+
+Clicca su **Insights** nella barra laterale sinistra.
+
+## Selezionare il brand
+
+Se hai più brand, usa il selettore in alto a destra per scegliere quale brand analizzare.
+
+## Scegliere il periodo
+
+Puoi visualizzare i dati degli ultimi **7**, **30** o **90 giorni** usando il selettore accanto al brand.
+
+## Le card riepilogative
+
+In alto trovi 4 card con i dati aggregati di tutte le piattaforme:
+
+- **Impressioni Totali** — quante volte i tuoi contenuti sono stati visualizzati
+- **Copertura Totale** — quante persone uniche hanno visto i tuoi contenuti
+- **Engagement Rate** — percentuale di interazione rispetto alla copertura
+- **Post Pubblicati** — quanti post sono stati pubblicati rispetto al totale generato
+
+## Performance per piattaforma
+
+Sotto le card trovi il dettaglio per ogni piattaforma collegata:
+
+- **Impressioni** e **Copertura** della piattaforma
+- **Engagement** totale
+- **Follower** attuali
+- Dettaglio interazioni: **Like**, **Commenti**, **Condivisioni**
+
+## Aggiornare i dati
+
+Clicca il pulsante **Aggiorna** in alto a destra. Il sistema raccoglie i dati più recenti direttamente dalle API delle piattaforme social. L'aggiornamento impiega pochi secondi.
+
+## Se vedi "Nessuna connessione social attiva"
+
+Significa che il brand selezionato non ha ancora profili social collegati. Vai su **Social** nella barra laterale e collega almeno un account.
+
+> 💡 **Consiglio:** controlla gli Insights settimanalmente per capire quali tipi di contenuto funzionano meglio e adatta il brief del prossimo Piano Editoriale di conseguenza.
+MD,
+                ],
+            ],
+        ];
+    }
+
     private function account(): array
     {
         return [
@@ -679,7 +745,7 @@ MD,
             'title' => 'Account e Abbonamento',
             'description' => 'Gestire il piano, i limiti mensili e gli utenti del team',
             'icon' => 'CreditCard',
-            'sort_order' => 5,
+            'sort_order' => 6,
             'articles' => [
                 [
                     'slug' => 'piani',

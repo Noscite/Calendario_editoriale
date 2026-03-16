@@ -108,6 +108,14 @@ final class GenerationController extends Controller
     {
         $project = Project::findOrFail($projectId);
 
+        // Guard: se il progetto è già in generazione, non dispatcha un secondo job
+        if ($project->status === ProjectStatus::Generating) {
+            return response()->json([
+                'status'  => 'already_generating',
+                'message' => 'La generazione è già in corso. Attendi il completamento.',
+            ], 409);
+        }
+
         $personasStatus = 'not_generated';
         if ($project->buyer_personas) {
             $personasStatus = ($project->buyer_personas['confirmed'] ?? false)

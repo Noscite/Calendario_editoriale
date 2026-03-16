@@ -38,8 +38,8 @@ TXT;
     private const MAX_TOKENS_REGENERATE = 2_000;
     private const MAX_TOKENS_IMAGE      = 500;
     private const MAX_TOKENS_PERSONAS   = 4_000;
-    private const BATCH_SIZE_DAYS       = 7;
-    private const RATE_LIMIT_SLEEP      = 8;
+    private const BATCH_SIZE_DAYS       = 14;
+    private const RATE_LIMIT_SLEEP      = 3;  // usato solo come fallback minimo
 
     public function __construct(
         private readonly PromptBuilder      $promptBuilder,
@@ -320,6 +320,7 @@ TXT;
         $contentMixData  = $this->personaScheduler->getContentMixData($platforms, $brandInfo);
         $allPosts        = [];
         $totalTokensUsed = 0;
+        $batchStartTime  = 0.0;
         $totalDays       = $startDate->diffInDays($endDate) + 1;
         $batches         = (int) ceil($totalDays / self::BATCH_SIZE_DAYS);
 
@@ -333,7 +334,18 @@ TXT;
                 GenerationTracker::update($projectId, $batchNum, $batches, (int) (($batchNum / $batches) * 100));
             }
 
-            if ($batchNum > 0) sleep(self::RATE_LIMIT_SLEEP);
+            if ($batchNum > 0) {
+                // Sleep adattivo: aspetta solo il tempo necessario per rispettare
+                // l'intervallo minimo tra batch (3s a Tier 2 è abbondantemente sicuro).
+                // Se la chiamata precedente ha già impiegato >3s, non dormiamo affatto.
+                $elapsed = microtime(true) - ($batchStartTime ?? 0);
+                $waitFor = self::RATE_LIMIT_SLEEP - $elapsed;
+                if ($waitFor > 0) {
+                    Log::info("[CLAUDE] Batch interval sleep: {$waitFor}s (elapsed {$elapsed}s)");
+                    usleep((int) ($waitFor * 1_000_000));
+                }
+            }
+            $batchStartTime = microtime(true);
 
             [$posts, $batchTokens] = $this->generateBatch(
                 $brandName, $brandInfo, $projectInfo, $batchStart, $batchEnd,

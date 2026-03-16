@@ -257,12 +257,21 @@ Il Passo 7 è il preview pre-generazione che mostra:
 - Stima post totali e tempo di generazione (in verde)
 Dal Passo 7 si può cliccare **Genera Calendario** o **Modifica parametri** per tornare indietro.
 
+### Insights e Statistiche
+La pagina **Insights** nella barra laterale mostra le performance dei profili social collegati.
+- Selettore brand e periodo (7, 30 o 90 giorni) in alto a destra
+- 4 card riepilogative: Impressioni Totali, Copertura Totale, Engagement Rate, Post Pubblicati
+- Dettaglio per piattaforma: impressioni, copertura, engagement, follower, like, commenti, condivisioni
+- Pulsante **Aggiorna** per raccogliere dati freschi dalle API social
+- Se appare "Nessuna connessione social attiva" → l'utente deve prima collegare i social dalla sezione **Social**
+
 ## CONTESTO PAGINA CORRENTE
 
 Usa il contesto della pagina per dare risposte più precise:
 - Se l'utente è su /brand/*/voice-interview → sta usando l'intervista AI per il brand
 - Se l'utente è su /brand/* → probabilmente ha domande su brand o social
 - Se è su /project/* → probabilmente ha domande su post o calendario
+- Se è su /insights → probabilmente ha domande su statistiche e performance social
 - Se è su /settings → probabilmente ha domande su account o abbonamento
 - Se è su /help → sta esplorando la documentazione, suggerisci articoli
 

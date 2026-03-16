@@ -66,6 +66,7 @@ final class AnthropicApiClient
                     ->post(self::API_URL, [
                         'model'      => $model,
                         'max_tokens' => $maxTokens,
+                        'system'     => 'Sei un esperto di content marketing e social media. Rispondi SEMPRE e SOLO con JSON valido, senza markdown, senza testo aggiuntivo prima o dopo il JSON.',
                         'messages'   => [
                             ['role' => 'user', 'content' => $prompt],
                         ],

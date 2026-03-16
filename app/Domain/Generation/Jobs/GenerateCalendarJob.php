@@ -155,24 +155,36 @@ final class GenerateCalendarJob implements ShouldQueue
 
         Log::info("[GEN] Deleted {$deleted} future posts (kept past posts)");
 
-        // ── 7. Salva nuovi post (commit individuali come il Python) ──
-        foreach ($posts as $postData) {
-            Post::create([
-                'organization_id'   => $project->organization_id,
-                'project_id'        => $this->projectId,
-                'platform'          => $postData['platform'] ?? '',
-                'scheduled_date'    => $postData['scheduled_date'] ?? null,
-                'scheduled_time'    => $postData['scheduled_time'] ?? '09:00',
-                'content'           => $postData['content'] ?? '',
-                'hashtags'          => $postData['hashtags'] ?? [],
-                'pillar'            => $postData['pillar'] ?? '',
-                'post_type'         => $postData['post_type'] ?? '',
-                'content_type'      => $postData['content_type'] ?? 'post',
-                'visual_suggestion' => $postData['visual_suggestion'] ?? '',
-                'call_to_action'    => $postData['call_to_action'] ?? '',
-                'cta'               => $postData['cta'] ?? '',
-                'status'            => 'draft',
-            ]);
+        // ── 7. Salva nuovi post — bulk insert (1 query invece di N) ──
+        // NOTA: Post::insert() bypassa i Model casts, quindi i campi array
+        // devono essere serializzati manualmente in JSON.
+        if (! empty($posts)) {
+            $now      = now();
+            $bulkRows = array_map(function (array $postData) use ($project, $now): array {
+                return [
+                    'organization_id'   => $project->organization_id,
+                    'project_id'        => $this->projectId,
+                    'platform'          => $postData['platform'] ?? '',
+                    'scheduled_date'    => $postData['scheduled_date'] ?? null,
+                    'scheduled_time'    => $postData['scheduled_time'] ?? '09:00',
+                    'content'           => $postData['content'] ?? '',
+                    'hashtags'          => json_encode($postData['hashtags'] ?? []),
+                    'pillar'            => $postData['pillar'] ?? '',
+                    'post_type'         => $postData['post_type'] ?? '',
+                    'content_type'      => $postData['content_type'] ?? 'post',
+                    'visual_suggestion' => $postData['visual_suggestion'] ?? '',
+                    'call_to_action'    => $postData['call_to_action'] ?? ($postData['cta'] ?? ''),
+                    'cta'               => $postData['cta'] ?? '',
+                    'status'            => 'draft',
+                    'created_at'        => $now,
+                    'updated_at'        => $now,
+                ];
+            }, $posts);
+
+            // Inserisci in chunk da 100 per sicurezza su VPS con poca RAM
+            foreach (array_chunk($bulkRows, 100) as $chunk) {
+                Post::insert($chunk);
+            }
         }
 
         // ── 8. Aggiorna personas se rigenerate ──
@@ -259,28 +271,38 @@ final class GenerateCalendarJob implements ShouldQueue
      */
     private function fetchUrlContext(array $urls, string $brandName): string
     {
+        $targets  = array_slice($urls, 0, 5);
         $contents = [];
 
-        foreach (array_slice($urls, 0, 5) as $url) {
-            try {
-                $response = Http::timeout(15)
-                    ->withUserAgent('NosciteCalendar/1.0')
-                    ->get($url);
+        if (empty($targets)) {
+            return '';
+        }
 
-                if ($response->successful()) {
-                    // Estrai testo dal body HTML (versione semplificata)
-                    $body = $response->body();
-                    $text = strip_tags($body);
-                    $text = preg_replace('/\s+/', ' ', $text);
-                    $text = trim(mb_substr($text, 0, 5000));
+        try {
+            // Http::pool() lancia tutte le richieste in parallelo (Guzzle Promise)
+            // Timeout ridotto a 8s: se un sito è lento non blocca tutto
+            $responses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($targets): array {
+                return collect($targets)->mapWithKeys(function (string $url) use ($pool): array {
+                    return [$url => $pool->as($url)->timeout(8)->withUserAgent('NosciteCalendar/1.0')->get($url)];
+                })->toArray();
+            });
 
-                    if (strlen($text) > 100) {
-                        $contents[] = "--- {$url} ---\n{$text}";
+            foreach ($targets as $url) {
+                try {
+                    $response = $responses[$url] ?? null;
+                    if ($response && $response->successful()) {
+                        $text = strip_tags($response->body());
+                        $text = trim(mb_substr(preg_replace('/\s+/', ' ', $text), 0, 5000));
+                        if (strlen($text) > 100) {
+                            $contents[] = "--- {$url} ---\n{$text}";
+                        }
                     }
+                } catch (\Throwable $e) {
+                    Log::info("[GEN] URL parse error for {$url}: {$e->getMessage()}");
                 }
-            } catch (\Throwable $e) {
-                Log::info("[GEN] URL fetch error for {$url}: {$e->getMessage()}");
             }
+        } catch (\Throwable $e) {
+            Log::info("[GEN] URL pool fetch error: {$e->getMessage()}");
         }
 
         return implode("\n\n", $contents);

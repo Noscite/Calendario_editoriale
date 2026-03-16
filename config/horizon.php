@@ -226,11 +226,13 @@ return [
             'supervisor-generazione' => [
                 'connection'   => 'redis',
                 'queue'        => ['generazione'],
-                'balance'      => 'simple',
+                'balance'      => 'auto',
+                'autoScalingStrategy' => 'time',
                 'minProcesses' => 1,
-                'maxProcesses' => 1,
+                'maxProcesses' => 3,
                 'tries'        => 0,
                 'timeout'      => 1800,
+                'nice'         => 0,
             ],
         ],
 
