@@ -25,8 +25,8 @@ class AdminPanelProvider extends PanelProvider
     {
         return $panel
             ->default()
-            ->id('admin')
-            ->path('admin')
+            ->id('filament-admin')
+            ->path('filament-admin')
             ->login()
             ->brandName('NoScite Calendar — Admin')
             ->colors([

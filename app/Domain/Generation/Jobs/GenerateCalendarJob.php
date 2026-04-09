@@ -77,6 +77,11 @@ final class GenerateCalendarJob implements ShouldQueue
             return;
         }
 
+        // Ri-imposta status a generating (potrebbe essere tornato a draft dopo un retry)
+        if ($project->status !== ProjectStatus::Generating) {
+            $project->update(['status' => ProjectStatus::Generating]);
+        }
+
         Log::info("[GEN] Starting generation for project {$this->projectId} — Brand: {$brand->name}");
 
         // ── 1. Recupera buyer personas (devono essere già generate/confermate) ──
@@ -177,7 +182,6 @@ final class GenerateCalendarJob implements ShouldQueue
                     'cta'               => $postData['cta'] ?? '',
                     'status'            => 'draft',
                     'created_at'        => $now,
-                    'updated_at'        => $now,
                 ];
             }, $posts);
 
@@ -290,9 +294,9 @@ final class GenerateCalendarJob implements ShouldQueue
             foreach ($targets as $url) {
                 try {
                     $response = $responses[$url] ?? null;
-                    if ($response && $response->successful()) {
+                    if ($response instanceof \Illuminate\Http\Client\Response && $response->successful()) {
                         $text = strip_tags($response->body());
-                        $text = trim(mb_substr(preg_replace('/\s+/', ' ', $text), 0, 5000));
+                        $text = trim(mb_substr(preg_replace('/\s+/', ' ', $text), 0, 2000));
                         if (strlen($text) > 100) {
                             $contents[] = "--- {$url} ---\n{$text}";
                         }

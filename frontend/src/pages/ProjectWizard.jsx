@@ -112,7 +112,14 @@ export default function ProjectWizard() {
       
       // Se non esiste ancora il progetto, crealo
       if (!projectId) {
-        const result = await createProject({ ...formData, brand_id: parseInt(brandId) });
+        const payload = {
+          ...formData,
+          brand_id: parseInt(brandId),
+          target_audience: Array.isArray(formData.target_audience)
+            ? formData.target_audience.join(', ')
+            : (formData.target_audience ?? ''),
+        };
+        const result = await createProject(payload);
         if (!result.success) {
           throw new Error('Errore nella creazione del progetto');
         }

@@ -101,6 +101,85 @@ final class AnthropicApiClient
     }
 
     /**
+     * Come call(), ma usa il prompt caching di Anthropic (beta).
+     *
+     * Il contenuto statico ($staticContent, ≥1024 token) viene marcato con
+     * cache_control=ephemeral: la prima chiamata lo scrive in cache (costo
+     * leggermente superiore), le successive lo leggono a ~10% del costo normale.
+     * Ideale per batch 2-N della stessa generazione, dove brand/personas/guidelines
+     * sono identici e solo le date cambiano.
+     *
+     * @param string $staticContent  Parte del prompt identica tra i batch (brand, personas, guidelines)
+     * @param string $dynamicContent Parte variabile (periodo date del batch corrente)
+     */
+    public function callCached(string $staticContent, string $dynamicContent, int $maxTokens, string $model): array
+    {
+        $lastException = null;
+
+        for ($attempt = 0; $attempt < self::MAX_TRIES; $attempt++) {
+            if ($attempt > 0) {
+                $backoffSeconds = (int) pow(2, $attempt);
+                Log::info("[ANTHROPIC] Retry {$attempt}/" . (self::MAX_TRIES - 1) . " — attesa {$backoffSeconds}s");
+                sleep($backoffSeconds);
+            }
+
+            try {
+                $content = [
+                    [
+                        'type'          => 'text',
+                        'text'          => $staticContent,
+                        'cache_control' => ['type' => 'ephemeral'],
+                    ],
+                ];
+
+                if ($dynamicContent !== '') {
+                    $content[] = ['type' => 'text', 'text' => $dynamicContent];
+                }
+
+                $response = Http::withHeaders([
+                    'x-api-key'         => $this->apiKey,
+                    'anthropic-version' => '2023-06-01',
+                    'anthropic-beta'    => 'prompt-caching-2024-07-31',
+                    'content-type'      => 'application/json',
+                ])
+                    ->timeout(120)
+                    ->post(self::API_URL, [
+                        'model'      => $model,
+                        'max_tokens' => $maxTokens,
+                        'system'     => 'Sei un esperto di content marketing e social media. Rispondi SEMPRE e SOLO con JSON valido, senza markdown, senza testo aggiuntivo prima o dopo il JSON.',
+                        'messages'   => [['role' => 'user', 'content' => $content]],
+                    ]);
+
+                if ($response->status() === 429) {
+                    $retryAfter = (int) ($response->header('Retry-After') ?? 60);
+                    Log::warning("[ANTHROPIC] Rate limit 429 — attesa {$retryAfter}s", ['attempt' => $attempt]);
+                    sleep($retryAfter + 1);
+                    continue;
+                }
+
+                if ($response->failed()) {
+                    $body          = $response->body();
+                    $lastException = new RuntimeException("Claude API error: HTTP {$response->status()} — {$body}");
+                    Log::error("[ANTHROPIC] HTTP {$response->status()}", ['body' => $body, 'attempt' => $attempt]);
+                    continue;
+                }
+
+                $data  = $response->json();
+                $usage = $data['usage'] ?? [];
+                Log::info('[ANTHROPIC] Cache — created=' . ($usage['cache_creation_input_tokens'] ?? 0) . ' read=' . ($usage['cache_read_input_tokens'] ?? 0));
+
+                return $data;
+
+            } catch (\Throwable $e) {
+                $lastException = $e;
+                Log::error("[ANTHROPIC] Eccezione tentativo {$attempt}", ['error' => $e->getMessage()]);
+            }
+        }
+
+        throw $lastException ?? new RuntimeException('Claude API: tutti i tentativi falliti');
+    }
+
+    /**
      * Parsa la risposta JSON di Claude, rimuovendo eventuali backtick markdown.
      * Replica esatta della logica Python:
      *

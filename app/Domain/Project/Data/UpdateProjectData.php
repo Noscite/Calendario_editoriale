@@ -25,10 +25,10 @@ final class UpdateProjectData extends Data
         public readonly Optional|array $posts_per_week = new Optional(),
         /** @var array<string>|Optional */
         public readonly Optional|array $themes = new Optional(),
-        public readonly Optional|string $brief = new Optional(),
+        public readonly Optional|string|null $brief = new Optional(),
         /** @var array<string>|Optional */
         public readonly Optional|array $reference_urls = new Optional(),
-        public readonly Optional|string $target_audience = new Optional(),
+        public readonly Optional|string|null $target_audience = new Optional(),
         /** @var array<string>|Optional */
         public readonly Optional|array $content_pillars = new Optional(),
         /** @var array<string>|Optional */
@@ -39,7 +39,7 @@ final class UpdateProjectData extends Data
         public readonly Optional|string $status = new Optional(),
         /** @var array<string, mixed>|Optional */
         public readonly Optional|array $buyer_personas = new Optional(),
-        public readonly Optional|string $custom_prompt = new Optional(),
+        public readonly Optional|string|null $custom_prompt = new Optional(),
         /** @var array<string>|Optional */
         public readonly Optional|array $objectives = new Optional(),
     ) {}

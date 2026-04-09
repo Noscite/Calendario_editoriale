@@ -13,6 +13,7 @@
         "laravel/reverb": "^1.7",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^2.10.1",
+        "predis/predis": "^3.4",
         "sentry/sentry-laravel": "^4.21",
         "spatie/laravel-data": "^4.19",
         "spatie/laravel-permission": "^7.1",

@@ -15,23 +15,24 @@ use Spatie\LaravelData\Optional;
 final class UpdatePostData extends Data
 {
     public function __construct(
-        public readonly Optional|string $content = new Optional(),
-        public readonly Optional|string $title = new Optional(),
-        /** @var array<string>|Optional */
-        public readonly Optional|array $hashtags = new Optional(),
+        public readonly Optional|string|null $content = new Optional(),
+        public readonly Optional|string|null $title = new Optional(),
+        /** @var array<string>|Optional|null */
+        public readonly Optional|array|null $hashtags = new Optional(),
         #[DateFormat('Y-m-d')]
-        public readonly Optional|string $scheduled_date = new Optional(),
-        public readonly Optional|string $scheduled_time = new Optional(),
+        public readonly Optional|string|null $scheduled_date = new Optional(),
+        public readonly Optional|string|null $scheduled_time = new Optional(),
         #[In(['linkedin', 'instagram', 'facebook', 'google_business'])]
-        public readonly Optional|string $platform = new Optional(),
-        public readonly Optional|string $visual_prompt = new Optional(),
-        public readonly Optional|string $visual_suggestion = new Optional(),
+        public readonly Optional|string|null $platform = new Optional(),
+        public readonly Optional|string|null $visual_prompt = new Optional(),
+        public readonly Optional|string|null $visual_suggestion = new Optional(),
         #[In(['draft', 'review', 'approved', 'published', 'rejected'])]
-        public readonly Optional|string $status = new Optional(),
-        public readonly Optional|string $pillar = new Optional(),
-        public readonly Optional|string $post_type = new Optional(),
-        public readonly Optional|string $content_type = new Optional(),
-        public readonly Optional|string $cta = new Optional(),
-        public readonly Optional|string $call_to_action = new Optional(),
+        public readonly Optional|string|null $status = new Optional(),
+        public readonly Optional|string|null $pillar = new Optional(),
+        public readonly Optional|string|null $post_type = new Optional(),
+        public readonly Optional|string|null $content_type = new Optional(),
+        public readonly Optional|string|null $cta = new Optional(),
+        public readonly Optional|string|null $call_to_action = new Optional(),
+        public readonly Optional|string|null $publication_status = new Optional(),
     ) {}
 }

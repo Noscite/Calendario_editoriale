@@ -7,12 +7,15 @@ use App\Domain\Shared\Traits\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasName;
+use Filament\Panel;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser, HasName
 {
     use BelongsToOrganization, HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
 
@@ -116,5 +119,17 @@ class User extends Authenticatable
     public function getIsAdminAttribute(): bool
     {
         return in_array($this->role, ['superuser', 'admin']);
+    }
+    public function getFilamentName(): string
+    {
+        return $this->full_name ?? $this->email ?? 'Utente';
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        if ($panel->getId() === 'filament-admin') {
+            return in_array($this->role, ['super_admin', 'admin', 'superuser']);
+        }
+        return true;
     }
 }

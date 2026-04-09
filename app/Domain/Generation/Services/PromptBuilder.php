@@ -198,6 +198,51 @@ PROMPT;
     }
 
     /**
+     * Come buildBatchPrompt() ma restituisce il prompt in due parti per il caching.
+     *
+     * - 'static'  → tutto ciò che è identico tra i batch (brand, personas, guidelines)
+     * - 'dynamic' → la sezione ## PROGETTO con le date specifiche del batch
+     *
+     * Usato da ClaudeContentGenerator::generateBatch() con AnthropicApiClient::callCached()
+     * per ridurre il costo dei token di input dei batch 2-N (cache hit = ~10% del costo normale).
+     *
+     * @return array{static: string, dynamic: string}
+     */
+    public function buildBatchPromptParts(
+        string  $brandName,
+        array   $brandInfo,
+        array   $projectInfo,
+        Carbon  $startDate,
+        Carbon  $endDate,
+        array   $platforms,
+        array   $postsPerWeek,
+        array   $themes,
+        ?string $urlContext,
+        string  $ragContext,
+        string  $styleGuide,
+        array   $buyerPersonas,
+        array   $contentMixData,
+    ): array {
+        $full       = $this->buildBatchPrompt(
+            $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
+            $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
+            $styleGuide, $buyerPersonas, $contentMixData,
+        );
+        $splitMark  = "\n## PROGETTO\n";
+        $pos        = strpos($full, $splitMark);
+
+        if ($pos === false || $pos < 1024) {
+            // Fallback: nessun split (prompt troppo corto o marker assente)
+            return ['static' => $full, 'dynamic' => ''];
+        }
+
+        return [
+            'static'  => substr($full, 0, $pos),
+            'dynamic' => substr($full, $pos),
+        ];
+    }
+
+    /**
      * Costruisce il prompt per l'analisi e generazione delle buyer personas.
      * Estratto da ClaudeContentGenerator::callClaudeForPersonas().
      */

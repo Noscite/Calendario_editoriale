@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
+import api from '../services/api';
 
 const platformColors = {
   linkedin: 'bg-[#0077b5]',
@@ -18,7 +19,6 @@ const platformIcons = {
   blog: '📝',
 };
 
-const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function PostEditModal({ post, isOpen, onClose, onSave }) {
   const [editedPost, setEditedPost] = useState(null);
@@ -77,29 +77,17 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
         .map(h => h.trim().replace(/^#/, ''))
         .filter(h => h.length > 0);
 
-      const response = await fetch(`${API_URL}/api/posts/${editedPost.id}`, {
-        method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          content: editedPost.content,
-          hashtags: hashtagsArray,
-          scheduled_time: editedPost.scheduled_time,
-          scheduled_date: editedPost.scheduled_date,
-          visual_suggestion: editedPost.visual_suggestion,
-          cta: editedPost.cta,
-          pillar: editedPost.pillar
-        })
+      const response = await api.patch(`/posts/${editedPost.id}`, {
+        content: editedPost.content,
+        hashtags: hashtagsArray,
+        scheduled_time: editedPost.scheduled_time,
+        scheduled_date: editedPost.scheduled_date,
+        visual_suggestion: editedPost.visual_suggestion,
+        cta: editedPost.cta,
+        pillar: editedPost.pillar
       });
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || 'Errore nel salvataggio');
-      }
-      
-      const updated = await response.json();
+      const updated = response.data;
       setMessage({ type: 'success', text: '✅ Post salvato con successo!' });
       
       setTimeout(() => {
@@ -117,20 +105,8 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
     setIsRegenerating(true);
     setMessage(null);
     try {
-      const response = await fetch(`${API_URL}/api/posts/${editedPost.id}/regenerate`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || 'Errore nella rigenerazione');
-      }
-      
-      const regenerated = await response.json();
+      const response = await api.post(`/posts/${editedPost.id}/regenerate`);
+      const regenerated = response.data;
       setEditedPost({
         ...regenerated,
         hashtagsText: Array.isArray(regenerated.hashtags) 
@@ -149,26 +125,13 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
     setIsGeneratingImage(true);
     setMessage(null);
     try {
-      const response = await fetch(`${API_URL}/api/posts/${editedPost.id}/generate-carousel`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          visual_suggestion: editedPost.visual_suggestion,
-          image_format: imageFormat,
-          is_carousel: isCarousel,
-          num_slides: isCarousel ? numSlides : 1
-        })
+      const response = await api.post(`/posts/${editedPost.id}/generate-carousel`, {
+        visual_suggestion: editedPost.visual_suggestion,
+        image_format: imageFormat,
+        is_carousel: isCarousel,
+        num_slides: isCarousel ? numSlides : 1
       });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || 'Errore nella generazione immagine');
-      }
-      
-      const result = await response.json();
+      const result = response.data;
       // Aggiorna stato con le immagini generate
       const mainImage = result.images?.[0] || result.image_url;
       setEditedPost(prev => ({ 
@@ -199,24 +162,13 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
     
     setIsUploadingImage(true);
     try {
-      const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch(`/api/posts/${editedPost.id}/upload-image`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
+      const response = await api.post(`/posts/${editedPost.id}/upload-image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Errore upload');
-      }
-      
-      const result = await response.json();
+      const result = response.data;
       setEditedPost(prev => ({ ...prev, image_url: result.image_url }));
     } catch (error) {
       console.error('Upload error:', error);
@@ -239,24 +191,13 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
     setMessage({ type: 'info', text: '📤 Caricamento video in corso...' });
     
     try {
-      const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', file);
-      
-      const response = await fetch(`${API_URL}/api/posts/${editedPost.id}/upload-media`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
+
+      const response = await api.post(`/posts/${editedPost.id}/upload-media`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Errore upload');
-      }
-      
-      const result = await response.json();
+      const result = response.data;
       setEditedPost(prev => ({ 
         ...prev, 
         image_url: result.media_url,
@@ -298,46 +239,25 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
         .map(h => h.trim().replace(/^#/, ''))
         .filter(h => h.length > 0);
       
-      await fetch(`${API_URL}/api/posts/${editedPost.id}`, {
-        method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          content: editedPost.content,
-          hashtags: hashtagsArray,
-          scheduled_time: editedPost.scheduled_time,
-          scheduled_date: editedPost.scheduled_date,
-          visual_suggestion: editedPost.visual_suggestion,
-          cta: editedPost.cta,
-          pillar: editedPost.pillar,
-          publication_status: 'scheduled'
-        })
+      await api.patch(`/posts/${editedPost.id}`, {
+        content: editedPost.content,
+        hashtags: hashtagsArray,
+        scheduled_time: editedPost.scheduled_time,
+        scheduled_date: editedPost.scheduled_date,
+        visual_suggestion: editedPost.visual_suggestion,
+        cta: editedPost.cta,
+        pillar: editedPost.pillar,
+        publication_status: 'scheduled'
       });
-      
+
       // Poi schedula la pubblicazione
-      // Normalizza l'orario: se ha solo HH:MM aggiungi :00
       const timeStr = editedPost.scheduled_time || '09:00';
       const normalizedTime = timeStr.length === 5 ? timeStr + ':00' : timeStr.substring(0, 8);
       const scheduledDateTime = `${editedPost.scheduled_date}T${normalizedTime}`;
-      console.log('DEBUG SCHEDULE:', { scheduledDateTime, platform: editedPost.platform, postId: editedPost.id });
-      const response = await fetch(`${API_URL}/api/posts/${editedPost.id}/schedule`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          scheduled_for: scheduledDateTime,
-          platforms: [editedPost.platform]
-        })
+      await api.post(`/posts/${editedPost.id}/schedule`, {
+        scheduled_for: scheduledDateTime,
+        platforms: [editedPost.platform]
       });
-      
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || 'Errore nella pianificazione');
-      }
       
       setMessage({ type: 'success', text: '📅 Post pianificato per la pubblicazione!' });
       setShowScheduleOptions(false);

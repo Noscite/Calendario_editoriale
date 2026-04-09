@@ -34,7 +34,8 @@ LINEE GUIDA CONTENUTI:
 TXT;
 
     private const MODEL                 = 'claude-sonnet-4-20250514';
-    private const MAX_TOKENS_BATCH      = 16_000;
+    private const MODEL_HAIKU           = 'claude-haiku-4-5-20251001';
+    private const MAX_TOKENS_BATCH      = 10_000;
     private const MAX_TOKENS_REGENERATE = 2_000;
     private const MAX_TOKENS_IMAGE      = 500;
     private const MAX_TOKENS_PERSONAS   = 4_000;
@@ -113,7 +114,7 @@ TXT;
         );
 
         try {
-            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_REGENERATE, self::MODEL);
+            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_REGENERATE, self::MODEL_HAIKU);
             $tokensUsed = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $result     = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
         } catch (\Throwable $e) {
@@ -385,7 +386,7 @@ TXT;
         int     $batchNum,
         int     $totalBatches,
     ): array {
-        $prompt = $this->promptBuilder->buildBatchPrompt(
+        $parts = $this->promptBuilder->buildBatchPromptParts(
             $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
             $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
             $styleGuide, $buyerPersonas, $contentMixData,
@@ -394,7 +395,7 @@ TXT;
         Log::info("[CLAUDE] API call — {$brandName}, {$startDate->toDateString()} → {$endDate->toDateString()}");
 
         try {
-            $response     = $this->apiClient->call($prompt, self::MAX_TOKENS_BATCH, self::MODEL);
+            $response     = $this->apiClient->callCached($parts['static'], $parts['dynamic'], self::MAX_TOKENS_BATCH, self::MODEL);
             $batchTokens  = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $posts        = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
 
@@ -421,7 +422,7 @@ TXT;
         );
 
         try {
-            $response  = $this->apiClient->call($prompt, self::MAX_TOKENS_IMAGE, self::MODEL);
+            $response  = $this->apiClient->call($prompt, self::MAX_TOKENS_IMAGE, self::MODEL_HAIKU);
             $imgTokens = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             return [trim($response['content'][0]['text'] ?? ''), $imgTokens];
         } catch (\Throwable $e) {
@@ -451,7 +452,7 @@ TXT;
             try {
                 $response = Http::timeout(15)->withUserAgent('NosciteCalendar/1.0')->get($url);
                 if ($response->successful()) {
-                    $text = trim(mb_substr(preg_replace('/\s+/', ' ', strip_tags($response->body())), 0, 5000));
+                    $text = trim(mb_substr(preg_replace('/\s+/', ' ', strip_tags($response->body())), 0, 2000));
                     if (strlen($text) > 100) $contents[] = "--- {$url} ---\n{$text}";
                 }
             } catch (\Throwable $e) {
@@ -479,7 +480,37 @@ TXT;
 
     private function getRagContext(int $brandId, string $searchQuery): string
     {
-        return ''; // TODO: integra con RagService reale
+        try {
+            $chunks = \App\Domain\Document\Models\DocumentChunk::where('brand_id', $brandId)
+                ->whereHas('document', fn ($q) => $q->where('extraction_status', 'completed'))
+                ->limit(10)
+                ->get(['content', 'chunk_index']);
+
+            if ($chunks->isEmpty()) {
+                return '';
+            }
+
+            // Keyword-based relevance: rank chunks by how many query words they contain
+            $queryWords = array_filter(
+                array_map('mb_strtolower', preg_split('/\s+/', trim($searchQuery))),
+                fn ($w) => mb_strlen($w) > 3
+            );
+
+            $scored = $chunks->map(function ($chunk) use ($queryWords) {
+                $text  = mb_strtolower($chunk->content);
+                $score = array_reduce($queryWords, fn ($carry, $w) => $carry + (int) str_contains($text, $w), 0);
+                return ['content' => $chunk->content, 'score' => $score];
+            })->sortByDesc('score')->take(5);
+
+            $combined = $scored->pluck('content')->implode("\n\n---\n\n");
+
+            // Limit to ~3000 chars to avoid bloating the prompt
+            return mb_substr($combined, 0, 3000);
+
+        } catch (\Throwable $e) {
+            Log::warning("[RAG] getRagContext failed: {$e->getMessage()}");
+            return '';
+        }
     }
 
     private function brandInfoArray(Brand $brand): array

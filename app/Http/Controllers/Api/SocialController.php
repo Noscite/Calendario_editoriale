@@ -206,7 +206,7 @@ final class SocialController extends Controller
             'client_id'     => $this->linkedinClientId(),
             'redirect_uri'  => $this->baseUrl() . '/api/social/callback/linkedin',
             'state'         => $state,
-            'scope'         => 'openid profile email w_member_social w_organization_social r_organization_admin',
+            'scope'         => 'openid profile email w_member_social',
         ]);
     }
 

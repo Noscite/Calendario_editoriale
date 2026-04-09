@@ -28,17 +28,17 @@ final class CreateProjectData extends Data
         public readonly ?array $posts_per_week = ['linkedin' => 3, 'instagram' => 4],
         /** @var array<string>|null */
         public readonly ?array $themes = null,
-        public readonly Optional|string $brief = new Optional(),
+        public readonly Optional|string|null $brief = new Optional(),
         /** @var array<string>|null */
         public readonly ?array $reference_urls = null,
-        public readonly Optional|string $target_audience = new Optional(),
+        public readonly Optional|string|null $target_audience = new Optional(),
         /** @var array<string>|null */
         public readonly ?array $content_pillars = null,
         /** @var array<string>|null */
         public readonly ?array $competitors = null,
         /** @var array<array<string, mixed>>|null */
         public readonly ?array $special_dates = null,
-        public readonly Optional|string $custom_prompt = new Optional(),
+        public readonly Optional|string|null $custom_prompt = new Optional(),
     ) {}
 
     public function toArray(): array
@@ -53,7 +53,7 @@ final class CreateProjectData extends Data
             'themes'          => $this->themes          ?? [],
             'brief'           => $this->brief instanceof Optional ? null : $this->brief,
             'reference_urls'  => $this->reference_urls  ?? [],
-            'target_audience' => $this->target_audience instanceof Optional ? null : $this->target_audience,
+            'target_audience' => ($this->target_audience instanceof Optional) ? null : ($this->target_audience ?? null),
             'content_pillars' => $this->content_pillars ?? [],
             'competitors'     => $this->competitors      ?? [],
             'special_dates'   => $this->special_dates   ?? [],
