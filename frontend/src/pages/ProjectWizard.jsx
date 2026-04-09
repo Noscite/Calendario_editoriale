@@ -41,6 +41,7 @@ export default function ProjectWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [createdProjectId, setCreatedProjectId] = useState(null);
+  const [stepError, setStepError] = useState('');
   
   // Buyer Personas state
   const [personasData, setPersonasData] = useState(null);
@@ -56,7 +57,7 @@ export default function ProjectWizard() {
     platforms: ['linkedin'],
     posts_per_week: { linkedin: 3, instagram: 4, facebook: 2, google_business: 2 },
     brief: '',
-    target_audience: '',
+    target_audience: '',  // sempre stringa, mai array
     content_pillars: [],
     themes: [],
     reference_urls: [],
@@ -228,16 +229,31 @@ export default function ProjectWizard() {
     }
   };
 
-  const canProceed = () => {
+  const validateStep = () => {
     switch (currentStep) {
-      case 1: return formData.name && formData.brief;
-      case 2: return formData.platforms.length > 0;
-      case 3: return true;
-      case 4: return true;
-      case 5: return true; // Documenti - opzionale
-      case 6: return personasData !== null; // Deve aver generato le personas
-      default: return true;
+      case 1: {
+        if (!formData.name.trim()) return 'Il nome del progetto è obbligatorio';
+        if (!formData.brief.trim()) return 'Il brief / obiettivi sono obbligatori';
+        if (!formData.start_date || !formData.end_date) return 'Le date di inizio e fine sono obbligatorie';
+        if (formData.start_date >= formData.end_date) return 'La data di inizio deve essere precedente alla data di fine';
+        return '';
+      }
+      case 2:
+        if (formData.platforms.length === 0) return 'Seleziona almeno una piattaforma';
+        return '';
+      default:
+        return '';
     }
+  };
+
+  const handleNext = () => {
+    const error = validateStep();
+    if (error) {
+      setStepError(error);
+      return;
+    }
+    setStepError('');
+    setCurrentStep(prev => prev + 1);
   };
 
   return (
@@ -772,20 +788,26 @@ export default function ProjectWizard() {
           )}
 
           {/* Navigation Buttons */}
-          <div className="flex justify-between mt-8 pt-6 border-t">
+          <div className="mt-8 pt-6 border-t">
+            {stepError && (
+              <div className="flex items-center gap-2 mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                <AlertCircle size={16} className="shrink-0" />
+                {stepError}
+              </div>
+            )}
+            <div className="flex justify-between">
             <button
-              onClick={() => setCurrentStep(prev => prev - 1)}
+              onClick={() => { setStepError(''); setCurrentStep(prev => prev - 1); }}
               disabled={currentStep === 1}
               className="flex items-center gap-2 px-6 py-3 border rounded-lg disabled:opacity-50"
             >
               <ArrowLeft size={20} /> Indietro
             </button>
-            
+
             {currentStep < 7 ? (
               <button
-                onClick={() => setCurrentStep(prev => prev + 1)}
-                disabled={!canProceed()}
-                className="flex items-center gap-2 px-6 py-3 bg-[#3DAFA8] text-white rounded-lg disabled:opacity-50 hover:bg-[#2C3E50]"
+                onClick={handleNext}
+                className="flex items-center gap-2 px-6 py-3 bg-[#3DAFA8] text-white rounded-lg hover:bg-[#2C3E50]"
               >
                 Avanti <ArrowRight size={20} />
               </button>
@@ -806,6 +828,7 @@ export default function ProjectWizard() {
                 )}
               </button>
             )}
+            </div>
           </div>
         </div>
       </main>
