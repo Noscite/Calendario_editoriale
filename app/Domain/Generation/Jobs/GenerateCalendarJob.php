@@ -82,6 +82,9 @@ final class GenerateCalendarJob implements ShouldQueue
             $project->update(['status' => ProjectStatus::Generating]);
         }
 
+        // Configura i client AI per usare le chiavi del brand (se impostate)
+        $this->generator->useBrandKeys($brand);
+
         Log::info("[GEN] Starting generation for project {$this->projectId} — Brand: {$brand->name}");
 
         // ── 1. Recupera buyer personas (devono essere già generate/confermate) ──

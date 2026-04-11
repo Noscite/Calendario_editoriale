@@ -130,8 +130,9 @@ class LinkedInPublisher
             }
 
             $registerData = $registerResponse->json();
-            $uploadUrl = data_get($registerData, 'value.uploadMechanism.com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest.uploadUrl');
-            $mediaAsset = data_get($registerData, 'value.asset');
+            // data_get() usa '.' come separatore — non funziona con chiavi che contengono punti
+            $uploadUrl  = $registerData['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl'] ?? null;
+            $mediaAsset = $registerData['value']['asset'] ?? null;
 
             if (!$uploadUrl || !$mediaAsset) {
                 Log::error("LinkedIn register upload: missing uploadUrl or asset");

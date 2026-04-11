@@ -45,8 +45,17 @@ TXT;
     public function __construct(
         private readonly PromptBuilder      $promptBuilder,
         private readonly PersonaScheduler   $personaScheduler,
-        private readonly AnthropicApiClient $apiClient,
+        private AnthropicApiClient          $apiClient,
     ) {}
+
+    /**
+     * Configura i client per usare le chiavi API del brand (se presenti).
+     * Chiamato da GenerateCalendarJob prima di avviare la generazione.
+     */
+    public function useBrandKeys(Brand $brand): void
+    {
+        $this->apiClient = $this->apiClient->withBrand($brand);
+    }
 
     // ── ContentGeneratorInterface ──────────────────────────────
 

@@ -110,6 +110,23 @@ export default function ProjectDetail() {
     loadData();
   }, [id]);
 
+  // Polling: aggiorna i post ogni 30s se ce ne sono in stato scheduled/publishing
+  useEffect(() => {
+    const hasPending = postsList.some(p =>
+      p.publication_status === 'scheduled' || p.publication_status === 'publishing'
+    );
+    if (!hasPending) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await postsApi.list(id);
+        setPostsList(res.data || []);
+      } catch (_) {}
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [postsList, id]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -783,7 +800,9 @@ export default function ProjectDetail() {
                         return (
                           <div key={post.id} className="flex items-center gap-1">
                             {post.publication_status === 'scheduled' && <span title="Pianificato" className="text-sm">📅</span>}
+                            {post.publication_status === 'publishing' && <span title="In pubblicazione" className="text-sm">⏳</span>}
                             {post.publication_status === 'published' && <span title="Pubblicato" className="text-sm">✅</span>}
+                            {post.publication_status === 'failed' && <span title="Fallito" className="text-sm">❌</span>}
                             <div
                               onClick={() => openEditModal(post)}
                               className={`flex-1 text-xs p-1.5 rounded cursor-pointer transition-all ${getPlatformColor(post.platform)} text-white truncate flex items-center gap-1 ${

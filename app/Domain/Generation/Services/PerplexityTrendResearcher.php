@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Generation\Services;
 
+use App\Domain\Brand\Models\Brand;
+use App\Domain\Brand\Services\BrandApiKeyService;
 use App\Domain\Generation\Contracts\TrendResearcherInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -31,6 +33,22 @@ final class PerplexityTrendResearcher implements TrendResearcherInterface
     public function __construct()
     {
         $this->apiKey = config('services.perplexity.api_key', env('PERPLEXITY_API_KEY', ''));
+    }
+
+    /**
+     * Usa la chiave del brand se presente, altrimenti fallback al config di sistema.
+     */
+    public function withBrand(?Brand $brand): static
+    {
+        if ($brand) {
+            $key = app(BrandApiKeyService::class)->get($brand, BrandApiKeyService::PERPLEXITY_API_KEY);
+            if ($key) {
+                $clone         = clone $this;
+                $clone->apiKey = $key;
+                return $clone;
+            }
+        }
+        return $this;
     }
 
     // ══════════════════════════════════════════════════════════

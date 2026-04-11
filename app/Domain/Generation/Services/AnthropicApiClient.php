@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Generation\Services;
 
+use App\Domain\Brand\Models\Brand;
+use App\Domain\Brand\Services\BrandApiKeyService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -33,6 +35,22 @@ final class AnthropicApiClient
     {
         $this->apiKey            = config('services.anthropic.api_key', '');
         $this->requestsPerMinute = (int) config('services.anthropic.requests_per_minute', 50);
+    }
+
+    /**
+     * Ritorna un clone con la chiave API del brand (se impostata), altrimenti restituisce $this.
+     */
+    public function withBrand(?Brand $brand): static
+    {
+        if ($brand) {
+            $key = app(BrandApiKeyService::class)->get($brand, BrandApiKeyService::ANTHROPIC_API_KEY);
+            if ($key) {
+                $clone         = clone $this;
+                $clone->apiKey = $key;
+                return $clone;
+            }
+        }
+        return $this;
     }
 
     /**
