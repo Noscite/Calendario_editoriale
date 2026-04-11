@@ -36,17 +36,21 @@ final class PerplexityTrendResearcher implements TrendResearcherInterface
     }
 
     /**
-     * Usa la chiave del brand se presente, altrimenti fallback al config di sistema.
+     * Ritorna un clone con la chiave del brand.
+     * SuperAdmin: fallback alle chiavi di sistema.
+     * Utente normale: MissingBrandApiKeyException se chiave assente.
      */
     public function withBrand(?Brand $brand): static
     {
         if ($brand) {
-            $key = app(BrandApiKeyService::class)->get($brand, BrandApiKeyService::PERPLEXITY_API_KEY);
-            if ($key) {
-                $clone         = clone $this;
-                $clone->apiKey = $key;
-                return $clone;
-            }
+            $key = app(BrandApiKeyService::class)->getWithSuperAdminFallback(
+                $brand,
+                BrandApiKeyService::PERPLEXITY_API_KEY,
+                'services.perplexity.api_key'
+            );
+            $clone         = clone $this;
+            $clone->apiKey = $key;
+            return $clone;
         }
         return $this;
     }

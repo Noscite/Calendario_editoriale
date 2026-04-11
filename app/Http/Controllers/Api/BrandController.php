@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Brand\Contracts\BrandServiceInterface;
 use App\Domain\Brand\Data\CreateBrandData;
 use App\Domain\Brand\Data\UpdateBrandData;
+use App\Domain\Organization\Models\Organization;
+use App\Domain\Subscription\Models\Plan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -61,16 +63,20 @@ final class BrandController extends Controller
             return response()->json(['detail' => 'Brand not found'], 404);
         }
 
+        $org  = Organization::find($brand->organization_id);
+        $plan = $org?->plan_id ? Plan::find($org->plan_id) : null;
+
         return response()->json([
-            'id'              => $brand->id,
-            'name'            => $brand->name,
-            'sector'          => $brand->sector,
-            'tone_of_voice'   => $brand->tone_of_voice,
-            'brand_values'    => $brand->brand_values,
-            'description'     => $brand->description,
-            'target_audience' => $brand->target_audience,
-            'colors'          => $brand->colors,
-            'style_guide'     => $brand->style_guide,
+            'id'                => $brand->id,
+            'name'              => $brand->name,
+            'sector'            => $brand->sector,
+            'tone_of_voice'     => $brand->tone_of_voice,
+            'brand_values'      => $brand->brand_values,
+            'description'       => $brand->description,
+            'target_audience'   => $brand->target_audience,
+            'colors'            => $brand->colors,
+            'style_guide'       => $brand->style_guide,
+            'has_own_api_keys'  => (bool) ($plan?->has_own_api_keys || $request->user()->role === 'superuser'),
         ]);
     }
 

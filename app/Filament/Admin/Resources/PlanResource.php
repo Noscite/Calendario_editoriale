@@ -108,6 +108,10 @@ class PlanResource extends Resource
                     Forms\Components\Toggle::make('has_auto_publishing')->label('Auto pubblicazione'),
                     Forms\Components\Toggle::make('has_analytics')->label('Analytics'),
                     Forms\Components\Toggle::make('has_ab_testing')->label('A/B Testing'),
+                    Forms\Components\Toggle::make('has_own_api_keys')
+                        ->label('Chiavi API proprie')
+                        ->helperText('Permette al cliente di inserire le proprie API key (Meta, LinkedIn, AI, ecc.)')
+                        ->inline(false),
                 ]),
 
             Section::make('Overage')
@@ -171,6 +175,10 @@ class PlanResource extends Resource
                     ->label('Org. attive')
                     ->counts('organizations')
                     ->sortable(),
+
+                Tables\Columns\IconColumn::make('has_own_api_keys')
+                    ->label('Chiavi proprie')
+                    ->boolean(),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Attivo')

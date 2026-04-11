@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Generation\Jobs;
 
+use App\Domain\Brand\Exceptions\MissingBrandApiKeyException;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Contracts\ContentGeneratorInterface;
 use App\Domain\Generation\Services\GenerationTracker;
+use App\Domain\Notification\Models\Notification;
 use App\Domain\Subscription\Models\UsageLog;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Enums\ProjectStatus;
@@ -77,13 +79,45 @@ final class GenerateCalendarJob implements ShouldQueue
             return;
         }
 
+        try {
+            $this->runGeneration($generator, $project, $brand);
+        } catch (MissingBrandApiKeyException $e) {
+            Log::warning('[GEN] Generazione bloccata: chiave API mancante', [
+                'project_id' => $this->projectId,
+                'brand_id'   => $brand->id,
+                'brand_name' => $brand->name,
+                'key_name'   => $e->keyName,
+            ]);
+
+            // Notifica in-app all'organizzazione del brand
+            try {
+                Notification::create([
+                    'organization_id' => $brand->organization_id,
+                    'type'            => 'missing_api_key',
+                    'title'           => "Generazione bloccata — chiave API mancante",
+                    'message'         => $e->getMessage(),
+                    'brand_id'        => $brand->id,
+                    'project_id'      => $this->projectId,
+                ]);
+            } catch (\Throwable) {}
+
+            $project->update(['status' => ProjectStatus::Draft]);
+            GenerationTracker::clear($this->projectId);
+
+            // Nessun retry — finché la chiave manca non ha senso
+            $this->fail($e);
+        }
+    }
+
+    private function runGeneration(ContentGeneratorInterface $generator, Project $project, Brand $brand): void
+    {
         // Ri-imposta status a generating (potrebbe essere tornato a draft dopo un retry)
         if ($project->status !== ProjectStatus::Generating) {
             $project->update(['status' => ProjectStatus::Generating]);
         }
 
-        // Configura i client AI per usare le chiavi del brand (se impostate)
-        $this->generator->useBrandKeys($brand);
+        // Configura i client AI per usare le chiavi del brand (lancia MissingBrandApiKeyException se assenti)
+        $generator->useBrandKeys($brand);
 
         Log::info("[GEN] Starting generation for project {$this->projectId} — Brand: {$brand->name}");
 
@@ -212,6 +246,8 @@ final class GenerateCalendarJob implements ShouldQueue
     // ──────────────────────────────────────────────────────────
     //  failed() — resetta status a draft (come il Python)
     // ──────────────────────────────────────────────────────────
+    // Nota: MissingBrandApiKeyException chiama $this->fail() esplicitamente
+    // quindi failed() viene invocato — il reset a draft è già fatto nel catch.
 
     public function failed(?\Throwable $exception): void
     {

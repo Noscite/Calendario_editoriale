@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\StripeWebhookController;
 use App\Http\Controllers\Api\AzureAuthController;
+use App\Http\Controllers\Api\BrandApiKeyController;
 use App\Http\Controllers\Api\BrandController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\ExportController;
@@ -194,6 +195,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [BrandController::class, 'store']);
         Route::put('/{id}', [BrandController::class, 'update']);
         Route::delete('/{id}', [BrandController::class, 'destroy']);
+
+        // API Keys per brand
+        Route::get('/{brand}/api-keys', [BrandApiKeyController::class, 'index']);
+        Route::post('/{brand}/api-keys', [BrandApiKeyController::class, 'store']);
     });
 
     // ─── PROJECTS — /api/projects  (prefix Python: /api/projects)

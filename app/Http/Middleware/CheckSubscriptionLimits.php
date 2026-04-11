@@ -73,6 +73,13 @@ class CheckSubscriptionLimits
             ]
         );
 
+        // Piano Unlimited con chiavi proprie: bypass token e immagini
+        if ($plan?->has_own_api_keys && in_array($resource, ['tokens', 'images'])) {
+            $request->attributes->set('subscription_limits', $limits);
+            $request->attributes->set('usage_log', $usage);
+            return $next($request);
+        }
+
         $exceeded = match ($resource) {
             'brands'    => $this->checkBrandsLimit($org, $limits),
             'calendars' => $this->checkUsageLimit(
@@ -120,9 +127,9 @@ class CheckSubscriptionLimits
             return [
                 'max_brands'        => $org->custom_limits['max_brands'] ?? ($plan?->max_brands ?? 1),
                 'max_users'         => $org->custom_limits['max_users'] ?? ($plan?->max_users ?? 1),
-                'monthly_calendars' => $org->custom_limits['monthly_calendar_generations'] ?? ($plan?->monthly_calendar_generations ?? 3),
-                'monthly_tokens'    => $org->custom_limits['monthly_text_tokens'] ?? ($plan?->monthly_text_tokens ?? 50000),
-                'monthly_images'    => $org->custom_limits['monthly_images'] ?? ($plan?->monthly_images ?? 20),
+                'monthly_calendars' => $org->custom_limits['monthly_calendar_generations'] ?? ($plan?->monthly_calendar_generations ?? 5),
+                'monthly_tokens'    => $org->custom_limits['monthly_text_tokens'] ?? ($plan?->monthly_text_tokens ?? 100000),
+                'monthly_images'    => $org->custom_limits['monthly_images'] ?? ($plan?->monthly_images ?? 15),
             ];
         }
 
@@ -140,9 +147,9 @@ class CheckSubscriptionLimits
         return [
             'max_brands'        => 1,
             'max_users'         => 1,
-            'monthly_calendars' => 3,
-            'monthly_tokens'    => 50000,
-            'monthly_images'    => 20,
+            'monthly_calendars' => 5,
+            'monthly_tokens'    => 100000,
+            'monthly_images'    => 15,
         ];
     }
 

@@ -38,17 +38,21 @@ final class AnthropicApiClient
     }
 
     /**
-     * Ritorna un clone con la chiave API del brand (se impostata), altrimenti restituisce $this.
+     * Ritorna un clone con la chiave API del brand.
+     * SuperAdmin: fallback alle chiavi di sistema.
+     * Utente normale: MissingBrandApiKeyException se chiave assente.
      */
     public function withBrand(?Brand $brand): static
     {
         if ($brand) {
-            $key = app(BrandApiKeyService::class)->get($brand, BrandApiKeyService::ANTHROPIC_API_KEY);
-            if ($key) {
-                $clone         = clone $this;
-                $clone->apiKey = $key;
-                return $clone;
-            }
+            $key = app(BrandApiKeyService::class)->getWithSuperAdminFallback(
+                $brand,
+                BrandApiKeyService::ANTHROPIC_API_KEY,
+                'services.anthropic.api_key'
+            );
+            $clone         = clone $this;
+            $clone->apiKey = $key;
+            return $clone;
         }
         return $this;
     }

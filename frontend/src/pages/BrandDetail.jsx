@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDataStore } from '../store/dataStore';
 import { brands, projects as projectsApi, social as socialApi } from '../services/api';
+import api from '../services/api';
 import {
   Plus, Calendar, Sparkles, Loader2, Trash2, Mic, Building2,
   Linkedin, Instagram, Facebook, MapPin, Link2, CheckCircle, XCircle,
-  ExternalLink, Globe, Palette, Users, Layers
+  ExternalLink, Globe, Palette, Users, Layers, Key, Eye, EyeOff, Save, ChevronDown, ChevronUp
 } from 'lucide-react';
 import EditionBadge from '../components/EditionBadge';
 import AddEditionModal from '../components/AddEditionModal';
@@ -26,10 +27,19 @@ export default function BrandDetail() {
   const [loadingConnections, setLoadingConnections] = useState(true);
   const [editionModalProject, setEditionModalProject] = useState(null);
 
+  // API Keys state
+  const [apiKeyGroups, setApiKeyGroups] = useState([]);
+  const [apiKeyValues, setApiKeyValues] = useState({});
+  const [apiKeyVisible, setApiKeyVisible] = useState({});
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [apiKeyMessage, setApiKeyMessage] = useState(null);
+  const [apiKeyOpen, setApiKeyOpen] = useState(false);
+
   useEffect(() => {
     loadBrand();
     fetchProjects(id);
     loadConnections();
+    loadApiKeys();
   }, [id]);
 
   const loadBrand = async () => {
@@ -85,6 +95,28 @@ export default function BrandDetail() {
 
   const getConnection = (platformId) => {
     return connections.find(c => c.platform === platformId);
+  };
+
+  const loadApiKeys = async () => {
+    try {
+      const res = await api.get(`/brands/${id}/api-keys`);
+      setApiKeyGroups(res.data.groups || []);
+    } catch (_) {}
+  };
+
+  const handleApiKeySave = async () => {
+    setApiKeySaving(true);
+    setApiKeyMessage(null);
+    try {
+      await api.post(`/brands/${id}/api-keys`, { keys: apiKeyValues });
+      setApiKeyMessage({ type: 'success', text: 'Chiavi salvate con successo' });
+      setApiKeyValues({});
+      loadApiKeys();
+    } catch (_) {
+      setApiKeyMessage({ type: 'error', text: 'Errore nel salvataggio' });
+    } finally {
+      setApiKeySaving(false);
+    }
   };
 
   if (!brand) {
@@ -319,6 +351,110 @@ export default function BrandDetail() {
           </div>
         )}
       </div>
+
+      {/* API Keys Section */}
+      {brand.has_own_api_keys ? (
+      <div className="bg-white rounded-xl shadow-sm">
+        <button
+          onClick={() => setApiKeyOpen(o => !o)}
+          className="w-full flex items-center justify-between p-6 text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <Key size={20} className="text-gray-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-[#2C3E50]">Integrazioni & API Keys</h3>
+              <p className="text-sm text-gray-500">Chiavi API per Meta, LinkedIn, Google, AI</p>
+            </div>
+          </div>
+          {apiKeyOpen ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+        </button>
+
+        {apiKeyOpen && (
+          <div className="px-6 pb-6 space-y-6 border-t pt-4">
+            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <div>
+                <p className="font-semibold mb-1">Chiavi API obbligatorie per generazione e pubblicazione</p>
+                <p>Senza le chiavi configurate, la generazione del calendario verrà bloccata. Ogni brand deve usare le proprie credenziali API ufficiali.</p>
+              </div>
+            </div>
+
+            {apiKeyGroups.map(group => (
+              <div key={group.label}>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">{group.label}</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {group.keys.map(item => (
+                    <div key={item.key}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        {item.label}
+                        {item.is_set && (
+                          <span className="ml-2 text-green-600 font-normal">✓ impostata</span>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={apiKeyVisible[item.key] ? 'text' : 'password'}
+                          value={apiKeyValues[item.key] ?? ''}
+                          onChange={e => setApiKeyValues(v => ({ ...v, [item.key]: e.target.value }))}
+                          placeholder={item.is_set ? '••••••••  (lascia vuoto per non modificare)' : 'Non impostata'}
+                          autoComplete="new-password"
+                          className="w-full pr-9 px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#3DAFA8] focus:border-[#3DAFA8]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setApiKeyVisible(v => ({ ...v, [item.key]: !v[item.key] }))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {apiKeyVisible[item.key] ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {apiKeyMessage && (
+              <div className={`p-3 rounded-lg text-sm ${apiKeyMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                {apiKeyMessage.text}
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleApiKeySave}
+                disabled={apiKeySaving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#3DAFA8] text-white rounded-lg hover:bg-[#2C3E50] disabled:opacity-50 text-sm font-medium"
+              >
+                {apiKeySaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Salva chiavi
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      ) : (
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+            <Key size={20} className="text-gray-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-[#2C3E50]">Integrazioni & API Keys</h3>
+            <p className="text-sm text-gray-500">Disponibile nel piano Unlimited</p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+          <span className="shrink-0">🔒</span>
+          <div>
+            <p className="font-medium">Funzionalità disponibile nel piano Unlimited</p>
+            <p className="mt-0.5">Con il piano Unlimited puoi connettere le tue chiavi API per Meta, LinkedIn, Google Business Profile e i servizi AI.</p>
+          </div>
+        </div>
+      </div>
+      )}
 
       {/* Add Edition Modal */}
       {editionModalProject && (

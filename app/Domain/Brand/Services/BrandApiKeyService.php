@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace App\Domain\Brand\Services;
 
+use App\Domain\Brand\Exceptions\MissingBrandApiKeyException;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Models\BrandApiKey;
+use App\Domain\Organization\Models\Organization;
+use App\Domain\Subscription\Models\Plan;
+use Illuminate\Support\Facades\Auth;
 
 class BrandApiKeyService
 {
@@ -59,7 +63,7 @@ class BrandApiKeyService
                 self::GOOGLE_REFRESH_TOKEN => 'Refresh Token',
                 self::GOOGLE_LOCATION_ID   => 'Location ID',
             ],
-            'AI (opzionali — usa le chiavi di sistema se vuoti)' => [
+            'AI' => [
                 self::ANTHROPIC_API_KEY  => 'Anthropic API Key',
                 self::OPENAI_API_KEY     => 'OpenAI API Key',
                 self::PERPLEXITY_API_KEY => 'Perplexity API Key',
@@ -79,15 +83,84 @@ class BrandApiKeyService
     }
 
     /**
-     * Restituisce la chiave del brand; se assente, fallback al config di sistema.
+     * Restituisce la chiave del brand.
+     * Lancia MissingBrandApiKeyException se non configurata.
+     * NON fa mai fallback alle chiavi di sistema — quelle appartengono a Noscite.
      */
-    public function getOrFallback(Brand $brand, string $keyName, string $configFallback): string
+    public function getRequired(Brand $brand, string $keyName): string
     {
-        return $this->get($brand, $keyName) ?? config($configFallback);
+        $value = $this->get($brand, $keyName);
+
+        if ($value === null || $value === '') {
+            throw new MissingBrandApiKeyException($keyName, $brand->name);
+        }
+
+        return $value;
+    }
+
+    /**
+     * Solo il SuperAdmin (ruolo 'superuser') può usare le chiavi di sistema come fallback.
+     * Per tutti gli altri brand, lancia MissingBrandApiKeyException.
+     */
+    public function getWithSuperAdminFallback(
+        Brand $brand,
+        string $keyName,
+        string $configFallback
+    ): string {
+        $value = $this->get($brand, $keyName);
+
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+
+        if ($this->currentUserIsSuperAdmin()) {
+            return config($configFallback)
+                ?? throw new \RuntimeException("Chiave di sistema non configurata: {$configFallback}");
+        }
+
+        throw new MissingBrandApiKeyException($keyName, $brand->name);
+    }
+
+    private function currentUserIsSuperAdmin(): bool
+    {
+        return Auth::user()?->role === 'superuser';
+    }
+
+    /**
+     * Ritorna le chiavi obbligatorie non configurate per un brand.
+     * Usato per validazione pre-generazione nell'UI.
+     */
+    public function getMissingRequiredKeys(Brand $brand): array
+    {
+        $required = [
+            self::ANTHROPIC_API_KEY  => 'Anthropic (generazione testi)',
+            self::PERPLEXITY_API_KEY => 'Perplexity (ricerca trend)',
+        ];
+
+        $existing = $this->getAll($brand);
+        $missing  = [];
+
+        foreach ($required as $keyName => $label) {
+            if (empty($existing[$keyName])) {
+                $missing[$keyName] = $label;
+            }
+        }
+
+        return $missing;
     }
 
     public function set(Brand $brand, string $keyName, string $value): void
     {
+        $org  = Organization::find($brand->organization_id);
+        $plan = $org?->plan_id ? Plan::find($org->plan_id) : null;
+
+        if (! $plan?->has_own_api_keys && ! $this->currentUserIsSuperAdmin()) {
+            throw new \DomainException(
+                'Il piano attuale non include la gestione di chiavi API proprie. ' .
+                'Passa al piano Unlimited per abilitare questa funzionalità.'
+            );
+        }
+
         BrandApiKey::updateOrCreate(
             ['brand_id' => $brand->id, 'key_name' => $keyName],
             ['encrypted_value' => $value]

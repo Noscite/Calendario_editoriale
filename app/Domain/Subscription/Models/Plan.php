@@ -33,6 +33,7 @@ class Plan extends Model
         'has_auto_publishing',
         'has_analytics',
         'has_ab_testing',
+        'has_own_api_keys',
         // Overage
         'allows_overage',
         'overage_price_per_1k_tokens',
@@ -53,8 +54,9 @@ class Plan extends Model
         'has_crm_integration' => false,
         'has_auto_publishing' => false,
         'has_analytics' => false,
-        'has_ab_testing' => false,
-        'allows_overage' => false,
+        'has_ab_testing'  => false,
+        'has_own_api_keys' => false,
+        'allows_overage'  => false,
         'is_active' => true,
     ];
 
@@ -75,8 +77,9 @@ class Plan extends Model
             'has_crm_integration' => 'boolean',
             'has_auto_publishing' => 'boolean',
             'has_analytics' => 'boolean',
-            'has_ab_testing' => 'boolean',
-            'allows_overage' => 'boolean',
+            'has_ab_testing'  => 'boolean',
+            'has_own_api_keys' => 'boolean',
+            'allows_overage'  => 'boolean',
             'overage_price_per_1k_tokens' => 'decimal:4',
             'overage_price_per_image' => 'decimal:4',
             'is_active' => 'boolean',
