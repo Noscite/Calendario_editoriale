@@ -157,27 +157,40 @@ export default function Sidebar() {
       {!collapsed && (
         <div className="px-4 py-3 border-t border-white/10">
           <div className="space-y-3">
+
+            {/* Contenuto AI (token → giorni leggibili) */}
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-gray-400 flex items-center gap-1">
-                  <Sparkles size={12} /> Token AI
+                  <Sparkles size={12} /> Contenuto AI
                 </span>
                 <span className="text-gray-300">
                   {tokensLimit === -1 ? '∞' : `${Math.round(tokensPercentage)}%`}
                 </span>
               </div>
               <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-[#3DAFA8] to-emerald-400 rounded-full transition-all" 
-                  style={{ width: `${tokensLimit === -1 ? 0 : Math.min(tokensPercentage, 100)}%` }} 
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${tokensLimit === -1 ? 0 : Math.min(tokensPercentage, 100)}%`,
+                    background: tokensPercentage >= 90
+                      ? 'linear-gradient(to right, #ef4444, #dc2626)'
+                      : tokensPercentage >= 70
+                        ? 'linear-gradient(to right, #f97316, #ea580c)'
+                        : 'linear-gradient(to right, #3DAFA8, #34d399)',
+                  }}
                 />
               </div>
-              {!collapsed && tokensLimit !== -1 && (
+              {tokensLimit === -1 ? (
+                <p className="text-[10px] text-gray-500 mt-0.5">Illimitato</p>
+              ) : (
                 <p className="text-[10px] text-gray-500 mt-0.5">
-                  {tokensUsed.toLocaleString()} / {tokensLimit.toLocaleString()}
+                  ~{Math.round(tokensUsed / 1500)} giorni generati su ~{Math.round(tokensLimit / 1500)} disponibili
                 </p>
               )}
             </div>
+
+            {/* Immagini */}
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-gray-400 flex items-center gap-1">
@@ -188,17 +201,27 @@ export default function Sidebar() {
                 </span>
               </div>
               <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-[#E89548] to-amber-400 rounded-full transition-all" 
-                  style={{ width: `${imagesLimit === -1 ? 0 : Math.min(imagesPercentage, 100)}%` }} 
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${imagesLimit === -1 ? 0 : Math.min(imagesPercentage, 100)}%`,
+                    background: imagesPercentage >= 90
+                      ? 'linear-gradient(to right, #ef4444, #dc2626)'
+                      : imagesPercentage >= 70
+                        ? 'linear-gradient(to right, #f97316, #ea580c)'
+                        : 'linear-gradient(to right, #E89548, #f59e0b)',
+                  }}
                 />
               </div>
-              {!collapsed && imagesLimit !== -1 && (
+              {imagesLimit === -1 ? (
+                <p className="text-[10px] text-gray-500 mt-0.5">Illimitate</p>
+              ) : (
                 <p className="text-[10px] text-gray-500 mt-0.5">
-                  {imagesUsed} / {imagesLimit}
+                  {imagesUsed} su {imagesLimit} immagini usate
                 </p>
               )}
             </div>
+
           </div>
         </div>
       )}
