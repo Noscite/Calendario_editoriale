@@ -6,10 +6,12 @@ import api from '../services/api';
 import {
   Plus, Calendar, Sparkles, Loader2, Trash2, Mic, Building2,
   Linkedin, Instagram, Facebook, MapPin, Link2, CheckCircle, XCircle,
-  ExternalLink, Globe, Palette, Users, Layers, Key, Eye, EyeOff, Save, ChevronDown, ChevronUp
+  ExternalLink, Globe, Palette, Users, Layers, Key, Eye, EyeOff, Save, ChevronDown, ChevronUp,
+  TrendingUp,
 } from 'lucide-react';
 import EditionBadge from '../components/EditionBadge';
 import AddEditionModal from '../components/AddEditionModal';
+import AuditDashboard from './AuditDashboard';
 
 const PLATFORMS = [
   { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'bg-[#0077b5]' },
@@ -350,6 +352,20 @@ export default function BrandDetail() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Digital Audit Section */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#E8F7F6' }}>
+            <TrendingUp size={20} style={{ color: '#3DAFA8' }} />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-[#2C3E50]">Digital Audit</h2>
+            <p className="text-sm text-gray-500">Analisi SEO, GDPR, accessibilità, performance e neuromarketing</p>
+          </div>
+        </div>
+        <AuditDashboard brandId={id} />
       </div>
 
       {/* API Keys Section */}

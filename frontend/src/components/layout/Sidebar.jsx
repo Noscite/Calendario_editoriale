@@ -1,19 +1,20 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Building2, 
+import {
+  LayoutDashboard,
+  Building2,
   Share2,
-  BarChart3, 
-  FileText, 
-  Settings, 
-  User, 
+  BarChart3,
+  FileText,
+  Settings,
+  User,
   Shield,
   HelpCircle,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  ImageIcon
+  ImageIcon,
+  TrendingUp,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
@@ -46,11 +47,12 @@ export default function Sidebar() {
   };
 
   const navItems = [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/brands', icon: Building2, label: 'I miei Brand' },
-    { to: '/social', icon: Share2, label: 'Social' },
-    { to: '/insights', icon: BarChart3, label: 'Insights' },
-    { to: '/documents', icon: FileText, label: 'Documenti' },
+    { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/brands',     icon: Building2,       label: 'I miei Brand' },
+    { to: '/audit',      icon: TrendingUp,      label: 'Audit' },
+    { to: '/social',     icon: Share2,           label: 'Social' },
+    { to: '/insights',   icon: BarChart3,        label: 'Insights' },
+    { to: '/documents',  icon: FileText,         label: 'Documenti' },
   ];
 
   const bottomItems = [

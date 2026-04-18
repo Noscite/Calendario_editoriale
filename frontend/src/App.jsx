@@ -31,6 +31,9 @@ import HelpArticlePage from './pages/HelpArticlePage';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import AcceptInvitation from './pages/AcceptInvitation';
+import AuditProspectPage from './pages/AuditProspectPage';
+import AuditSharePage from './pages/AuditSharePage';
+import AuditAdminPage from './pages/AuditAdminPage';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -60,6 +63,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/invitation/:token" element={<AcceptInvitation />} />
+        <Route path="/audit/share/:token" element={<AuditSharePage />} />
 
         {/* Protected routes with layout */}
         <Route
@@ -84,6 +88,9 @@ function App() {
           <Route path="brand/:brandId/new-project" element={<ProjectWizard />} />
           <Route path="brand/:brandId/voice-interview" element={<VoiceProfilingInterview />} />
           
+          {/* Audit */}
+          <Route path="audit" element={<AuditProspectPage />} />
+
           {/* Social */}
           <Route path="social" element={<SocialPage />} />
           <Route path="insights" element={<InsightsPage />} />
@@ -106,6 +113,7 @@ function App() {
           {/* Admin */}
           <Route path="admin" element={<AdminDashboard />} />
           <Route path="admin/saas" element={<SaasAdmin />} />
+          <Route path="admin/audits" element={<AuditAdminPage />} />
         </Route>
 
         {/* Catch all */}

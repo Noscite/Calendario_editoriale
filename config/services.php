@@ -96,6 +96,21 @@ return [
         'api_key' => env('PERPLEXITY_API_KEY'),
     ],
 
+    'playwright' => [
+        'url'     => env('PLAYWRIGHT_SERVICE_URL', 'http://127.0.0.1:3099'),
+        'timeout' => env('PLAYWRIGHT_TIMEOUT', 45),
+        'enabled' => env('PLAYWRIGHT_ENABLED', true),
+    ],
+
+    'pagespeed' => [
+        'api_key' => env('GOOGLE_PAGESPEED_API_KEY', ''),  // opzionale: aumenta rate limit
+        'enabled' => env('PAGESPEED_ENABLED', true),
+    ],
+
+    'ssllabs' => [
+        'enabled' => env('SSLLABS_ENABLED', true),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Frontend URL

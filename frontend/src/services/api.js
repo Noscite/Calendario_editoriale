@@ -154,3 +154,36 @@ export const invitations = {
   invite: (data) => api.post('/admin/invitations', data),
   revoke: (id) => api.delete(`/admin/invitations/${id}`),
 };
+
+export const auditApi = {
+  // Brand audits (per-brand)
+  start:      (brandId, sectorData = null) => api.post(`/brands/${brandId}/audit`, sectorData ?? {}),
+  latest:     (brandId) => api.get(`/brands/${brandId}/audit/latest`),
+  history:    (brandId) => api.get(`/brands/${brandId}/audits`),
+  show:       (auditId) => api.get(`/audits/${auditId}`),
+
+  // Prospect audits (utente autenticato, no brand)
+  prospectStart:   (data) => api.post('/audit/prospect', data),
+  prospectShow:    (id)   => api.get(`/audit/prospect/${id}`),
+  prospectList:    ()     => api.get('/audit/prospects'),
+  prospectShare:   (id)   => api.post(`/audit/prospect/${id}/share`),
+  prospectRerun:   (id)   => api.post(`/audit/prospect/${id}/rerun`),
+  prospectDelete:  (id)   => api.delete(`/audit/prospect/${id}`),
+
+  // Admin — audit cross-org + standalone (solo superadmin)
+  adminList:         (params = {}) => api.get('/admin/audits',            { params }),
+  standaloneStart:   (data)        => api.post('/admin/audit-url',         data),
+  standaloneList:    (params = {}) => api.get('/admin/audits-standalone',  { params }),
+  standaloneDownloadPdf: (auditId) => api.get(`/admin/audit-url/${auditId}/pdf`,  { responseType: 'blob' }),
+
+  // PDF per audit brand (utente autenticato)
+  downloadPdf: (auditId) => api.get(`/audits/${auditId}/pdf`, { responseType: 'blob' }),
+
+  // Share link
+  generateShareLink:      (auditId) => api.post(`/audits/${auditId}/share`),
+  generateShareLinkAdmin: (auditId) => api.post(`/admin/audit-url/${auditId}/share`),
+
+  // Rilevamento settore automatico
+  detectSector:         (data)    => api.post('/admin/audit-detect-sector',      data),
+  detectSectorForBrand: (brandId) => api.post(`/brands/${brandId}/audit-detect-sector`),
+};

@@ -15,6 +15,8 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\ApiKeyController;
+use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\ProspectAuditController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\StripeWebhookController;
@@ -48,6 +50,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle'])
     ->withoutMiddleware(['auth:sanctum', \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
+// ═══════════════════════════════════════════════════════════════
+// AUDIT PUBBLICO — /api/audit/share/{token}  (no auth)
+// ═══════════════════════════════════════════════════════════════
+
+Route::get('/audit/share/{token}', [ProspectAuditController::class, 'publicShow']);
 
 // ═══════════════════════════════════════════════════════════════
 // HEALTH — /api/health
@@ -199,6 +207,31 @@ Route::middleware('auth:sanctum')->group(function () {
         // API Keys per brand
         Route::get('/{brand}/api-keys', [BrandApiKeyController::class, 'index']);
         Route::post('/{brand}/api-keys', [BrandApiKeyController::class, 'store']);
+
+        // Audit digitale brand
+        Route::post('/{id}/audit', [AuditController::class, 'start']);
+        Route::get('/{id}/audit/latest', [AuditController::class, 'latest']);
+        Route::get('/{id}/audits', [AuditController::class, 'history']);
+        Route::post('/{brandId}/audit-detect-sector', [AuditController::class, 'detectSectorForBrand']);
+    });
+
+    // ─── AUDITS — /api/audits  (singolo audit per id) ───────────
+
+    Route::prefix('audits')->group(function () {
+        Route::get('/{auditId}',      [AuditController::class, 'show']);
+        Route::get('/{auditId}/pdf',  [AuditController::class, 'downloadPdf']);
+        Route::post('/{auditId}/share', [AuditController::class, 'generateShareLink']);
+    });
+
+    // ─── PROSPECT AUDITS — /api/audit/prospect ───────────────────
+
+    Route::prefix('audit')->group(function () {
+        Route::get('/prospects',            [ProspectAuditController::class, 'index']);
+        Route::post('/prospect',            [ProspectAuditController::class, 'start']);
+        Route::get('/prospect/{id}',        [ProspectAuditController::class, 'show']);
+        Route::post('/prospect/{id}/share', [ProspectAuditController::class, 'generateShareLink']);
+        Route::post('/prospect/{id}/rerun', [ProspectAuditController::class, 'rerun']);
+        Route::delete('/prospect/{id}',     [ProspectAuditController::class, 'destroy']);
     });
 
     // ─── PROJECTS — /api/projects  (prefix Python: /api/projects)
@@ -410,6 +443,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/invitations', [InvitationController::class, 'invite']);
         Route::get('/invitations', [InvitationController::class, 'index']);
         Route::delete('/invitations/{id}', [InvitationController::class, 'revoke']);
+
+        // Audit — vista cross-org (superadmin) + audit standalone su URL libero
+        Route::get('/audits',                          [AuditController::class, 'adminIndex']);
+        Route::post('/audit-url',                      [AuditController::class, 'startStandalone']);
+        Route::get('/audits-standalone',               [AuditController::class, 'standaloneIndex']);
+        Route::get('/audit-url/{auditId}/pdf',          [AuditController::class, 'standaloneDownloadPdf']);
+        Route::post('/audit-url/{auditId}/share',      [AuditController::class, 'generateShareLink']);
+        Route::post('/audit-detect-sector',            [AuditController::class, 'detectSector']);
     });
 
     // ─── API KEYS — /api/api-keys  (prefix Python: /api/api-keys) ─
