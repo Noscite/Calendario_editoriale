@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasColumn('brand_audits', 'score_geo')) {
+            return;
+        }
+
         Schema::table('brand_audits', function (Blueprint $table) {
             $table->unsignedTinyInteger('score_geo')->nullable()->after('score_seo_geo');
         });

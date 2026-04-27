@@ -22,3 +22,7 @@ Schedule::job(new CollectSocialMetricsJob)->everySixHours();
 // ── Trial Reminder ───────────────────────────────────────────────
 // Invia email di promemoria per trial in scadenza (7, 3, 1 giorno)
 Schedule::command('trial:send-reminders')->dailyAt('09:00');
+
+// ── Subscription State Machine ───────────────────────────────────
+// Aggiorna trial→pending_payment, active→expired, invia notifiche scadenza
+Schedule::command('subscriptions:update-states')->dailyAt('02:00');

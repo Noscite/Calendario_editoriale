@@ -8,12 +8,12 @@ use App\Domain\Brand\Models\Brand;
 use App\Domain\Document\Jobs\ProcessDocumentJob;
 use App\Domain\Document\Models\BrandDocument;
 use App\Domain\Document\Models\DocumentChunk;
+use App\Exceptions\BusinessException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-
 
 /**
  * Upload e gestione documenti brand — corrisponde a documents.py (Python).
@@ -32,32 +32,61 @@ final class DocumentController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        $file   = $request->file('file');
-        $ext    = strtolower($file->getClientOriginalExtension());
+        $file    = $request->file('file');
+        $ext     = strtolower($file->getClientOriginalExtension());
         $allowed = ['pdf', 'docx', 'doc', 'pptx', 'ppt', 'txt', 'md'];
 
         if (! in_array($ext, $allowed)) {
             return response()->json([
-                'detail' => "Tipo file non supportato. Formati accettati: " . implode(', ', $allowed),
+                'detail' => 'Tipo file non supportato. Formati accettati: ' . implode(', ', $allowed),
             ], 400);
         }
 
         $uniqueFilename = Str::uuid() . '_' . $file->getClientOriginalName();
         $dir            = "documents/{$brandId}";
-        $path           = $file->storeAs($dir, $uniqueFilename, 'local');
 
-        $document = BrandDocument::create([
-            'brand_id'            => $brandId,
-            'filename'            => $uniqueFilename,
-            'original_filename'   => $file->getClientOriginalName(),
-            'file_type'           => $ext,
-            'file_size'           => $file->getSize(),
-            'file_path'           => Storage::disk('local')->path($path),
-            'description'         => $request->input('description'),
-            'uploaded_by_user_id' => $request->user()->id,
-        ]);
+        try {
+            $path = $file->storeAs($dir, $uniqueFilename, 'local');
+        } catch (\Throwable $e) {
+            report($e);
+            throw new BusinessException(
+                'Impossibile salvare il file. Riprova tra qualche istante.',
+                'DOCUMENT_STORAGE_ERROR',
+                503,
+                $e,
+            );
+        }
 
-        ProcessDocumentJob::dispatch($document->id);
+        try {
+            $document = BrandDocument::create([
+                'brand_id'            => $brandId,
+                'filename'            => $uniqueFilename,
+                'original_filename'   => $file->getClientOriginalName(),
+                'file_type'           => $ext,
+                'file_size'           => $file->getSize(),
+                'file_path'           => Storage::disk('local')->path($path),
+                'description'         => $request->input('description'),
+                'uploaded_by_user_id' => $request->user()->id,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+            // Pulizia file già salvato se il DB fallisce
+            Storage::disk('local')->delete($path);
+            throw new BusinessException(
+                'Errore durante il salvataggio del documento. Riprova.',
+                'DOCUMENT_UPLOAD_FAILED',
+                500,
+                $e,
+            );
+        }
+
+        try {
+            ProcessDocumentJob::dispatch($document->id);
+        } catch (\Throwable $e) {
+            // Il documento è salvato, ma il processing non partirà automaticamente.
+            // Loghiamo ma non blocchiamo — l'utente può usare /reprocess.
+            report($e);
+        }
 
         return response()->json([
             'id'       => $document->id,
@@ -70,7 +99,7 @@ final class DocumentController extends Controller
     // GET /api/documents/list/{brand_id}
     public function index(int $brandId, Request $request): JsonResponse
     {
-        $brand = Brand::where('id', $brandId)
+        Brand::where('id', $brandId)
             ->where('organization_id', $request->user()->organization_id)
             ->firstOrFail();
 
@@ -78,22 +107,20 @@ final class DocumentController extends Controller
             ->orderByDesc('uploaded_at')
             ->get();
 
-        $result = $documents->map(function ($doc) {
-            return [
-                'id'                => $doc->id,
-                'filename'          => $doc->filename,
-                'original_filename' => $doc->original_filename,
-                'file_type'         => $doc->file_type,
-                'file_size'         => $doc->file_size,
-                'extraction_status' => $doc->extraction_status,
-                'analysis_status'   => $doc->analysis_status,
-                'uploaded_at'       => $doc->uploaded_at?->toIso8601String(),
-                'description'       => $doc->description,
-                'summary'           => $doc->summary,
-                'key_topics'        => $doc->key_topics,
-                'chunks_count'      => $doc->chunks()->count(),
-            ];
-        });
+        $result = $documents->map(fn ($doc) => [
+            'id'                => $doc->id,
+            'filename'          => $doc->filename,
+            'original_filename' => $doc->original_filename,
+            'file_type'         => $doc->file_type,
+            'file_size'         => $doc->file_size,
+            'extraction_status' => $doc->extraction_status,
+            'analysis_status'   => $doc->analysis_status,
+            'uploaded_at'       => $doc->uploaded_at?->toIso8601String(),
+            'description'       => $doc->description,
+            'summary'           => $doc->summary,
+            'key_topics'        => $doc->key_topics,
+            'chunks_count'      => $doc->chunks()->count(),
+        ]);
 
         return response()->json($result);
     }
@@ -127,7 +154,6 @@ final class DocumentController extends Controller
             $q->where('organization_id', $request->user()->organization_id)
         )->findOrFail($id);
 
-        // Elimina file fisico
         if ($document->file_path && file_exists($document->file_path)) {
             @unlink($document->file_path);
         }
@@ -140,7 +166,7 @@ final class DocumentController extends Controller
     // POST /api/documents/search/{brand_id}
     public function search(int $brandId, Request $request): JsonResponse
     {
-        $brand = Brand::where('id', $brandId)
+        Brand::where('id', $brandId)
             ->where('organization_id', $request->user()->organization_id)
             ->firstOrFail();
 
@@ -149,8 +175,7 @@ final class DocumentController extends Controller
             'limit' => 'nullable|integer|min:1|max:50',
         ]);
 
-        $limit = $data['limit'] ?? 5;
-
+        $limit  = $data['limit'] ?? 5;
         $chunks = DocumentChunk::where('brand_id', $brandId)
             ->where('content', 'ilike', "%{$data['query']}%")
             ->limit($limit)
@@ -174,15 +199,23 @@ final class DocumentController extends Controller
             $q->where('organization_id', $request->user()->organization_id)
         )->findOrFail($id);
 
-        // Reset status
         $document->extraction_status = 'pending';
         $document->analysis_status   = 'pending';
         $document->save();
 
-        // Elimina vecchi chunks
         DocumentChunk::where('document_id', $id)->delete();
 
-        ProcessDocumentJob::dispatch($document->id);
+        try {
+            ProcessDocumentJob::dispatch($document->id);
+        } catch (\Throwable $e) {
+            report($e);
+            throw new BusinessException(
+                'Impossibile avviare il riprocessamento. Riprova tra qualche istante.',
+                'DOCUMENT_UPLOAD_FAILED',
+                503,
+                $e,
+            );
+        }
 
         return response()->json(['message' => 'Riprocessamento avviato']);
     }

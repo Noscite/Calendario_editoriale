@@ -8,6 +8,7 @@ use App\Domain\Organization\Models\Invitation;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\User\Models\User;
 use App\Mail\InvitationMail;
+use App\Mail\Subscription\WelcomeMail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -150,6 +151,11 @@ final class InvitationController extends Controller
         }
 
         $invitation->update(['accepted_at' => now()]);
+
+        // Invia email di benvenuto solo ai nuovi utenti (non a quelli già esistenti ri-associati)
+        if (! $existingUser) {
+            Mail::to($user->email)->queue(new WelcomeMail($user));
+        }
 
         $accessToken = $user->createToken('api')->plainTextToken;
 

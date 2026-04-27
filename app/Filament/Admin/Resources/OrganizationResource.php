@@ -150,10 +150,13 @@ class OrganizationResource extends Resource
                     ->label('Stato')
                     ->badge()
                     ->color(fn (OrganizationStatus $state): string => match ($state) {
-                        OrganizationStatus::Active => 'success',
-                        OrganizationStatus::Trial => 'info',
-                        OrganizationStatus::PastDue => 'warning',
-                        OrganizationStatus::Suspended, OrganizationStatus::Cancelled => 'danger',
+                        OrganizationStatus::Active          => 'success',
+                        OrganizationStatus::Trial           => 'info',
+                        OrganizationStatus::PendingPayment  => 'warning',
+                        OrganizationStatus::PastDue         => 'warning',
+                        OrganizationStatus::Expired         => 'danger',
+                        OrganizationStatus::Suspended,
+                        OrganizationStatus::Cancelled       => 'danger',
                     }),
 
                 Tables\Columns\TextColumn::make('users_count')

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
@@ -6,14 +6,22 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login, loginWithToken, isLoading } = useAuthStore();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const sso = searchParams.get('sso');
+  const azureError = searchParams.get('error');
+  const azureToken = searchParams.get('azure_token');
+
+  // Show placeholder immediately if ?sso=azure to prevent form flash
+  const [ssoRedirecting, setSsoRedirecting] = useState(
+    sso === 'azure' && !azureError && !azureToken
+  );
+
+  const { login, loginWithToken, isLoading, isAuthenticated, authInitialized } = useAuthStore();
+  const navigate = useNavigate();
+  const ssoTriggered = useRef(false);
+
   useEffect(() => {
-    const azureToken = searchParams.get('azure_token');
-    const azureError = searchParams.get('error');
-    
     if (azureToken) {
       loginWithToken(azureToken).then(result => {
         if (result.success) {
@@ -22,8 +30,9 @@ export default function Login() {
           setError(result.error || 'Errore login Azure');
         }
       });
+      return;
     }
-    
+
     if (azureError) {
       const errorMessages = {
         azure_denied: 'Accesso negato da Microsoft',
@@ -34,8 +43,20 @@ export default function Login() {
         no_code: 'Codice autorizzazione mancante',
       };
       setError(errorMessages[azureError] || 'Errore login Microsoft');
+      setSsoRedirecting(false);
+      return;
     }
-  }, [searchParams]);
+
+    if (sso === 'azure' && authInitialized && !ssoTriggered.current) {
+      if (isAuthenticated) {
+        // Already logged in — go to dashboard
+        navigate('/dashboard', { replace: true });
+      } else {
+        ssoTriggered.current = true;
+        window.location.href = '/api/auth/azure/login';
+      }
+    }
+  }, [azureToken, azureError, sso, authInitialized, isAuthenticated]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -51,6 +72,16 @@ export default function Login() {
   const handleAzureLogin = () => {
     window.location.href = '/api/auth/azure/login';
   };
+
+  if (ssoRedirecting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#2C3E50] to-[#3DAFA8] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <div className="text-gray-500">Reindirizzamento a Microsoft...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#2C3E50] to-[#3DAFA8] flex items-center justify-center p-4">

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Audit\Jobs\RunBrandAuditJob;
 use App\Domain\Audit\Models\BrandAudit;
+use App\Exceptions\BusinessException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -25,7 +26,6 @@ final class ProspectAuditController extends Controller
             'sector' => 'nullable|string|max:255',
         ]);
 
-        // Evita duplicate in running per stesso URL
         $running = BrandAudit::whereNull('brand_id')
             ->where('website_url', $validated['url'])
             ->where('status', 'running')
@@ -35,16 +35,37 @@ final class ProspectAuditController extends Controller
             return response()->json(['error' => 'Audit già in corso per questo URL.'], 409);
         }
 
-        $audit = BrandAudit::create([
-            'brand_id'        => null,
-            'prospect_name'   => $validated['name'],
-            'prospect_sector' => $validated['sector'] ?? null,
-            'website_url'     => $validated['url'],
-            'status'          => 'pending',
-        ]);
+        try {
+            $audit = BrandAudit::create([
+                'brand_id'        => null,
+                'prospect_name'   => $validated['name'],
+                'prospect_sector' => $validated['sector'] ?? null,
+                'website_url'     => $validated['url'],
+                'status'          => 'pending',
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+            throw new BusinessException(
+                'Impossibile avviare l\'audit. Riprova tra qualche istante.',
+                'AUDIT_GENERATION_FAILED',
+                500,
+                $e,
+            );
+        }
 
-        RunBrandAuditJob::dispatch(null, $audit->id)
-            ->onQueue('audits');
+        try {
+            RunBrandAuditJob::dispatch(null, $audit->id)->onQueue('audits');
+        } catch (\Throwable $e) {
+            // Il record è già creato — segnaliamo l'errore ma non cancelliamo il record.
+            // L'utente può vedere lo stato "pending" e usare /rerun.
+            report($e);
+            throw new BusinessException(
+                'Audit creato ma impossibile avviare l\'elaborazione. Usa "riavvia" tra qualche istante.',
+                'AUDIT_GENERATION_FAILED',
+                503,
+                $e,
+            );
+        }
 
         return response()->json([
             'audit_id' => $audit->id,
@@ -75,17 +96,17 @@ final class ProspectAuditController extends Controller
             ->limit(50)
             ->get()
             ->map(fn ($a) => [
-                'id'             => $a->id,
-                'prospect_name'  => $a->prospect_name,
-                'prospect_sector'=> $a->prospect_sector,
-                'website_url'    => $a->website_url,
-                'status'         => $a->status,
-                'score_overall'  => $a->score_overall,
-                'score_label'    => $a->score_label,
-                'score_color'    => $a->score_color,
-                'share_token'    => $a->share_token,
-                'created_at'     => $a->created_at?->toIso8601String(),
-                'completed_at'   => $a->completed_at?->toIso8601String(),
+                'id'              => $a->id,
+                'prospect_name'   => $a->prospect_name,
+                'prospect_sector' => $a->prospect_sector,
+                'website_url'     => $a->website_url,
+                'status'          => $a->status,
+                'score_overall'   => $a->score_overall,
+                'score_label'     => $a->score_label,
+                'score_color'     => $a->score_color,
+                'share_token'     => $a->share_token,
+                'created_at'      => $a->created_at?->toIso8601String(),
+                'completed_at'    => $a->completed_at?->toIso8601String(),
             ]);
 
         return response()->json($audits);
@@ -125,24 +146,34 @@ final class ProspectAuditController extends Controller
         }
 
         $audit->update([
-            'status'              => 'pending',
-            'score_overall'       => null,
-            'score_neuromarketing'=> null,
-            'score_seo_geo'       => null,
-            'score_social_coherence' => null,
-            'score_gdpr'          => null,
-            'score_accessibility' => null,
-            'score_performance'   => null,
-            'executive_summary'   => null,
-            'critical_issues'     => null,
-            'recommendations'     => null,
-            'analyzer_results'    => null,
-            'raw_data'            => null,
-            'error_message'       => null,
-            'completed_at'        => null,
+            'status'                  => 'pending',
+            'score_overall'           => null,
+            'score_neuromarketing'    => null,
+            'score_seo_geo'           => null,
+            'score_social_coherence'  => null,
+            'score_gdpr'              => null,
+            'score_accessibility'     => null,
+            'score_performance'       => null,
+            'executive_summary'       => null,
+            'critical_issues'         => null,
+            'recommendations'         => null,
+            'analyzer_results'        => null,
+            'raw_data'                => null,
+            'error_message'           => null,
+            'completed_at'            => null,
         ]);
 
-        RunBrandAuditJob::dispatch(null, $audit->id)->onQueue('audits');
+        try {
+            RunBrandAuditJob::dispatch(null, $audit->id)->onQueue('audits');
+        } catch (\Throwable $e) {
+            report($e);
+            throw new BusinessException(
+                'Impossibile rilanciare l\'audit. Riprova tra qualche istante.',
+                'AUDIT_GENERATION_FAILED',
+                503,
+                $e,
+            );
+        }
 
         return response()->json(['status' => 'pending', 'message' => 'Audit rilanciato.']);
     }

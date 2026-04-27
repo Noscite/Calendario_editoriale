@@ -9,6 +9,8 @@ enum OrganizationStatus: string
     case PastDue = 'past_due';
     case Trial = 'trial';
     case Cancelled = 'cancelled';
+    case PendingPayment = 'pending_payment';
+    case Expired = 'expired';
 
     public function label(): string
     {
@@ -18,6 +20,8 @@ enum OrganizationStatus: string
             self::PastDue => 'Pagamento scaduto',
             self::Trial => 'Trial',
             self::Cancelled => 'Cancellato',
+            self::PendingPayment => 'In attesa di pagamento',
+            self::Expired => 'Scaduto',
         };
     }
 }

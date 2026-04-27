@@ -130,10 +130,10 @@ return [
     */
 
     'azure' => [
-        'client_id'     => env('AZURE_AD_CLIENT_ID'),
-        'client_secret' => env('AZURE_AD_CLIENT_SECRET'),
-        'tenant_id'     => env('AZURE_AD_TENANT_ID'),
-        'redirect_uri'  => env('AZURE_AD_REDIRECT_URI'),
+        'client_id'     => env('AZURE_CLIENT_ID'),
+        'client_secret' => env('AZURE_CLIENT_SECRET'),
+        'tenant_id'     => env('AZURE_TENANT_ID'),
+        'redirect_uri'  => env('AZURE_REDIRECT_URI'),
     ],
 
 ];

@@ -183,10 +183,10 @@ Route::prefix('social')->group(function () {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// TUTTE LE ROTTE PROTETTE (auth:sanctum)
+// TUTTE LE ROTTE PROTETTE (auth:sanctum + subscription attiva)
 // ═══════════════════════════════════════════════════════════════
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
 
     // ─── BRANDS — /api/brands  (prefix Python: /api/brands) ────
     //

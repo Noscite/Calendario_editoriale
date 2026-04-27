@@ -27,17 +27,17 @@ final class AzureAuthController extends Controller
 {
     private function clientId(): string
     {
-        return config('services.azure.client_id', '');
+        return (string) config('services.azure.client_id', '');
     }
 
     private function clientSecret(): string
     {
-        return config('services.azure.client_secret', '');
+        return (string) config('services.azure.client_secret', '');
     }
 
     private function tenantId(): string
     {
-        return config('services.azure.tenant_id', 'common');
+        return (string) config('services.azure.tenant_id', 'common');
     }
 
     private function redirectUri(): string

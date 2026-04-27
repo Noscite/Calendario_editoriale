@@ -37,6 +37,7 @@ expect()->extend('toBeOne', function () {
 use App\Domain\User\Models\User;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Subscription\Models\Plan;
+use App\Domain\Subscription\Models\Subscription;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Project\Models\Project;
 use App\Domain\Post\Models\Post;

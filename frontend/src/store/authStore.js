@@ -6,6 +6,7 @@ export const useAuthStore = create((set) => ({
   token: localStorage.getItem('token'),
   isAuthenticated: !!localStorage.getItem('token'),
   isLoading: false,
+  authInitialized: false,
 
   login: async (email, password) => {
     set({ isLoading: true });
@@ -55,13 +56,13 @@ export const useAuthStore = create((set) => ({
 
   checkAuth: async () => {
     const token = localStorage.getItem('token');
-    if (!token) return set({ isAuthenticated: false });
+    if (!token) return set({ isAuthenticated: false, authInitialized: true });
     try {
       const response = await auth.me();
-      set({ user: response.data, isAuthenticated: true });
+      set({ user: response.data, isAuthenticated: true, authInitialized: true });
     } catch {
       localStorage.removeItem('token');
-      set({ user: null, token: null, isAuthenticated: false });
+      set({ user: null, token: null, isAuthenticated: false, authInitialized: true });
     }
   },
 }));

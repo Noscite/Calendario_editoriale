@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Notification\Models\Notification;
+use App\Exceptions\BusinessException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -17,7 +18,7 @@ final class NotificationController extends Controller
     // GET /api/notifications
     public function index(Request $request): JsonResponse
     {
-        $limit     = min(100, (int) $request->query('limit', 20));
+        $limit      = min(100, (int) $request->query('limit', 20));
         $unreadOnly = $request->boolean('unread_only', false);
 
         $query = Notification::where('user_id', $request->user()->id);
@@ -61,8 +62,18 @@ final class NotificationController extends Controller
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
 
-        $notification->read_at = now();
-        $notification->save();
+        try {
+            $notification->read_at = now();
+            $notification->save();
+        } catch (\Throwable $e) {
+            report($e);
+            throw new BusinessException(
+                'Impossibile aggiornare la notifica. Riprova.',
+                'NOTIFICATION_DELIVERY_FAILED',
+                500,
+                $e,
+            );
+        }
 
         return response()->json(['success' => true]);
     }
@@ -70,9 +81,19 @@ final class NotificationController extends Controller
     // POST /api/notifications/read-all
     public function markAllRead(Request $request): JsonResponse
     {
-        Notification::where('user_id', $request->user()->id)
-            ->whereNull('read_at')
-            ->update(['read_at' => now()]);
+        try {
+            Notification::where('user_id', $request->user()->id)
+                ->whereNull('read_at')
+                ->update(['read_at' => now()]);
+        } catch (\Throwable $e) {
+            report($e);
+            throw new BusinessException(
+                'Impossibile aggiornare le notifiche. Riprova.',
+                'NOTIFICATION_DELIVERY_FAILED',
+                500,
+                $e,
+            );
+        }
 
         return response()->json(['success' => true]);
     }
