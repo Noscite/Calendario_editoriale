@@ -74,6 +74,8 @@ return [
     'anthropic' => [
         'api_key'             => env('ANTHROPIC_API_KEY'),
         'requests_per_minute' => env('ANTHROPIC_REQUESTS_PER_MINUTE', 50),
+        'strategy_split'      => env('ANTHROPIC_STRATEGY_SPLIT', false),
+        'opus_model'          => env('ANTHROPIC_OPUS_MODEL', 'claude-opus-4-7'),
     ],
 
     /*
@@ -89,7 +91,9 @@ return [
     ],
 
     'openai' => [
-        'api_key' => env('OPENAI_API_KEY'),
+        'api_key'              => env('OPENAI_API_KEY'),
+        'image_router_enabled' => env('IMAGE_ROUTER_ENABLED', true),
+        'image_default_model'  => env('IMAGE_DEFAULT_MODEL', 'gpt-image-1'),
     ],
 
     'perplexity' => [

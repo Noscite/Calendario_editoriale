@@ -6,6 +6,8 @@ namespace App\Domain\Generation\Services;
 
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Contracts\ImageGeneratorInterface;
+use App\Domain\Generation\Services\ImageModelRouter;
+use App\Domain\Generation\Services\PromptBuilder;
 use App\Domain\Subscription\Models\UsageLog;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
@@ -48,8 +50,9 @@ final class DalleImageGenerator implements ImageGeneratorInterface
     private string $anthropicKey;
     private string $openaiKey;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly PromptBuilder $promptBuilder,
+    ) {
         $this->anthropicKey = config('services.anthropic.api_key', env('ANTHROPIC_API_KEY', ''));
         $this->openaiKey    = config('services.openai.api_key', env('OPENAI_API_KEY', ''));
     }
@@ -89,6 +92,7 @@ final class DalleImageGenerator implements ImageGeneratorInterface
             brandSector:      $brand->sector ?? '',
             brandColors:      $brand->colors ?? '',
             visualSuggestion: $visual,
+            contentType:      $post->content_type?->value ?? $post->content_type ?? 'post',
         );
 
         $post->update(['image_prompt' => $detailedPrompt]);
@@ -96,9 +100,11 @@ final class DalleImageGenerator implements ImageGeneratorInterface
         // Step 2: GPT-4o enhance prompt (come openai_service._enhance_prompt_with_gpt4)
         $enhancedPrompt = $this->enhancePromptWithGpt4($detailedPrompt);
 
-        // Step 3: Genera con gpt-image-1 → fallback DALL-E 3
-        $size     = '1024x1024'; // Default per feed
-        $imageUrl = $this->callDalle($enhancedPrompt, $size);
+        // Step 3: Router seleziona modello in base a piano + pillar, fallback DALL-E 3 immutato
+        $size       = '1024x1024'; // Default per feed
+        $routed     = app(ImageModelRouter::class)->selectForPost($post);
+        $imageUrl   = $this->callDalle($enhancedPrompt, $size, $routed['openai_model'], $routed['quality']);
+        Log::info('[ROUTER] Selected model', ['post_id' => $post->id, 'plan' => $routed['plan'], 'pillar' => $post->pillar, 'tier' => $routed['tier'], 'model' => $routed['openai_model'], 'quality' => $routed['quality'], 'cost_est' => $routed['estimated_cost'], 'hero' => $routed['hero_override']]);
 
         // Step 4: Salva su disco
         $savedPath = $this->saveImageToDisk($imageUrl, $post->id);
@@ -128,6 +134,7 @@ final class DalleImageGenerator implements ImageGeneratorInterface
             brandSector:      $brand->sector ?? '',
             brandColors:      $brand->colors ?? '',
             visualSuggestion: $post->visual_suggestion ?? '',
+            contentType:      $post->content_type?->value ?? $post->content_type ?? 'post',
         );
 
         return $prompt;
@@ -241,37 +248,22 @@ final class DalleImageGenerator implements ImageGeneratorInterface
         string $brandSector,
         string $brandColors,
         string $visualSuggestion,
+        string $contentType = 'post',
     ): array {
-        $brandColorsText   = $brandColors ?: 'Non specificati';
-        $visualSuggestText = $visualSuggestion ?: 'Non specificato';
-
-        $prompt = <<<PROMPT
-Crea un prompt dettagliato per DALL-E per generare un'immagine per questo post social.
-
-## POST
-Piattaforma: {$platform}
-Contenuto: {$postContent}
-Pillar: {$pillar}
-
-## BRAND
-Nome: {$brandName}
-Settore: {$brandSector}
-Colori: {$brandColorsText}
-Stile richiesto: {$visualSuggestText}
-
-## ISTRUZIONI
-- Crea un prompt in inglese per DALL-E
-- Stile professionale e moderno
-- Adatto per {$platform}
-- IMPORTANTE: Nessun testo, nessuna scritta, nessuna parola, nessun numero nell'immagine
-- NO loghi o marchi
-- Formato: descrizione dettagliata in 1-2 frasi
-
-Rispondi SOLO con il prompt in inglese, senza altro testo.
-PROMPT;
+        // Delegato a PromptBuilder per single source of truth
+        $prompt = $this->promptBuilder->buildImagePrompt(
+            postContent:      $postContent,
+            platform:         $platform,
+            pillar:           $pillar,
+            brandName:        $brandName,
+            brandSector:      $brandSector,
+            brandColors:      $brandColors,
+            visualSuggestion: $visualSuggestion,
+            contentType:      $contentType,
+        );
 
         try {
-            $response = $this->callClaude($prompt, 500);
+            $response = $this->callClaude($prompt, 800);
 
             $inputTokens  = $response['usage']['input_tokens'] ?? 0;
             $outputTokens = $response['usage']['output_tokens'] ?? 0;
@@ -455,9 +447,13 @@ PROMPT;
      *
      * @return string  URL o data:image/png;base64,... string
      */
-    private function callDalle(string $prompt, string $size = '1024x1024'): string
-    {
-        // Tentativo 1: gpt-image-1 (migliore per infografiche)
+    private function callDalle(
+        string $prompt,
+        string $size = '1024x1024',
+        string $openaiModel = 'gpt-image-1',
+        string $quality = 'high',
+    ): string {
+        // Tentativo 1: modello selezionato dal router
         try {
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$this->openaiKey}",
@@ -465,10 +461,10 @@ PROMPT;
             ])
                 ->timeout(120)
                 ->post(self::OPENAI_API_URL, [
-                    'model'   => 'gpt-image-1',
+                    'model'   => $openaiModel,
                     'prompt'  => $prompt,
                     'size'    => $size,
-                    'quality' => 'high',
+                    'quality' => $quality,
                     'n'       => 1,
                 ]);
 
@@ -482,9 +478,9 @@ PROMPT;
                 return $data['url'] ?? '';
             }
 
-            Log::warning("[DALLE] gpt-image-1 failed ({$response->status()}), falling back to DALL-E 3");
+            Log::warning("[DALLE] {$openaiModel} failed ({$response->status()}), falling back to DALL-E 3");
         } catch (\Throwable $e) {
-            Log::warning("[DALLE] gpt-image-1 failed, falling back to DALL-E 3: {$e->getMessage()}");
+            Log::warning("[DALLE] {$openaiModel} failed, falling back to DALL-E 3: {$e->getMessage()}");
         }
 
         // Tentativo 2: DALL-E 3 (fallback)

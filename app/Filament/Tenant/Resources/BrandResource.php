@@ -92,6 +92,50 @@ class BrandResource extends Resource
                         ->columnSpanFull(),
                 ]),
 
+            Section::make('Esempi di voce del brand')
+                ->description("Inserisci 2-5 post pubblicati o approvati che rappresentano la voce autentica del brand. L'AI userà questi come riferimento concreto per imitare il tuo stile — un esempio reale vale più di 1000 parole di descrizione.")
+                ->schema([
+                    Forms\Components\Repeater::make('voice_examples')
+                        ->label('')
+                        ->schema([
+                            Forms\Components\Select::make('platform')
+                                ->label('Piattaforma')
+                                ->options([
+                                    'instagram'       => 'Instagram',
+                                    'linkedin'        => 'LinkedIn',
+                                    'facebook'        => 'Facebook',
+                                    'google_business' => 'Google Business Profile',
+                                ])
+                                ->required()
+                                ->columnSpan(1),
+
+                            Forms\Components\Textarea::make('content')
+                                ->label('Testo del post')
+                                ->rows(4)
+                                ->required()
+                                ->minLength(20)
+                                ->maxLength(2000)
+                                ->helperText('Min 20, max 2000 caratteri')
+                                ->columnSpan(2),
+
+                            Forms\Components\TextInput::make('note')
+                                ->label('Nota (opzionale)')
+                                ->placeholder('es: tono che usiamo per gli annunci')
+                                ->maxLength(150)
+                                ->columnSpanFull(),
+                        ])
+                        ->columns(3)
+                        ->maxItems(5)
+                        ->defaultItems(0)
+                        ->collapsible()
+                        ->collapsed()
+                        ->reorderable(true)
+                        ->addActionLabel('+ Aggiungi esempio')
+                        ->itemLabel(fn (array $state): ?string => isset($state['platform']) ? ucfirst((string) $state['platform']) : null)
+                        ->columnSpanFull(),
+                ])
+                ->collapsible(),
+
             Section::make('Link')
                 ->columns(2)
                 ->collapsed()

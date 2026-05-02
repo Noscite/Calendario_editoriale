@@ -56,7 +56,11 @@ final class PromptBuilder
         $objectivesList   = implode(', ', $projectInfo['objectives'] ?? ['brand_awareness']);
         $objectives       = $projectInfo['objectives'] ?? ['brand_awareness'];
 
-        $platformGuidelines = $this->buildPlatformGuidelines($platforms);
+        $platformGuidelines    = $this->buildPlatformGuidelines($platforms);
+        $voiceExamplesSection  = $this->formatVoiceExamplesForPrompt(
+            $brandInfo['voice_examples'] ?? [],
+            $platforms
+        );
         $ctaExamples        = $this->buildCtaExamples($objectives);
         $styleSection       = ($styleGuide !== '')
             ? "### Stile del brand\n{$styleGuide}\n\n"
@@ -78,7 +82,7 @@ Descrizione: {$this->arr($brandInfo, 'description', 'N/A')}
 Tono di voce: {$this->arr($brandInfo, 'tone_of_voice', 'professionale')}
 Valori: {$this->arrJson($brandInfo, 'brand_values', '[]')}
 
-## CONTESTO DAL SITO
+{$voiceExamplesSection}## CONTESTO DAL SITO
 {$this->str($urlContext, 'Non disponibile')}
 
 ## KNOWLEDGE BASE AZIENDALE
@@ -328,9 +332,11 @@ PROMPT;
         string $brandContext,
         string $toneOfVoice,
         string $brandStyleGuide = '',
+        array  $voiceExamples = [],
     ): string {
         $platformStr    = is_object($platform) ? $platform->value : (string) $platform;
         $styleGuideText = $this->str($brandStyleGuide, ClaudeContentGenerator::DEFAULT_STYLE_GUIDE);
+        $voiceSection   = $this->formatVoiceExamplesForPrompt($voiceExamples, [], $platformStr);
 
         return <<<PROMPT
 Rigenera questo post social.
@@ -347,7 +353,7 @@ Tono di voce: {$toneOfVoice}
 ## ISTRUZIONI UTENTE
 {$userPrompt}
 
-## TIPI DI HOOK (varia rispetto al post originale)
+{$voiceSection}## TIPI DI HOOK (varia rispetto al post originale)
 Scegli un tipo di hook DIVERSO da quello del post originale:
 
 - Domanda diretta:      "Sai quante PMI italiane non hanno ancora..."
@@ -537,34 +543,130 @@ PROMPT;
         string $brandSector,
         string $brandColors = '',
         string $visualSuggestion = '',
+        string $contentType = 'post',
     ): string {
-        $colorsText     = $this->str($brandColors, 'Non specificati');
-        $suggestionText = $this->str($visualSuggestion, 'Non specificato');
+        $colorsText      = $this->str($brandColors, 'Non specificati');
+        $suggestionText  = $this->str($visualSuggestion, 'Non specificato');
+        $orientationHint = $this->imageOrientationHint($platform, $contentType);
+        $styleHint       = $this->imageStyleHint($brandSector);
+        $moodHint        = $this->imageMoodHint($pillar);
 
         return <<<PROMPT
-Crea un prompt dettagliato per DALL-E per generare un'immagine per questo post social.
+Sei un visual director esperto di prompt engineering per gpt-image-1 e DALL-E 3.
+
+Devi produrre il prompt in INGLESE per generare l'immagine di accompagnamento di questo post social.
 
 ## POST
 Piattaforma: {$platform}
-Contenuto: {$postContent}
+Tipo contenuto: {$contentType}
 Pillar: {$pillar}
+Testo del post: {$postContent}
 
 ## BRAND
 Nome: {$brandName}
 Settore: {$brandSector}
-Colori: {$colorsText}
-Stile richiesto: {$suggestionText}
+Colori brand: {$colorsText}
+Indicazione visual dall'editor: {$suggestionText}
 
-## ISTRUZIONI
-- Crea un prompt in inglese per DALL-E
-- Stile professionale e moderno
-- Adatto per {$platform}
-- IMPORTANTE: Nessun testo, nessuna scritta, nessuna parola, nessun numero nell'immagine
-- NO loghi o marchi
-- Formato: descrizione dettagliata in 1-2 frasi
+## VINCOLI DI FORMATO
+- Composizione: {$orientationHint}
+- Stile fotografico raccomandato: {$styleHint}
+- Mood: {$moodHint}
 
-Rispondi SOLO con il prompt in inglese, senza altro testo.
+## REGOLE DURE (DEVONO comparire nel prompt finale)
+- VIETATO testo, parole, lettere, numeri, loghi, watermark.
+  Ripeti questo vincolo in 3 modi diversi nel prompt finale:
+  "no text", "no letters or numbers", "no logos or watermarks".
+- Niente persone reali identificabili. Niente celebrità.
+- Niente brand visibili (Nike, Apple, ecc.).
+- Per settori sanitari: niente foto prima/dopo, niente claim medici visivi.
+
+## STRUTTURA OBBLIGATORIA DEL PROMPT FINALE (in inglese, 3-4 frasi dense)
+Componilo seguendo questi blocchi nell'ordine:
+
+1. Subject + Action: cosa è inquadrato e cosa sta facendo (specifico, non generico).
+2. Setting: dove, atmosfera, contesto.
+3. Photography style + Lighting: es. "editorial photography, soft natural daylight from the side", "studio softbox lighting", "golden hour warm light".
+4. Composition + Framing: angolo, framing, profondità, regola dei terzi se rilevante.
+5. Color palette: incorpora i colori brand se specificati come tonalità dominante o accenti.
+6. Quality modifiers: "professional photography, high detail, sharp focus, 8k".
+7. Negative prompts (in coda): "no text, no letters or numbers, no logos or watermarks".
+
+## ESEMPI DI PROMPT BEN FATTI (NON COPIARE, IMITA LO STILE)
+
+Esempio per settore food, pillar lifestyle, instagram post:
+"Close-up of a freshly baked focaccia on a rustic wooden board, golden crust glistening with olive oil and rosemary sprigs scattered around, warm natural daylight streaming from the left, shallow depth of field with soft bokeh background, terracotta and warm earth color palette with hints of green from herbs, professional food photography, high detail, sharp focus, no text, no letters or numbers, no logos or watermarks."
+
+Esempio per settore consulenza B2B, pillar thought leadership, linkedin:
+"Modern minimalist office desk with an open notebook, a fountain pen, and a steaming espresso cup arranged on a clean walnut wood surface, soft directional window light from the right creating subtle shadows, horizontal landscape composition with subject offset to the left third, muted neutral palette with deep teal accents, editorial photography style, professional, sober, sharp focus, high detail, no text, no letters or numbers, no logos or watermarks, no human faces."
+
+## OUTPUT
+SOLO il prompt finale in inglese, in 3-4 frasi dense, senza preambolo,
+senza virgolette esterne, senza spiegazioni.
 PROMPT;
+    }
+
+    /** Composizione/orientamento per piattaforma e tipo contenuto. */
+    private function imageOrientationHint(string $platform, string $contentType): string
+    {
+        if (in_array($contentType, ['story', 'reel'], true)) {
+            return 'vertical 9:16 composition (mobile-first, subject vertically centered)';
+        }
+        return match (mb_strtolower($platform)) {
+            'instagram'                 => 'square 1:1 composition (subject centered or rule-of-thirds)',
+            'linkedin', 'facebook'      => 'horizontal 1.91:1 composition (landscape, subject offset to allow visual breathing room)',
+            'google_business'           => 'horizontal 4:3 composition',
+            default                     => 'square 1:1 composition',
+        };
+    }
+
+    /** Stile fotografico/visivo per settore del brand. */
+    private function imageStyleHint(string $sector): string
+    {
+        $s = mb_strtolower(trim($sector));
+
+        if (preg_match('/(food|ristoran|bar\b|gelat|paneter|pizzer|pasti|cucin|caffe|pasticce)/iu', $s)) {
+            return 'close-up food photography with natural daylight, appetizing detail, shallow depth of field';
+        }
+        if (preg_match('/(fashion|moda|abbigl|beauty|cosmet|salon|hair)/iu', $s)) {
+            return 'editorial fashion photography, polished, magazine-quality';
+        }
+        if (preg_match('/(tech|software|saas|digit|ai\b|cloud|cyber)/iu', $s)) {
+            return 'minimalist geometric or abstract composition, clean lines, editorial quality';
+        }
+        if (preg_match('/(art|design|photogr|creat|architett)/iu', $s)) {
+            return 'artistic, conceptual or illustrative composition allowed';
+        }
+        if (preg_match('/(psicolog|medic|odontoiatr|dentist|fisioterap|farmacist|sanit|clinic|avvocat|legal|notai|commercialist|finanz|banc|consulent|assicurat)/iu', $s)) {
+            return 'editorial professional photography, sober and dignified, no client faces, no before/after, no medical procedures';
+        }
+        return 'editorial professional photography, modern but not flashy, sober';
+    }
+
+    /** Mood/tono visivo per pillar di contenuto. */
+    private function imageMoodHint(string $pillar): string
+    {
+        $p = mb_strtolower(trim($pillar));
+
+        if ($p === '') {
+            return 'professional, clean, contemporary';
+        }
+        if (preg_match('/(educ|tutorial|how[- ]to|guida|spieg)/iu', $p)) {
+            return 'clear, instructional, well-lit; subject easy to read at first glance';
+        }
+        if (preg_match('/(behind|team|dietro|quotidian)/iu', $p)) {
+            return 'candid, natural, atmospheric; documentary feel';
+        }
+        if (preg_match('/(product|sales|promo|offert)/iu', $p)) {
+            return 'studio-clean, premium, polished; subject as hero';
+        }
+        if (preg_match('/(thought|leadership|insight|opin)/iu', $p)) {
+            return 'professional, executive, confident; clean composition';
+        }
+        if (preg_match('/(lifestyle|inspirat|aspirat)/iu', $p)) {
+            return 'environmental, aspirational, atmospheric';
+        }
+        return 'professional, clean, contemporary';
     }
 
     // ──────────────────────────────────────────────────────────
@@ -663,6 +765,260 @@ PROMPT;
         return implode("\n", $lines);
     }
 
+    /**
+     * Formatta voice examples come few-shot nel prompt.
+     * Filtraggio per piattaforma:
+     *  - $singlePlatform impostato → priorità a quella, fallback ad altre
+     *  - $platforms array → solo platform attive nel progetto, fallback a tutti
+     *
+     * Output sezione "## ESEMPI DI VOCE DEL BRAND" o stringa vuota se nessun esempio valido.
+     */
+    public function formatVoiceExamplesForPrompt(
+        array   $examples,
+        array   $platforms = [],
+        ?string $singlePlatform = null,
+    ): string {
+        if (empty($examples)) {
+            return '';
+        }
+
+        $filtered = $examples;
+        if ($singlePlatform !== null) {
+            $matching = array_filter(
+                $examples,
+                fn ($e) => is_array($e) && (($e['platform'] ?? '') === $singlePlatform)
+            );
+            $filtered = !empty($matching) ? $matching : $examples;
+        } elseif (!empty($platforms)) {
+            $matching = array_filter(
+                $examples,
+                fn ($e) => is_array($e) && in_array($e['platform'] ?? '', $platforms, true)
+            );
+            $filtered = !empty($matching) ? $matching : $examples;
+        }
+
+        $platformLabels = [
+            'instagram'       => 'Instagram',
+            'linkedin'        => 'LinkedIn',
+            'facebook'        => 'Facebook',
+            'google_business' => 'Google Business Profile',
+        ];
+
+        $blocks = [];
+        $i = 1;
+        foreach (array_slice(array_values($filtered), 0, 5) as $example) {
+            if (!is_array($example)) {
+                continue;
+            }
+            $platform = (string) ($example['platform'] ?? '');
+            $content  = trim((string) ($example['content'] ?? ''));
+            $note     = trim((string) ($example['note'] ?? ''));
+
+            if (mb_strlen($content) < 20) {
+                continue;
+            }
+
+            $platformLabel = $platformLabels[$platform] ?? ucfirst($platform);
+            $block = "### Esempio {$i} — {$platformLabel}\n{$content}";
+            if ($note !== '') {
+                $block .= "\n> Nota: {$note}";
+            }
+            $blocks[] = $block;
+            $i++;
+        }
+
+        if (empty($blocks)) {
+            return '';
+        }
+
+        $intro = 'Questi sono post pubblicati o approvati dal brand. Imita il REGISTRO, '
+               . 'il RITMO, la SCELTA LESSICALE — non copiare i contenuti. '
+               . 'Adatta lo stile alla piattaforma in cui scrivi.';
+
+        return "## ESEMPI DI VOCE DEL BRAND\n{$intro}\n\n" . implode("\n\n", $blocks) . "\n\n";
+    }
+
+    /**
+     * STRATEGY prompt — passato a Opus 4.7 in 1 sola chiamata.
+     * Output atteso: JSON con editorial_narrative + pillar_distribution + posts[].
+     */
+    public function buildStrategyPrompt(
+        string  $brandName,
+        array   $brandInfo,
+        array   $projectInfo,
+        Carbon  $startDate,
+        Carbon  $endDate,
+        array   $platforms,
+        array   $postsPerWeek,
+        array   $themes,
+        ?string $urlContext,
+        string  $ragContext,
+        array   $buyerPersonas,
+        array   $contentMixData,
+    ): string {
+        $totalDays        = $startDate->diffInDays($endDate) + 1;
+        $platformsList    = implode(', ', $platforms);
+        $themesList       = !empty($themes) ? implode(', ', $themes) : 'Generici per il settore';
+        $objectivesList   = implode(', ', $projectInfo['objectives'] ?? ['brand_awareness']);
+        $postsPerWeekJson = json_encode($postsPerWeek, JSON_UNESCAPED_UNICODE);
+
+        $personasText  = $this->formatPersonasForPrompt($buyerPersonas);
+        $schedulingTxt = $this->formatSchedulingFromPersonas($buyerPersonas, $platforms);
+        $contentMixTxt = !empty($contentMixData)
+            ? $this->formatContentMixForPrompt($contentMixData)
+            : 'Mix standard: 60% post, 25% stories, 15% reel (dove supportati)';
+
+        $voiceSection = $this->formatVoiceExamplesForPrompt(
+            $brandInfo['voice_examples'] ?? [],
+            $platforms
+        );
+
+        return <<<PROMPT
+Pianifica il calendario editoriale per questo periodo. NON scrivere ancora il copy dei post — quello è uno step successivo. Ora devi solo definire la STRATEGIA.
+
+## BRAND
+Nome: {$brandName}
+Settore: {$this->arr($brandInfo, 'sector', 'N/A')}
+Descrizione: {$this->arr($brandInfo, 'description', 'N/A')}
+Tono di voce: {$this->arr($brandInfo, 'tone_of_voice', 'professionale')}
+Valori: {$this->arrJson($brandInfo, 'brand_values', '[]')}
+
+{$voiceSection}## CONTESTO DAL SITO
+{$this->str($urlContext, 'Non disponibile')}
+
+## KNOWLEDGE BASE
+{$this->str($ragContext, 'Non disponibile')}
+
+## BUYER PERSONAS
+{$personasText}
+
+## SCHEDULING DALLE PERSONAS
+{$schedulingTxt}
+
+## MIX FORMATI (PERPLEXITY)
+{$contentMixTxt}
+
+## PROGETTO
+Periodo: {$startDate->toDateString()} → {$endDate->toDateString()} ({$totalDays} giorni)
+Piattaforme: {$platformsList}
+Post per settimana: {$postsPerWeekJson}
+Temi: {$themesList}
+Brief: {$this->arr($projectInfo, 'brief', 'N/A')}
+Obiettivi: {$objectivesList}
+
+## IL TUO COMPITO
+Produci un PIANO STRATEGICO completo per il periodo. Il piano sarà la base
+su cui un copywriter scriverà i singoli post in un secondo momento.
+
+Per OGNI slot di scheduling (data + ora + piattaforma) decidi:
+- pillar (categoria di contenuto)
+- persona_target (a chi parli prevalentemente)
+- angle (l'angolo SPECIFICO di questo post — non cosa scriverai parola per parola, ma di cosa parlerai)
+- hook_type (osservazione, domanda, scenario, dato, contro-intuizione, lista, problema)
+- cta_goal (lead, engagement, traffic, brand, sales)
+- visual_direction (idea generica del visual, 1 frase)
+
+Vincoli sull'angle:
+- DEVE essere specifico: NO "L'importanza di X" → SI "Il vero costo del re-work in produzione lean: 7 minuti per pezzo"
+- DEVE essere DIVERSO da tutti gli altri post del piano (no ripetizioni concettuali)
+- DEVE coprire l'intero arco editoriale, non solo i topic facili
+- DEVE rispettare i vincoli deontologici per settori regolamentati
+
+Vincoli su pillar_distribution:
+- Almeno 3 pillar diversi
+- Nessun pillar oltre il 50% del totale
+- Coerente con gli obiettivi del progetto
+
+## OUTPUT (JSON valido — niente markdown, niente preambolo)
+{
+  "editorial_narrative": "Frase di 2-3 righe che descrive l'arco narrativo del periodo per questo brand",
+  "pillar_distribution": { "<pillar>": 0.0 - 1.0, ... (somma = 1.0) },
+  "posts": [
+    {
+      "scheduled_date": "YYYY-MM-DD",
+      "scheduled_time": "HH:MM",
+      "platform": "<platform>",
+      "content_type": "post|story|reel",
+      "pillar": "<pillar>",
+      "persona_target": "<nome persona>",
+      "angle": "<l'angolo specifico>",
+      "hook_type": "<tipo hook>",
+      "cta_goal": "<lead|engagement|traffic|brand|sales>",
+      "visual_direction": "<1 frase>"
+    },
+    ...
+  ]
+}
+PROMPT;
+    }
+
+    /**
+     * COPY prompt — restituito come 3 parti per il caching:
+     *   - 'static_brand'    → brand context (cachable, identico tra batch)
+     *   - 'static_strategy' → strategy plan completo (cachable, identico tra batch)
+     *   - 'dynamic'         → subset dei post da scrivere in questo batch
+     *
+     * @return array{static_brand: string, static_strategy: string, dynamic: string}
+     */
+    public function buildCopyPromptParts(
+        string $brandName,
+        array  $brandInfo,
+        string $ragContext,
+        array  $strategyPlan,
+        array  $batchPosts,
+        int    $batchNum,
+        int    $totalBatches,
+    ): array {
+        $voiceSection = $this->formatVoiceExamplesForPrompt(
+            $brandInfo['voice_examples'] ?? [],
+            []  // batch ha sempre più platform, mostra tutti gli esempi
+        );
+
+        $staticBrand = "## BRAND\n"
+                     . "Nome: {$brandName}\n"
+                     . "Settore: " . $this->arr($brandInfo, 'sector', 'N/A') . "\n"
+                     . "Descrizione: " . $this->arr($brandInfo, 'description', 'N/A') . "\n"
+                     . "Tono di voce: " . $this->arr($brandInfo, 'tone_of_voice', 'professionale') . "\n"
+                     . "Valori: " . $this->arrJson($brandInfo, 'brand_values', '[]') . "\n\n"
+                     . $voiceSection
+                     . "## KNOWLEDGE BASE\n"
+                     . $this->str($ragContext, 'Non disponibile') . "\n";
+
+        $strategyJson = json_encode($strategyPlan, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $staticStrategy = "## STRATEGY PLAN (già approvato — rispetta angle/pillar/hook/cta_goal di ogni post)\n"
+                        . "{$strategyJson}\n";
+
+        $batchPostsJson = json_encode($batchPosts, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $dynamic = "## BATCH {$batchNum}/{$totalBatches}\n"
+                 . "Scrivi il copy finale SOLO per questi post (estratti dal piano strategico sopra):\n\n"
+                 . "{$batchPostsJson}\n\n"
+                 . "## ISTRUZIONI\n"
+                 . "Per ogni post produci: content (testo finale completo), hashtags (array), visual_suggestion (più dettagliato di visual_direction), call_to_action (testo specifico).\n"
+                 . "NON ridiscutere angle/pillar/hook_type — sono già decisi nel piano. Tu li ESEGUI nel copy.\n"
+                 . "Mantieni date, time, platform, content_type esattamente come nel piano.\n"
+                 . "Rispetta tutte le regole dal system prompt (anti-slop, anti-allucinazione, vincoli deontologici).\n\n"
+                 . "## OUTPUT (JSON array)\n"
+                 . "[\n"
+                 . "  {\n"
+                 . "    \"scheduled_date\": \"YYYY-MM-DD\",\n"
+                 . "    \"scheduled_time\": \"HH:MM\",\n"
+                 . "    \"platform\": \"...\",\n"
+                 . "    \"content_type\": \"post|story|reel\",\n"
+                 . "    \"pillar\": \"...\",\n"
+                 . "    \"content\": \"TESTO FINALE COMPLETO\",\n"
+                 . "    \"hashtags\": [\"...\"],\n"
+                 . "    \"visual_suggestion\": \"...\",\n"
+                 . "    \"call_to_action\": \"TESTO SPECIFICO\"\n"
+                 . "  }\n"
+                 . "]\n\n"
+                 . "Rispondi SOLO con il JSON array, senza markdown, senza preambolo.";
+
+        return [
+            'static_brand'    => $staticBrand,
+            'static_strategy' => $staticStrategy,
+            'dynamic'         => $dynamic,
+        ];
+    }
     // ──────────────────────────────────────────────────────────
     //  Helpers privati
     // ──────────────────────────────────────────────────────────

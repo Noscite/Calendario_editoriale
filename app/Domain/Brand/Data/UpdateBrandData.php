@@ -31,5 +31,6 @@ final class UpdateBrandData extends Data
         public readonly Optional|string $unique_selling_points,
         public readonly Optional|string $colors,
         public readonly Optional|string $style_guide,
+        public readonly Optional|array $voice_examples,
     ) {}
 }

@@ -10,6 +10,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import EditionBadge from '../components/EditionBadge';
+import VoiceExamplesEditor from '../components/VoiceExamplesEditor';
 import AddEditionModal from '../components/AddEditionModal';
 import AuditDashboard from './AuditDashboard';
 
@@ -231,6 +232,13 @@ export default function BrandDetail() {
           </div>
         )}
       </div>
+
+      {/* Voice Examples Section */}
+      <VoiceExamplesEditor
+        brandId={parseInt(id, 10)}
+        initialValue={brand?.voice_examples || []}
+        onSaved={(updated) => setBrand((b) => b ? { ...b, voice_examples: updated } : b)}
+      />
 
       {/* Calendars Section */}
       <div className="bg-white rounded-xl shadow-sm p-6">

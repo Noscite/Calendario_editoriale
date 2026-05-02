@@ -33,12 +33,14 @@ class Brand extends Model
         'unique_selling_points',
         'colors',
         'style_guide',
+        'voice_examples',
     ];
 
     protected function casts(): array
     {
         return [
             'brand_values' => 'json',
+            'voice_examples' => 'array',
         ];
     }
 

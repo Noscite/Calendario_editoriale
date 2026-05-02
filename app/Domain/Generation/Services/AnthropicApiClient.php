@@ -14,19 +14,23 @@ use RuntimeException;
 /**
  * Client HTTP per l'API Anthropic Messages.
  *
- * Estratto da ClaudeContentGenerator per isolare:
- *   - La chiamata HTTP all'API (/v1/messages)
- *   - Il retry logic (3 tentativi con backoff esponenziale)
- *   - La gestione errori 429 (rate limit) con RateLimiter
- *   - Il parsing della risposta JSON (parseJsonResponse)
+ * Il system prompt è iniettabile per chiamata. Se non specificato,
+ * usa DEFAULT_SYSTEM_PROMPT (baseline minimale per caller generici).
+ * I caller di content generation passano system prompt specializzati
+ * via SystemPromptLibrary.
  *
- * Limite configurabile via config('services.anthropic.requests_per_minute').
- * Default: 50 request/minuto.
+ * In callCached() il system prompt è cachato indipendentemente dalla
+ * parte statica del messaggio utente: 2 cache breakpoints separati.
  */
 final class AnthropicApiClient
 {
     private const API_URL   = 'https://api.anthropic.com/v1/messages';
     private const MAX_TRIES = 3;
+
+    private const DEFAULT_SYSTEM_PROMPT = <<<'TXT'
+Sei un assistente AI italiano. Rispondi SEMPRE e SOLO con JSON valido,
+senza markdown, senza testo prima o dopo il JSON, senza spiegazioni.
+TXT;
 
     private string $apiKey;
     private int    $requestsPerMinute;
@@ -37,11 +41,6 @@ final class AnthropicApiClient
         $this->requestsPerMinute = (int) config('services.anthropic.requests_per_minute', 50);
     }
 
-    /**
-     * Ritorna un clone con la chiave API del brand.
-     * SuperAdmin: fallback alle chiavi di sistema.
-     * Utente normale: MissingBrandApiKeyException se chiave assente.
-     */
     public function withBrand(?Brand $brand): static
     {
         if ($brand) {
@@ -57,18 +56,13 @@ final class AnthropicApiClient
         return $this;
     }
 
-    /**
-     * Esegue una chiamata all'API Claude con retry logic e rate limiting.
-     *
-     * Retry: 3 tentativi con backoff esponenziale (2^attempt secondi).
-     * Rate limit 429: attende i secondi suggeriti dall'header Retry-After.
-     *
-     * @return array Risposta decodificata (usage, content, etc.)
-     *
-     * @throws RuntimeException se tutti i tentativi falliscono
-     */
-    public function call(string $prompt, int $maxTokens, string $model = 'claude-sonnet-4-20250514'): array
-    {
+    public function call(
+        string  $prompt,
+        int     $maxTokens,
+        string  $model = 'claude-sonnet-4-6',
+        ?string $systemPrompt = null,
+    ): array {
+        $system        = $systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT;
         $lastException = null;
 
         for ($attempt = 0; $attempt < self::MAX_TRIES; $attempt++) {
@@ -84,22 +78,19 @@ final class AnthropicApiClient
                     'anthropic-version' => '2023-06-01',
                     'content-type'      => 'application/json',
                 ])
-                    ->timeout(120)
+                    ->timeout(600)
                     ->post(self::API_URL, [
                         'model'      => $model,
                         'max_tokens' => $maxTokens,
-                        'system'     => 'Sei un esperto di content marketing e social media. Rispondi SEMPRE e SOLO con JSON valido, senza markdown, senza testo aggiuntivo prima o dopo il JSON.',
+                        'system'     => $system,
                         'messages'   => [
                             ['role' => 'user', 'content' => $prompt],
                         ],
                     ]);
 
-                // Gestione rate limit 429
                 if ($response->status() === 429) {
                     $retryAfter = (int) ($response->header('Retry-After') ?? 60);
-                    Log::warning("[ANTHROPIC] Rate limit 429 — attesa {$retryAfter}s", [
-                        'attempt' => $attempt,
-                    ]);
+                    Log::warning("[ANTHROPIC] Rate limit 429 — attesa {$retryAfter}s", ['attempt' => $attempt]);
                     sleep($retryAfter + 1);
                     continue;
                 }
@@ -122,20 +113,15 @@ final class AnthropicApiClient
         throw $lastException ?? new RuntimeException('Claude API: tutti i tentativi falliti');
     }
 
-    /**
-     * Come call(), ma usa il prompt caching di Anthropic (beta).
-     *
-     * Il contenuto statico ($staticContent, ≥1024 token) viene marcato con
-     * cache_control=ephemeral: la prima chiamata lo scrive in cache (costo
-     * leggermente superiore), le successive lo leggono a ~10% del costo normale.
-     * Ideale per batch 2-N della stessa generazione, dove brand/personas/guidelines
-     * sono identici e solo le date cambiano.
-     *
-     * @param string $staticContent  Parte del prompt identica tra i batch (brand, personas, guidelines)
-     * @param string $dynamicContent Parte variabile (periodo date del batch corrente)
-     */
-    public function callCached(string $staticContent, string $dynamicContent, int $maxTokens, string $model): array
-    {
+    public function callCached(
+        string  $staticContent,
+        string  $dynamicContent,
+        int     $maxTokens,
+        string  $model,
+        ?string $systemPrompt = null,
+        ?string $secondStaticContent = null,
+    ): array {
+        $system        = $systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT;
         $lastException = null;
 
         for ($attempt = 0; $attempt < self::MAX_TRIES; $attempt++) {
@@ -146,14 +132,16 @@ final class AnthropicApiClient
             }
 
             try {
-                $content = [
-                    [
-                        'type'          => 'text',
-                        'text'          => $staticContent,
-                        'cache_control' => ['type' => 'ephemeral'],
-                    ],
+                $systemBlocks = [
+                    ['type' => 'text', 'text' => $system, 'cache_control' => ['type' => 'ephemeral']],
                 ];
 
+                $content = [
+                    ['type' => 'text', 'text' => $staticContent, 'cache_control' => ['type' => 'ephemeral']],
+                ];
+                if ($secondStaticContent !== null && $secondStaticContent !== '') {
+                    $content[] = ['type' => 'text', 'text' => $secondStaticContent, 'cache_control' => ['type' => 'ephemeral']];
+                }
                 if ($dynamicContent !== '') {
                     $content[] = ['type' => 'text', 'text' => $dynamicContent];
                 }
@@ -164,11 +152,11 @@ final class AnthropicApiClient
                     'anthropic-beta'    => 'prompt-caching-2024-07-31',
                     'content-type'      => 'application/json',
                 ])
-                    ->timeout(120)
+                    ->timeout(600)
                     ->post(self::API_URL, [
                         'model'      => $model,
                         'max_tokens' => $maxTokens,
-                        'system'     => 'Sei un esperto di content marketing e social media. Rispondi SEMPRE e SOLO con JSON valido, senza markdown, senza testo aggiuntivo prima o dopo il JSON.',
+                        'system'     => $systemBlocks,
                         'messages'   => [['role' => 'user', 'content' => $content]],
                     ]);
 
@@ -201,16 +189,6 @@ final class AnthropicApiClient
         throw $lastException ?? new RuntimeException('Claude API: tutti i tentativi falliti');
     }
 
-    /**
-     * Parsa la risposta JSON di Claude, rimuovendo eventuali backtick markdown.
-     * Replica esatta della logica Python:
-     *
-     *   if content.startswith("```"):
-     *       content = content.split("```")[1]
-     *       if content.startswith("json"):
-     *           content = content[4:]
-     *   content = content.strip()
-     */
     public function parseJsonResponse(string $content): array
     {
         if (str_starts_with($content, '```')) {
@@ -226,12 +204,6 @@ final class AnthropicApiClient
         return json_decode($content, true, 512, JSON_THROW_ON_ERROR);
     }
 
-    /**
-     * Verifica se siamo vicini al rate limit e aspetta se necessario.
-     * Usa il RateLimiter di Laravel con chiave per organizzazione.
-     *
-     * @param int $organizationId ID organizzazione per chiave rate limit
-     */
     public function checkRateLimit(int $organizationId): void
     {
         $key = "anthropic:{$organizationId}";
@@ -242,6 +214,6 @@ final class AnthropicApiClient
             sleep($waitSeconds);
         }
 
-        RateLimiter::hit($key, 60); // 60 secondi finestra
+        RateLimiter::hit($key, 60);
     }
 }

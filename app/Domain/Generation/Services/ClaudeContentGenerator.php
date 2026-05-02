@@ -37,15 +37,19 @@ TXT;
     private const MODEL_HAIKU           = 'claude-haiku-4-5-20251001';
     private const MAX_TOKENS_BATCH      = 10_000;
     private const MAX_TOKENS_REGENERATE = 2_000;
-    private const MAX_TOKENS_IMAGE      = 500;
+    private const MAX_TOKENS_IMAGE      = 800;
+    private const MAX_TOKENS_STRATEGY   = 8_000;
+    private const MAX_TOKENS_COPY       = 10_000;
+    private const MODEL_OPUS            = 'claude-opus-4-7';
     private const MAX_TOKENS_PERSONAS   = 4_000;
     private const BATCH_SIZE_DAYS       = 14;
     private const RATE_LIMIT_SLEEP      = 3;  // usato solo come fallback minimo
 
     public function __construct(
-        private readonly PromptBuilder      $promptBuilder,
-        private readonly PersonaScheduler   $personaScheduler,
-        private AnthropicApiClient          $apiClient,
+        private readonly PromptBuilder       $promptBuilder,
+        private readonly PersonaScheduler    $personaScheduler,
+        private readonly SystemPromptLibrary $systemPrompts,
+        private AnthropicApiClient           $apiClient,
     ) {}
 
     /**
@@ -120,10 +124,11 @@ TXT;
             brandContext:    "{$brand->name} — {$brand->sector} — {$brand->description}",
             toneOfVoice:     $brand->tone_of_voice ?? 'professionale',
             brandStyleGuide: $brand->style_guide ?? '',
+            voiceExamples:   $brand->voice_examples ?? [],
         );
 
         try {
-            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_REGENERATE, self::MODEL_HAIKU);
+            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_REGENERATE, self::MODEL_HAIKU, $this->systemPrompts->forContentGeneration($brand->sector));
             $tokensUsed = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $result     = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
         } catch (\Throwable $e) {
@@ -160,7 +165,7 @@ TXT;
         $prompt = $this->promptBuilder->buildPersonaPrompt($brand, $project->platforms ?? [], $urlContext);
 
         try {
-            $response             = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL);
+            $response             = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL, $this->systemPrompts->forPersonaAnalysis());
             $personas             = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
             $personas['generated_at'] = now()->toIso8601String();
             $personas['source']   = 'ai_analysis';
@@ -184,7 +189,7 @@ TXT;
         );
 
         try {
-            $response             = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL);
+            $response             = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL, $this->systemPrompts->forPersonaAnalysis());
             $personas             = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
             $personas['generated_at'] = now()->toIso8601String();
             $personas['source']   = 'ai_regenerated';
@@ -225,7 +230,7 @@ TXT;
         );
 
         try {
-            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL);
+            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL, $this->systemPrompts->forPersonaAnalysis());
             $newPersona = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
         } catch (\Throwable $e) {
             Log::error("[PERSONAS] Add persona failed: {$e->getMessage()}");
@@ -280,7 +285,7 @@ TXT;
         );
 
         try {
-            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL);
+            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL, $this->systemPrompts->forPersonaAnalysis());
             $newPersona = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
         } catch (\Throwable $e) {
             Log::error("[PERSONAS] Regenerate single failed: {$e->getMessage()}");
@@ -305,8 +310,46 @@ TXT;
 
     // ── Core generation ────────────────────────────────────────
 
-    /** @return array{0: list, 1: array, 2: int} [posts, personas, tokens] */
+    /**
+     * Public entry — dispatch su feature flag services.anthropic.strategy_split.
+     *
+     * @return array{0: list, 1: array, 2: int} [posts, personas, tokens]
+     */
     public function generateCalendarPosts(
+        string  $brandName,
+        array   $brandInfo,
+        array   $projectInfo,
+        Carbon  $startDate,
+        Carbon  $endDate,
+        array   $platforms,
+        array   $postsPerWeek,
+        array   $themes = [],
+        ?string $urlContext = null,
+        ?string $styleGuide = null,
+        ?array  $buyerPersonas = null,
+        ?int    $brandId = null,
+        ?int    $projectId = null,
+    ): array {
+        if ((bool) config('services.anthropic.strategy_split', false)) {
+            try {
+                return $this->generateCalendarPostsWithStrategySplit(
+                    $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
+                    $platforms, $postsPerWeek, $themes, $urlContext, $styleGuide,
+                    $buyerPersonas, $brandId, $projectId,
+                );
+            } catch (\Throwable $e) {
+                Log::error('[STRATEGY] Split flow failed, fallback to legacy', ['error' => $e->getMessage()]);
+            }
+        }
+        return $this->generateCalendarPostsLegacy(
+            $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
+            $platforms, $postsPerWeek, $themes, $urlContext, $styleGuide,
+            $buyerPersonas, $brandId, $projectId,
+        );
+    }
+
+    /** @return array{0: list, 1: array, 2: int} [posts, personas, tokens] */
+    private function generateCalendarPostsLegacy(
         string  $brandName,
         array   $brandInfo,
         array   $projectInfo,
@@ -404,7 +447,7 @@ TXT;
         Log::info("[CLAUDE] API call — {$brandName}, {$startDate->toDateString()} → {$endDate->toDateString()}");
 
         try {
-            $response     = $this->apiClient->callCached($parts['static'], $parts['dynamic'], self::MAX_TOKENS_BATCH, self::MODEL);
+            $response     = $this->apiClient->callCached($parts['static'], $parts['dynamic'], self::MAX_TOKENS_BATCH, self::MODEL, $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null));
             $batchTokens  = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $posts        = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
 
@@ -425,13 +468,14 @@ TXT;
         string $brandSector,
         string $brandColors = '',
         string $visualSuggestion = '',
+        string $contentType = 'post',
     ): array {
         $prompt = $this->promptBuilder->buildImagePrompt(
-            $postContent, $platform, $pillar, $brandName, $brandSector, $brandColors, $visualSuggestion
+            $postContent, $platform, $pillar, $brandName, $brandSector, $brandColors, $visualSuggestion, $contentType
         );
 
         try {
-            $response  = $this->apiClient->call($prompt, self::MAX_TOKENS_IMAGE, self::MODEL_HAIKU);
+            $response  = $this->apiClient->call($prompt, self::MAX_TOKENS_IMAGE, self::MODEL_HAIKU, $this->systemPrompts->forImagePrompt());
             $imgTokens = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             return [trim($response['content'][0]['text'] ?? ''), $imgTokens];
         } catch (\Throwable $e) {
@@ -440,6 +484,199 @@ TXT;
         }
     }
 
+    /**
+     * Nuovo flusso: 1 strategy call (Opus) → N copy batch (Sonnet, cached).
+     *
+     * @return array{0: list, 1: array, 2: int}
+     */
+    private function generateCalendarPostsWithStrategySplit(
+        string  $brandName,
+        array   $brandInfo,
+        array   $projectInfo,
+        Carbon  $startDate,
+        Carbon  $endDate,
+        array   $platforms,
+        array   $postsPerWeek,
+        array   $themes = [],
+        ?string $urlContext = null,
+        ?string $styleGuide = null,
+        ?array  $buyerPersonas = null,
+        ?int    $brandId = null,
+        ?int    $projectId = null,
+    ): array {
+        $ragContext = $brandId ? $this->getRagContext($brandId, "{$brandName} " . implode(' ', $themes)) : '';
+
+        if (empty($buyerPersonas)) {
+            $buyerPersonas = $this->personaScheduler->getDefaultPersonas($platforms);
+        }
+
+        $contentMixData = $this->personaScheduler->getContentMixData($platforms, $brandInfo);
+
+        Log::info('[STRATEGY] Step 1: generating strategy plan with Opus 4.7');
+
+        [$strategyPlan, $strategyTokens] = $this->generateStrategy(
+            $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
+            $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
+            $buyerPersonas, $contentMixData,
+        );
+
+        if (empty($strategyPlan['posts'] ?? [])) {
+            Log::warning('[STRATEGY] Plan vuoto, fallback al flusso legacy');
+            return $this->generateCalendarPostsLegacy(
+                $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
+                $platforms, $postsPerWeek, $themes, $urlContext, $styleGuide,
+                $buyerPersonas, $brandId, $projectId,
+            );
+        }
+
+        Log::info('[STRATEGY] Plan ricevuto: ' . count($strategyPlan['posts']) . ' post pianificati, narrative: ' . substr($strategyPlan['editorial_narrative'] ?? '', 0, 80));
+
+        $totalTokensUsed = $strategyTokens;
+        $allPosts        = [];
+        $batchStartTime  = 0.0;
+        $totalDays       = $startDate->diffInDays($endDate) + 1;
+        $batches         = (int) ceil($totalDays / self::BATCH_SIZE_DAYS);
+
+        for ($batchNum = 0; $batchNum < $batches; $batchNum++) {
+            $batchStart = $startDate->copy()->addDays($batchNum * self::BATCH_SIZE_DAYS);
+            $batchEnd   = $batchStart->copy()->addDays(self::BATCH_SIZE_DAYS - 1)->min($endDate);
+
+            $batchPosts = $this->filterStrategyPostsForBatch($strategyPlan, $batchStart, $batchEnd);
+            if (empty($batchPosts)) {
+                Log::info("[STRATEGY] Batch " . ($batchNum + 1) . " vuoto, skip");
+                continue;
+            }
+
+            Log::info("[STRATEGY] Step 2 batch " . ($batchNum + 1) . "/{$batches}: " . count($batchPosts) . " post da scrivere");
+
+            if ($projectId) {
+                GenerationTracker::update($projectId, $batchNum, $batches, (int) (($batchNum / $batches) * 100));
+            }
+
+            if ($batchNum > 0) {
+                $elapsed = microtime(true) - $batchStartTime;
+                $waitFor = self::RATE_LIMIT_SLEEP - $elapsed;
+                if ($waitFor > 0) {
+                    usleep((int) ($waitFor * 1_000_000));
+                }
+            }
+            $batchStartTime = microtime(true);
+
+            [$posts, $batchTokens] = $this->generateCopyBatch(
+                $brandName, $brandInfo, $ragContext,
+                $strategyPlan, $batchPosts, $batchNum + 1, $batches,
+            );
+
+            array_push($allPosts, ...$posts);
+            $totalTokensUsed += $batchTokens;
+        }
+
+        $allPosts = $this->personaScheduler->redistributePostsWithPersonas(
+            $allPosts, $postsPerWeek, $startDate, $endDate, $buyerPersonas,
+        );
+
+        Log::info('[STRATEGY] Total posts generated: ' . count($allPosts) . ' tokens: ' . $totalTokensUsed);
+        return [$allPosts, $buyerPersonas, $totalTokensUsed];
+    }
+
+    /**
+     * Step 1 del split: chiama Opus 4.7 per generare lo strategy plan.
+     *
+     * @return array{0: array, 1: int} [strategyPlan, tokens]
+     */
+    private function generateStrategy(
+        string  $brandName,
+        array   $brandInfo,
+        array   $projectInfo,
+        Carbon  $startDate,
+        Carbon  $endDate,
+        array   $platforms,
+        array   $postsPerWeek,
+        array   $themes,
+        ?string $urlContext,
+        string  $ragContext,
+        array   $buyerPersonas,
+        array   $contentMixData,
+    ): array {
+        $prompt = $this->promptBuilder->buildStrategyPrompt(
+            $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
+            $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
+            $buyerPersonas, $contentMixData,
+        );
+
+        $opusModel = (string) config('services.anthropic.opus_model', self::MODEL_OPUS);
+
+        try {
+            $response = $this->apiClient->call(
+                $prompt,
+                self::MAX_TOKENS_STRATEGY,
+                $opusModel,
+                $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null),
+            );
+            $tokens   = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
+            $plan     = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
+            return [$plan, $tokens];
+        } catch (\Throwable $e) {
+            Log::error('[STRATEGY] Opus call failed: ' . $e->getMessage());
+            return [['posts' => []], 0];
+        }
+    }
+
+    /**
+     * Step 2 del split: chiama Sonnet 4.6 cached per scrivere il copy.
+     * 3 cache breakpoints: system, brand context, strategy plan.
+     *
+     * @return array{0: list, 1: int} [posts, tokens]
+     */
+    private function generateCopyBatch(
+        string $brandName,
+        array  $brandInfo,
+        string $ragContext,
+        array  $strategyPlan,
+        array  $batchPosts,
+        int    $batchNum,
+        int    $totalBatches,
+    ): array {
+        $parts = $this->promptBuilder->buildCopyPromptParts(
+            $brandName, $brandInfo, $ragContext,
+            $strategyPlan, $batchPosts, $batchNum, $totalBatches,
+        );
+
+        try {
+            $response = $this->apiClient->callCached(
+                $parts['static_brand'],
+                $parts['dynamic'],
+                self::MAX_TOKENS_COPY,
+                self::MODEL,
+                $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null),
+                $parts['static_strategy'],
+            );
+            $tokens = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
+            $posts  = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
+            return [$posts, $tokens];
+        } catch (\Throwable $e) {
+            Log::error('[STRATEGY] Copy batch ' . $batchNum . ' failed: ' . $e->getMessage());
+            return [[], 0];
+        }
+    }
+
+    /**
+     * Filtra i post dello strategy plan per le date del batch corrente.
+     */
+    private function filterStrategyPostsForBatch(array $strategyPlan, Carbon $batchStart, Carbon $batchEnd): array
+    {
+        $batchPosts = [];
+        foreach ($strategyPlan['posts'] ?? [] as $post) {
+            if (!isset($post['scheduled_date'])) continue;
+            try {
+                $date = Carbon::parse($post['scheduled_date'])->startOfDay();
+                if ($date->between($batchStart->copy()->startOfDay(), $batchEnd->copy()->endOfDay())) {
+                    $batchPosts[] = $post;
+                }
+            } catch (\Throwable $e) { continue; }
+        }
+        return $batchPosts;
+    }
     // ── Private helpers ────────────────────────────────────────
 
     private function persistPersonas(Project $project, array $personas): void
@@ -531,6 +768,7 @@ TXT;
             'brand_values'          => $brand->brand_values ?? [],
             'target_audience'       => $brand->target_audience,
             'unique_selling_points' => $brand->unique_selling_points,
+            'voice_examples'        => $brand->voice_examples ?? [],
         ];
     }
 

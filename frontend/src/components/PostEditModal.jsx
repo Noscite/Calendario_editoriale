@@ -558,7 +558,7 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
                     <span className="animate-spin">⏳</span> Generazione {isCarousel ? `${numSlides} immagini` : 'immagine'} in corso...
                   </>
                 ) : (
-                  <>{isCarousel ? `🎠 Genera Carosello (${numSlides} immagini)` : '🎨 Genera Immagine con DALL-E'}</>
+                  <>{isCarousel ? `🎠 Genera Carosello (${numSlides} immagini)` : '🎨 Genera Immagine con AI'}</>
                 )}
               </button>
               
