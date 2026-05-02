@@ -127,3 +127,47 @@ test('subscription_expiring_mail_subject_contains_days', function () {
     // daysLeftInPaidPeriod() usa diffInDays che trunca — accettiamo 4 o 5
     expect($mail->envelope()->subject)->toMatch('/\b[45]\b/');
 });
+
+// ── Queue alignment (Horizon ascolta 'email' singolare) ───────────────────
+
+test('welcome_mail_uses_email_queue_singular', function () {
+    [$user] = orgWithOwner();
+
+    $mail = new WelcomeMail($user);
+
+    expect($mail->queue)->toBe('email');
+});
+
+test('trial_expired_mail_uses_email_queue_singular', function () {
+    [$user, $org] = orgWithOwner();
+
+    $mail = new TrialExpiredMail($user, $org);
+
+    expect($mail->queue)->toBe('email');
+});
+
+test('subscription_activated_mail_uses_email_queue_singular', function () {
+    [$user, $org, $sub] = orgWithOwner([
+        'status'                => Subscription::STATUS_ACTIVE,
+        'paid_period_starts_at' => now(),
+        'paid_period_ends_at'   => now()->addMonths(3),
+        'paid_period_months'    => 3,
+    ]);
+
+    $mail = new SubscriptionActivatedMail($user, $org, $sub);
+
+    expect($mail->queue)->toBe('email');
+});
+
+test('subscription_expiring_mail_uses_email_queue_singular', function () {
+    [$user, $org, $sub] = orgWithOwner([
+        'status'                => Subscription::STATUS_ACTIVE,
+        'paid_period_starts_at' => now(),
+        'paid_period_ends_at'   => now()->addDays(5),
+        'paid_period_months'    => 1,
+    ]);
+
+    $mail = new SubscriptionExpiringMail($user, $org, $sub);
+
+    expect($mail->queue)->toBe('email');
+});

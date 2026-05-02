@@ -23,7 +23,7 @@ class SubscriptionActivatedMail extends Mailable implements ShouldQueue
         public readonly Organization $organization,
         public readonly Subscription $subscription,
     ) {
-        $this->onQueue('emails');
+        $this->onQueue('email');
     }
 
     public function envelope(): Envelope

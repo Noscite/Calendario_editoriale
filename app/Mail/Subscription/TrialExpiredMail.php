@@ -21,7 +21,7 @@ class TrialExpiredMail extends Mailable implements ShouldQueue
         public readonly User         $user,
         public readonly Organization $organization,
     ) {
-        $this->onQueue('emails');
+        $this->onQueue('email');
     }
 
     public function envelope(): Envelope
