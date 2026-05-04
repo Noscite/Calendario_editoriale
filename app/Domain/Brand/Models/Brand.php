@@ -34,13 +34,17 @@ class Brand extends Model
         'colors',
         'style_guide',
         'voice_examples',
+        'review_fetch_interval_minutes',
+        'review_ontology',
     ];
 
     protected function casts(): array
     {
         return [
-            'brand_values' => 'json',
-            'voice_examples' => 'array',
+            'brand_values'                  => 'json',
+            'voice_examples'                => 'array',
+            'review_fetch_interval_minutes' => 'integer',
+            'review_ontology'               => 'array',
         ];
     }
 

@@ -7,6 +7,13 @@ use App\Domain\Review\Services\GoogleReviewFetcher;
 use App\Domain\Social\Exceptions\TokenExpiredException;
 use App\Domain\Social\Models\SocialConnection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
+
+beforeEach(function () {
+    // L'observer su Review dispatcha ScoreReviewJob alla creazione.
+    // Qui il focus è il fetcher Google; lo scoring asincrono viene testato altrove.
+    Queue::fake();
+});
 
 /**
  * Helper: crea una SocialConnection google_business agganciata a brand+org.

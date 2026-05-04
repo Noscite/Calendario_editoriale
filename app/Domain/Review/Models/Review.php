@@ -6,7 +6,10 @@ namespace App\Domain\Review\Models;
 
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Post\Enums\Platform;
+use App\Domain\Review\Enums\MarketingOpportunity;
 use App\Domain\Review\Enums\ReviewStatus;
+use App\Domain\Review\Enums\Sentiment;
+use App\Domain\Review\Enums\Urgency;
 use App\Domain\Shared\Traits\BelongsToOrganization;
 use App\Domain\Social\Models\SocialConnection;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,18 +37,34 @@ class Review extends Model
         'fetched_at',
         'status',
         'raw_payload',
+        // ── Scoring (M2) ─────────────────────────────────
+        'sentiment',
+        'urgency',
+        'topics',
+        'is_fake_suspect',
+        'marketing_opportunity',
+        'scoring_rationale',
+        'scored_by_model',
+        'scored_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'rating'             => 'int',
-            'raw_payload'        => 'array',
-            'review_created_at'  => 'datetime',
-            'review_updated_at'  => 'datetime',
-            'fetched_at'         => 'datetime',
-            'status'             => ReviewStatus::class,
-            'platform'           => Platform::class,
+            'rating'                => 'int',
+            'raw_payload'           => 'array',
+            'review_created_at'     => 'datetime',
+            'review_updated_at'     => 'datetime',
+            'fetched_at'            => 'datetime',
+            'status'                => ReviewStatus::class,
+            'platform'              => Platform::class,
+            // ── Scoring (M2) ─────────────────────────────
+            'sentiment'             => Sentiment::class,
+            'urgency'               => Urgency::class,
+            'topics'                => 'array',
+            'is_fake_suspect'       => 'boolean',
+            'marketing_opportunity' => MarketingOpportunity::class,
+            'scored_at'             => 'datetime',
         ];
     }
 
@@ -76,5 +95,27 @@ class Review extends Model
     public function scopePositive(Builder $q): Builder
     {
         return $q->where('rating', '>=', 4);
+    }
+
+    public function scopeScored(Builder $q): Builder
+    {
+        return $q->whereNotNull('scored_at');
+    }
+
+    public function scopeUnscored(Builder $q): Builder
+    {
+        return $q->whereNull('scored_at');
+    }
+
+    public function scopeRequiresAttention(Builder $q): Builder
+    {
+        return $q->where(function (Builder $w): void {
+            $w->where('urgency', Urgency::High->value)
+                ->orWhere(function (Builder $ww): void {
+                    $ww->where('sentiment', Sentiment::Negative->value)
+                        ->whereIn('status', [ReviewStatus::New->value, ReviewStatus::Scored->value]);
+                })
+                ->orWhere('is_fake_suspect', true);
+        });
     }
 }
