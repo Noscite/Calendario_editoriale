@@ -22,6 +22,7 @@ class UsageLog extends Model
         'calendar_generations_used',
         'text_tokens_used',
         'images_generated',
+        'replies_sent',
         // Overage
         'overage_tokens',
         'overage_images',
@@ -32,6 +33,7 @@ class UsageLog extends Model
         'calendar_generations_used' => 0,
         'text_tokens_used' => 0,
         'images_generated' => 0,
+        'replies_sent' => 0,
         'overage_tokens' => 0,
         'overage_images' => 0,
         'overage_cost' => 0,
@@ -45,6 +47,7 @@ class UsageLog extends Model
             'calendar_generations_used' => 'integer',
             'text_tokens_used' => 'integer',
             'images_generated' => 'integer',
+            'replies_sent' => 'integer',
             'overage_tokens' => 'integer',
             'overage_images' => 'integer',
             'overage_cost' => 'decimal:2',

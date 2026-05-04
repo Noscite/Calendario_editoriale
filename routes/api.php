@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OAuthController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SocialController;
 use App\Http\Controllers\Api\SocialStatsController;
 use App\Http\Controllers\Api\SubscriptionController;
@@ -466,6 +467,21 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
 
     Route::post('/support/chat', [SupportAgentController::class, 'chat'])
         ->middleware('throttle:20,1');
+
+    // ─── REVIEWS — /api/reviews (M3) ─────────────────────────────
+    //
+    // Lista paginata + dettaglio + bozze risposta AI + invio Google Business.
+    // Multi-tenant via BelongsToOrganization (Review e ReviewReply).
+
+    Route::prefix('reviews')->group(function () {
+        Route::get('/quota', [ReviewController::class, 'quota']);
+        Route::get('/', [ReviewController::class, 'index']);
+        Route::get('/{id}', [ReviewController::class, 'show']);
+        Route::post('/{id}/draft', [ReviewController::class, 'generateDraft']);
+        Route::patch('/{id}/replies/{replyId}', [ReviewController::class, 'updateDraft']);
+        Route::post('/{id}/replies/{replyId}/approve', [ReviewController::class, 'approve']);
+        Route::post('/{id}/ignore', [ReviewController::class, 'ignore']);
+    });
 });
 
 // ═══════════════════════════════════════════════════════════════

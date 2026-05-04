@@ -188,3 +188,13 @@ export const auditApi = {
   detectSector:         (data)    => api.post('/admin/audit-detect-sector',      data),
   detectSectorForBrand: (brandId) => api.post(`/brands/${brandId}/audit-detect-sector`),
 };
+
+export const reviewsApi = {
+  list:           (params = {}) => api.get('/reviews',           { params }),
+  get:            (id)          => api.get(`/reviews/${id}`),
+  generateDraft:  (id, data)    => api.post(`/reviews/${id}/draft`, data),
+  updateDraft:    (id, replyId, body) => api.patch(`/reviews/${id}/replies/${replyId}`, { body }),
+  approveDraft:   (id, replyId) => api.post(`/reviews/${id}/replies/${replyId}/approve`),
+  ignoreReview:   (id)          => api.post(`/reviews/${id}/ignore`),
+  getQuota:       ()            => api.get('/reviews/quota'),
+};

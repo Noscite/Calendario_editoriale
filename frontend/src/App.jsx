@@ -16,6 +16,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import SaasAdmin from './pages/SaasAdmin';
 import BrandsPage from './pages/BrandsPage';
 import SocialPage from './pages/SocialPage';
+import ReviewsPage from './pages/ReviewsPage';
+import ReviewDetailPage from './pages/ReviewDetailPage';
 import InsightsPage from './pages/InsightsPage';
 import SelectFacebookPage from './pages/SelectFacebookPage';
 import SelectGoogleLocation from './pages/SelectGoogleLocation';
@@ -94,6 +96,10 @@ function App() {
           {/* Social */}
           <Route path="social" element={<SocialPage />} />
           <Route path="insights" element={<InsightsPage />} />
+
+          {/* Recensioni */}
+          <Route path="reviews" element={<ReviewsPage />} />
+          <Route path="reviews/:id" element={<ReviewDetailPage />} />
           
           {/* Documents */}
           <Route path="documents" element={<DocumentsPage />} />
