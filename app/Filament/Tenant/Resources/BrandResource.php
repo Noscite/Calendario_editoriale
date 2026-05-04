@@ -136,6 +136,50 @@ class BrandResource extends Resource
                 ])
                 ->collapsible(),
 
+            Section::make('Recensioni')
+                ->description("Configurazione del fetch e scoring delle recensioni Google.")
+                ->collapsed()
+                ->schema([
+                    Forms\Components\TextInput::make('review_fetch_interval_minutes')
+                        ->label('Frequenza fetch (minuti)')
+                        ->numeric()
+                        ->minValue(5)
+                        ->maxValue(1440)
+                        ->placeholder('30')
+                        ->helperText('Default globale: 30 min. Per hospitality consigliato 10 min.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Repeater::make('review_ontology')
+                        ->label('Ontologia topic')
+                        ->helperText('Categorie usate dallo scoring AI per classificare le recensioni. Se vuoto, esegui: php artisan reviews:bootstrap-ontology {brand_id}')
+                        ->schema([
+                            Forms\Components\TextInput::make('id')
+                                ->label('ID')
+                                ->required()
+                                ->placeholder('food_quality')
+                                ->maxLength(30)
+                                ->columnSpan(1),
+                            Forms\Components\TextInput::make('label')
+                                ->label('Label')
+                                ->required()
+                                ->placeholder('Qualità del cibo')
+                                ->maxLength(50)
+                                ->columnSpan(2),
+                            Forms\Components\Textarea::make('description')
+                                ->label('Descrizione')
+                                ->rows(2)
+                                ->maxLength(150)
+                                ->columnSpanFull(),
+                        ])
+                        ->columns(3)
+                        ->collapsible()
+                        ->collapsed()
+                        ->reorderable(true)
+                        ->itemLabel(fn (array $state): ?string => $state['label'] ?? $state['id'] ?? null)
+                        ->columnSpanFull(),
+                ])
+                ->collapsible(),
+
             Section::make('Link')
                 ->columns(2)
                 ->collapsed()

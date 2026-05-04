@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Filament\Tenant\Resources;
 
 use App\Domain\Post\Enums\Platform;
+use App\Domain\Review\Enums\MarketingOpportunity;
 use App\Domain\Review\Enums\ReviewStatus;
+use App\Domain\Review\Enums\Sentiment;
+use App\Domain\Review\Enums\Urgency;
 use App\Domain\Review\Models\Review;
 use App\Filament\Tenant\Resources\ReviewResource\Pages;
 use Filament\Actions\BulkAction;
@@ -109,6 +112,69 @@ class ReviewResource extends Resource
                         ->placeholder('(Solo stelle, niente testo)'),
                 ]),
 
+            Section::make('Scoring AI')
+                ->columns(2)
+                ->visible(fn (Review $record): bool => $record->scored_at !== null)
+                ->schema([
+                    Infolists\Components\TextEntry::make('sentiment')
+                        ->label('Sentiment')
+                        ->badge()
+                        ->color(fn ($state): string => $state instanceof Sentiment ? $state->color() : 'gray')
+                        ->icon(fn ($state): ?string => $state instanceof Sentiment ? $state->icon() : null)
+                        ->formatStateUsing(fn ($state): string => $state instanceof Sentiment ? $state->label() : (string) $state),
+
+                    Infolists\Components\TextEntry::make('urgency')
+                        ->label('Urgenza')
+                        ->badge()
+                        ->color(fn ($state): string => $state instanceof Urgency ? $state->color() : 'gray')
+                        ->icon(fn ($state): ?string => $state instanceof Urgency ? $state->icon() : null)
+                        ->formatStateUsing(fn ($state): string => $state instanceof Urgency ? $state->label() : (string) $state),
+
+                    Infolists\Components\TextEntry::make('marketing_opportunity')
+                        ->label('Opportunità marketing')
+                        ->badge()
+                        ->color(fn ($state): string => $state instanceof MarketingOpportunity ? $state->color() : 'gray')
+                        ->icon(fn ($state): ?string => $state instanceof MarketingOpportunity ? $state->icon() : null)
+                        ->formatStateUsing(fn ($state): string => $state instanceof MarketingOpportunity ? $state->label() : (string) $state)
+                        ->helperText(fn ($state): ?string => $state instanceof MarketingOpportunity ? $state->description() : null),
+
+                    Infolists\Components\IconEntry::make('is_fake_suspect')
+                        ->label('Sospetto fake')
+                        ->boolean()
+                        ->trueIcon('heroicon-o-shield-exclamation')
+                        ->trueColor('danger')
+                        ->falseIcon('heroicon-o-shield-check')
+                        ->falseColor('success'),
+
+                    Infolists\Components\TextEntry::make('topics')
+                        ->label('Topic')
+                        ->columnSpanFull()
+                        ->badge()
+                        ->formatStateUsing(function ($state, Review $record): string {
+                            if (! is_array($state) || $state === []) {
+                                return '—';
+                            }
+                            $ontology = is_array($record->brand?->review_ontology) ? $record->brand->review_ontology : [];
+                            $labels   = collect($ontology)->keyBy('id');
+                            return collect($state)
+                                ->map(fn (string $id): string => (string) ($labels[$id]['label'] ?? $id))
+                                ->implode(' • ');
+                        }),
+
+                    Infolists\Components\TextEntry::make('scoring_rationale')
+                        ->label('Spiegazione del modello')
+                        ->columnSpanFull()
+                        ->placeholder('—'),
+
+                    Infolists\Components\TextEntry::make('scored_at')
+                        ->label('Scored il')
+                        ->dateTime('d/m/Y H:i'),
+
+                    Infolists\Components\TextEntry::make('scored_by_model')
+                        ->label('Modello')
+                        ->placeholder('—'),
+                ]),
+
             Section::make('Metadata fetch')
                 ->columns(2)
                 ->collapsed()
@@ -173,6 +239,30 @@ class ReviewResource extends Resource
                     ->color(fn ($state): string => $state instanceof ReviewStatus ? $state->color() : 'gray')
                     ->formatStateUsing(fn ($state): string => $state instanceof ReviewStatus ? $state->label() : (string) $state)
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('sentiment')
+                    ->label('Sentiment')
+                    ->badge()
+                    ->color(fn ($state): string => $state instanceof Sentiment ? $state->color() : 'gray')
+                    ->formatStateUsing(fn ($state): string => $state instanceof Sentiment ? $state->label() : '—')
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('urgency')
+                    ->label('Urgenza')
+                    ->badge()
+                    ->color(fn ($state): string => $state instanceof Urgency ? $state->color() : 'gray')
+                    ->formatStateUsing(fn ($state): string => $state instanceof Urgency ? $state->label() : '—')
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('marketing_opportunity')
+                    ->label('Opportunità')
+                    ->badge()
+                    ->color(fn ($state): string => $state instanceof MarketingOpportunity ? $state->color() : 'gray')
+                    ->formatStateUsing(fn ($state): string => $state instanceof MarketingOpportunity ? $state->label() : '—')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('review_created_at', 'desc')
             ->filters([
@@ -199,6 +289,18 @@ class ReviewResource extends Resource
                     ->relationship('brand', 'name')
                     ->searchable()
                     ->preload(),
+
+                SelectFilter::make('sentiment')
+                    ->label('Sentiment')
+                    ->options(Sentiment::class),
+
+                SelectFilter::make('urgency')
+                    ->label('Urgenza')
+                    ->options(Urgency::class),
+
+                SelectFilter::make('marketing_opportunity')
+                    ->label('Opportunità marketing')
+                    ->options(MarketingOpportunity::class),
             ])
             ->actions([
                 ViewAction::make(),
