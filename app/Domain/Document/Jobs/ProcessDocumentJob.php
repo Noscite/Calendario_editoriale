@@ -6,11 +6,13 @@ namespace App\Domain\Document\Jobs;
 
 use App\Domain\Document\Models\BrandDocument;
 use App\Domain\Document\Models\DocumentChunk;
+use App\Domain\Document\Services\OpenAiEmbeddingClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -39,7 +41,7 @@ final class ProcessDocumentJob implements ShouldQueue
         $this->onQueue('default');
     }
 
-    public function handle(): void
+    public function handle(OpenAiEmbeddingClient $embedder): void
     {
         $document = BrandDocument::find($this->documentId);
         if (! $document) {
@@ -99,6 +101,56 @@ final class ProcessDocumentJob implements ShouldQueue
         }
 
         Log::info("[DOC] ✅ Saved " . count($chunks) . " chunks for document {$this->documentId}");
+
+        // ── 4. Embedding generation ──
+        $this->generateEmbeddings($document, $embedder);
+    }
+
+    public function generateEmbeddings(BrandDocument $document, OpenAiEmbeddingClient $embedder): void
+    {
+        Log::info("[DOC] Generating embeddings for {$this->documentId}");
+
+        try {
+            $embedder = $embedder->withBrand($document->brand);
+        } catch (\Throwable $e) {
+            Log::warning("[DOC] OpenAI key non disponibile per documento {$this->documentId}: {$e->getMessage()}");
+            return;
+        }
+
+        $chunksToEmbed = DocumentChunk::where('document_id', $this->documentId)
+            ->whereNull('embedding')
+            ->get();
+
+        if ($chunksToEmbed->isEmpty()) {
+            Log::info("[DOC] No chunks to embed for {$this->documentId}");
+            return;
+        }
+
+        foreach ($chunksToEmbed->chunk(100) as $batch) {
+            try {
+                $texts      = $batch->pluck('content')->all();
+                $embeddings = $embedder->embed(array_values($texts));
+
+                foreach ($batch->values() as $i => $chunk) {
+                    $vector = $embeddings[$i] ?? null;
+                    if ($vector === null || $vector === []) {
+                        Log::warning("[DOC] No embedding for chunk {$chunk->id}");
+                        continue;
+                    }
+
+                    $vectorString = '[' . implode(',', $vector) . ']';
+                    DB::update(
+                        'UPDATE document_chunks SET embedding = ?::vector WHERE id = ?',
+                        [$vectorString, $chunk->id]
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::error("[DOC] Embedding batch failed for document {$this->documentId}: {$e->getMessage()}");
+                // Continua con il prossimo batch — non far fallire l'intero job per 1 batch
+            }
+        }
+
+        Log::info("[DOC] ✅ Embeddings generated for document {$this->documentId}");
     }
 
     public function failed(?\Throwable $exception): void
