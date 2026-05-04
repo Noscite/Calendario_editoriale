@@ -33,6 +33,7 @@ class SocialConnection extends Model
         'is_active',
         'connected_by_user_id',
         'last_used_at',
+        'last_reviews_fetched_at',
     ];
 
     protected $hidden = [
@@ -54,6 +55,7 @@ class SocialConnection extends Model
             'is_active' => 'boolean',
             'connected_at' => 'datetime',
             'last_used_at' => 'datetime',
+            'last_reviews_fetched_at' => 'datetime',
         ];
     }
 
