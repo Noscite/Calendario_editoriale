@@ -192,7 +192,7 @@ class UserResource extends Resource
             ])
             ->actions([
                 EditAction::make(),
-                Tables\Actions\Action::make('deactivate')
+                Action::make('deactivate')
                     ->label('Disattiva')
                     ->icon('heroicon-o-no-symbol')
                     ->color('danger')
