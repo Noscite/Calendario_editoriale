@@ -1,7 +1,6 @@
 <?php
 
 use App\Domain\Review\Jobs\FetchGoogleReviewsJob;
-use App\Domain\Review\Models\Review;
 use App\Domain\Social\Jobs\CollectSocialMetricsJob;
 use App\Domain\Social\Jobs\PublishScheduledPostsJob;
 use App\Domain\Social\Models\SocialConnection;
@@ -42,9 +41,7 @@ Schedule::call(function () {
 
     foreach ($connections as $conn) {
         $interval = $conn->brand?->review_fetch_interval_minutes ?? 30;
-        $lastFetch = Review::withoutGlobalScope('organization')
-            ->where('social_connection_id', $conn->id)
-            ->max('fetched_at');
+        $lastFetch = $conn->last_reviews_fetched_at;
 
         if (! $lastFetch || now()->diffInMinutes($lastFetch) >= $interval) {
             FetchGoogleReviewsJob::dispatch($conn->id);

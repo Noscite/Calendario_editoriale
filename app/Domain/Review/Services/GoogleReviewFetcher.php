@@ -113,8 +113,11 @@ class GoogleReviewFetcher
             $pageToken = $data['nextPageToken'] ?? null;
         } while ($pageToken !== null);
 
-        // Aggiorna last_used_at — segnala che la connection è viva
-        $connection->forceFill(['last_used_at' => now()])->save();
+        // Aggiorna timer fetch reviews — segnala che la fetch è completata.
+        // Posizione critica: DOPO il loop di salvataggio review e PRIMA del return.
+        // Se la fetch fallisce a metà (TokenExpiredException, HTTP 5xx) il timer
+        // NON viene aggiornato, così alla prossima passata lo scheduler ritenta subito.
+        $connection->forceFill(['last_reviews_fetched_at' => now()])->save();
 
         Log::info('[REVIEW_FETCH] Fetch completato', [
             'connection_id' => $connection->id,

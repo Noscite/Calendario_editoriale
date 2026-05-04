@@ -80,6 +80,9 @@ it('fetches and stores new reviews', function () {
     expect($reviews[2]->comment)->toBeNull();
     expect($reviews[0]->organization_id)->toBe($conn->brand->organization_id);
     expect($reviews[0]->brand_id)->toBe($conn->brand_id);
+
+    // Timer fetch reviews aggiornato dopo successo
+    expect($conn->fresh()->last_reviews_fetched_at)->not->toBeNull();
 });
 
 it('dedupes existing reviews via updateOrCreate', function () {
@@ -131,13 +134,20 @@ it('dedupes existing reviews via updateOrCreate', function () {
 
 it('throws TokenExpiredException on 401', function () {
     $conn = gbpConnection();
+    expect($conn->last_reviews_fetched_at)->toBeNull();
 
     Http::fake([
         'mybusiness.googleapis.com/*' => Http::response(['error' => 'unauthorized'], 401),
     ]);
 
-    app(GoogleReviewFetcher::class)->fetchAndStore($conn);
-})->throws(TokenExpiredException::class);
+    try {
+        app(GoogleReviewFetcher::class)->fetchAndStore($conn);
+        $this->fail('TokenExpiredException not thrown');
+    } catch (TokenExpiredException $e) {
+        // Expected — verifica che il timer NON sia stato aggiornato in caso di 401
+        expect($conn->fresh()->last_reviews_fetched_at)->toBeNull();
+    }
+});
 
 it('paginates with nextPageToken', function () {
     $conn = gbpConnection();
