@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Brand\Services\BrandApiKeyService;
 use App\Domain\Generation\Contracts\ContentGeneratorInterface;
 use App\Domain\Generation\Contracts\ImageGeneratorInterface;
 use App\Domain\Generation\Data\RegeneratePersonasRequestData;
@@ -106,7 +107,7 @@ final class GenerationController extends Controller
     // POST /api/generate/calendar/{project_id}
     public function generateCalendar(int $projectId, Request $request): JsonResponse
     {
-        $project = Project::findOrFail($projectId);
+        $project = Project::with('brand')->findOrFail($projectId);
 
         // Guard: se il progetto è già in generazione, non dispatcha un secondo job
         if ($project->status === ProjectStatus::Generating) {
@@ -114,6 +115,22 @@ final class GenerationController extends Controller
                 'status'  => 'already_generating',
                 'message' => 'La generazione è già in corso. Attendi il completamento.',
             ], 409);
+        }
+
+        // Preflight: blocca il dispatch se mancano chiavi API obbligatorie sul brand.
+        // Il job in background non avrebbe contesto Auth per il fallback super-admin,
+        // quindi fallirebbe immediatamente con MissingBrandApiKeyException.
+        if ($project->brand) {
+            $missingKeys = app(BrandApiKeyService::class)->getMissingRequiredKeys($project->brand);
+            if (! empty($missingKeys)) {
+                return response()->json([
+                    'status'       => 'missing_api_keys',
+                    'message'      => 'Impossibile avviare la generazione: chiavi API mancanti sul brand "' . $project->brand->name . '".',
+                    'missing_keys' => $missingKeys,
+                    'brand_id'     => $project->brand_id,
+                    'brand_name'   => $project->brand->name,
+                ], 422);
+            }
         }
 
         $personasStatus = 'not_generated';
@@ -138,6 +155,34 @@ final class GenerationController extends Controller
             'status'          => 'generating',
             'personas_status' => $personasStatus,
             'message'         => 'Generazione avviata',
+        ]);
+    }
+
+    // GET /api/generate/preflight/{project_id}
+    // Verifica se il progetto è pronto a essere generato (chiavi API presenti).
+    // Permette al frontend di disabilitare il pulsante e mostrare un alert
+    // PRIMA che l'utente provi a lanciare la generazione.
+    public function preflight(int $projectId): JsonResponse
+    {
+        $project = Project::with('brand')->findOrFail($projectId);
+
+        if (! $project->brand) {
+            return response()->json([
+                'can_generate' => false,
+                'reason'       => 'no_brand',
+                'message'      => 'Il progetto non ha un brand associato.',
+                'missing_keys' => [],
+            ]);
+        }
+
+        $missingKeys = app(BrandApiKeyService::class)->getMissingRequiredKeys($project->brand);
+
+        return response()->json([
+            'can_generate' => empty($missingKeys),
+            'reason'       => empty($missingKeys) ? null : 'missing_api_keys',
+            'missing_keys' => $missingKeys,
+            'brand_id'     => $project->brand_id,
+            'brand_name'   => $project->brand->name,
         ]);
     }
 

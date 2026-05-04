@@ -334,6 +334,7 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
 
         // Calendario
         Route::get('/preview/{project_id}', [GenerationController::class, 'preview']);
+        Route::get('/preflight/{project_id}', [GenerationController::class, 'preflight']);
         Route::post('/calendar/{project_id}', [GenerationController::class, 'generateCalendar']);
         Route::get('/status/{project_id}', [GenerationController::class, 'status']);
 

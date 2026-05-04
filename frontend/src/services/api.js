@@ -104,6 +104,7 @@ export const generation = {
   regeneratePersona: (projectId, index) => api.post(`/generate/personas/${projectId}/${index}/regenerate`),
   addPersona: (projectId) => api.post(`/generate/personas/${projectId}/add`),
   generateCalendar: (projectId) => api.post(`/generate/calendar/${projectId}`),
+  preflight: (projectId) => api.get(`/generate/preflight/${projectId}`),
 };
 
 export const exportApi = {

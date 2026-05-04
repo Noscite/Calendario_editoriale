@@ -93,6 +93,7 @@ export default function ProjectDetail() {
   const [newUrl, setNewUrl] = useState('');
   const [newCompetitor, setNewCompetitor] = useState('');
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [preflight, setPreflight] = useState({ can_generate: true, missing_keys: {}, brand_id: null, brand_name: '' });
   const [isRegeneratingPersonas, setIsRegeneratingPersonas] = useState(false);
   const [regeneratingPersonaIndex, setRegeneratingPersonaIndex] = useState(null);
   const [deletingPersonaIndex, setDeletingPersonaIndex] = useState(null);
@@ -108,7 +109,19 @@ export default function ProjectDetail() {
   // Load data
   useEffect(() => {
     loadData();
+    loadPreflight();
   }, [id]);
+
+  const loadPreflight = async () => {
+    try {
+      const res = await generation.preflight(id);
+      setPreflight(res.data);
+    } catch (e) {
+      // Errore non bloccante: lasciamo can_generate=true di default,
+      // il backend bloccherà comunque con 422 se mancano davvero le chiavi.
+      console.warn('Preflight check failed:', e?.message);
+    }
+  };
 
   // Polling: aggiorna i post ogni 30s se ce ne sono in stato scheduled/publishing
   useEffect(() => {
@@ -514,6 +527,14 @@ export default function ProjectDetail() {
     setIsSavingSettings(false);
   };
   const regenerateCalendar = async () => {
+    if (!preflight.can_generate) {
+      const labels = Object.values(preflight.missing_keys || {}).join(', ');
+      setSettingsMessage({
+        type: 'error',
+        text: `Chiavi API mancanti sul brand "${preflight.brand_name}": ${labels}. Configurale dalla pagina del brand prima di generare.`,
+      });
+      return;
+    }
     if (!confirm('Rigenerare tutti i post? I post esistenti verranno eliminati.')) return;
     setIsRegenerating(true);
     try {
@@ -522,7 +543,23 @@ export default function ProjectDetail() {
       // Avvia la generazione (non aspettiamo il completamento)
       generation.generateCalendar(id).catch(err => {
         console.error('Generation error:', err);
-        setSettingsMessage({ type: 'error', text: 'Errore nella rigenerazione' });
+        if (err?.response?.status === 422 && err.response.data?.status === 'missing_api_keys') {
+          const data = err.response.data;
+          const labels = Object.values(data.missing_keys || {}).join(', ');
+          setSettingsMessage({
+            type: 'error',
+            text: `${data.message} Mancano: ${labels}.`,
+          });
+          // Aggiorna lo stato preflight così il pulsante si disabilita
+          setPreflight({
+            can_generate: false,
+            missing_keys: data.missing_keys || {},
+            brand_id: data.brand_id,
+            brand_name: data.brand_name,
+          });
+        } else {
+          setSettingsMessage({ type: 'error', text: 'Errore nella rigenerazione' });
+        }
         setIsRegenerating(false);
       });
       // Il progress bar gestirà il resto
@@ -1276,12 +1313,44 @@ export default function ProjectDetail() {
                 />
               </section>
               
+              {/* Preflight alert: chiavi API mancanti sul brand */}
+              {!preflight.can_generate && Object.keys(preflight.missing_keys || {}).length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-6">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+                      <span className="text-amber-700 font-bold">!</span>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-amber-900">
+                        Chiavi API mancanti sul brand "{preflight.brand_name}"
+                      </h4>
+                      <p className="text-sm text-amber-800 mt-1">
+                        Configura queste chiavi prima di generare il calendario:
+                      </p>
+                      <ul className="text-sm text-amber-800 mt-2 ml-4 list-disc">
+                        {Object.entries(preflight.missing_keys || {}).map(([key, label]) => (
+                          <li key={key}>{label}</li>
+                        ))}
+                      </ul>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/brand/${preflight.brand_id}`)}
+                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium"
+                      >
+                        Configura chiavi sul brand →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-6 border-t">
                 <button
                   onClick={regenerateCalendar}
-                  disabled={isRegenerating}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                  disabled={isRegenerating || !preflight.can_generate}
+                  title={!preflight.can_generate ? 'Configura le chiavi API del brand prima di generare' : ''}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isRegenerating ? (
                     <><Loader2 className="animate-spin" size={18} /> Rigenerazione...</>
