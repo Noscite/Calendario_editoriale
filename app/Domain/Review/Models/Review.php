@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Review extends Model
 {
@@ -78,6 +80,35 @@ class Review extends Model
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);
+    }
+
+    public function replies(): HasMany
+    {
+        return $this->hasMany(ReviewReply::class);
+    }
+
+    public function latestReply(): HasOne
+    {
+        return $this->hasOne(ReviewReply::class)->latestOfMany('id');
+    }
+
+    public function activeDraft(): HasOne
+    {
+        return $this->hasOne(ReviewReply::class)
+            ->where('status', \App\Domain\Review\Enums\ReplyStatus::Draft->value)
+            ->latestOfMany('id');
+    }
+
+    public function sentReply(): HasOne
+    {
+        return $this->hasOne(ReviewReply::class)
+            ->where('status', \App\Domain\Review\Enums\ReplyStatus::Sent->value)
+            ->latestOfMany('id');
+    }
+
+    public function getHasSentReplyAttribute(): bool
+    {
+        return $this->sentReply !== null;
     }
 
     // ── Scopes ─────────────────────────────────────────────────

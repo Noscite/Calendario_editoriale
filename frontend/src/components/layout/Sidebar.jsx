@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Building2,
   Share2,
+  Star,
   BarChart3,
   FileText,
   Settings,
@@ -51,6 +52,7 @@ export default function Sidebar() {
     { to: '/brands',     icon: Building2,       label: 'I miei Brand' },
     { to: '/audit',      icon: TrendingUp,      label: 'Audit' },
     { to: '/social',     icon: Share2,           label: 'Social' },
+    { to: '/reviews',    icon: Star,             label: 'Recensioni' },
     { to: '/insights',   icon: BarChart3,        label: 'Insights' },
     { to: '/documents',  icon: FileText,         label: 'Documenti' },
   ];

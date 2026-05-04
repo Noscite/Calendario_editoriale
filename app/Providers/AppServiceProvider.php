@@ -19,6 +19,11 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(BrandApiKeyService::class);
+
+        $this->app->bind(
+            \App\Domain\Review\Contracts\KnowledgeRetrieverInterface::class,
+            \App\Domain\Review\Services\PgVectorKnowledgeRetriever::class,
+        );
     }
 
     public function boot(): void

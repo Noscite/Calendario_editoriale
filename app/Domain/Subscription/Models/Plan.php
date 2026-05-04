@@ -22,6 +22,7 @@ class Plan extends Model
         'max_brands',
         'max_users',
         'monthly_calendar_generations',
+        'monthly_reply_count',
         'monthly_text_tokens',
         'monthly_images',
         // Features
