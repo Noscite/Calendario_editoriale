@@ -114,7 +114,7 @@ class SubscriptionResource extends Resource
             ])
             ->actions([
                 // ── Attiva pagamento ───────────────────────────────────────────
-                Tables\Actions\Action::make('activate')
+                Action::make('activate')
                     ->label('Attiva pagamento')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -169,7 +169,7 @@ class SubscriptionResource extends Resource
                     }),
 
                 // ── Marca come pending payment ─────────────────────────────────
-                Tables\Actions\Action::make('markPending')
+                Action::make('markPending')
                     ->label('Marca pending')
                     ->icon('heroicon-o-clock')
                     ->color('warning')
@@ -188,7 +188,7 @@ class SubscriptionResource extends Resource
                     }),
 
                 // ── Estendi trial 7 giorni ─────────────────────────────────────
-                Tables\Actions\Action::make('extendTrial')
+                Action::make('extendTrial')
                     ->label('Estendi trial +7gg')
                     ->icon('heroicon-o-arrow-path')
                     ->color('info')
@@ -210,7 +210,7 @@ class SubscriptionResource extends Resource
                     }),
 
                 // ── Cancella subscription ──────────────────────────────────────
-                Tables\Actions\Action::make('cancel')
+                Action::make('cancel')
                     ->label('Cancella')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
