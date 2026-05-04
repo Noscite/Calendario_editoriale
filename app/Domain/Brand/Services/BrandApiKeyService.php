@@ -99,8 +99,11 @@ class BrandApiKeyService
     }
 
     /**
-     * Solo il SuperAdmin (ruolo 'superuser') può usare le chiavi di sistema come fallback.
-     * Per tutti gli altri brand, lancia MissingBrandApiKeyException.
+     * Fallback alle chiavi di sistema consentito quando:
+     *   1. L'utente loggato è superuser (UI/web context), oppure
+     *   2. Il brand appartiene a un'organization marcata is_system_tenant
+     *      (CLI/queue context, dove Auth::user() è null).
+     * Negli altri casi lancia MissingBrandApiKeyException.
      */
     public function getWithSuperAdminFallback(
         Brand $brand,
@@ -113,7 +116,7 @@ class BrandApiKeyService
             return $value;
         }
 
-        if ($this->currentUserIsSuperAdmin()) {
+        if ($this->currentUserIsSuperAdmin() || $this->brandBelongsToSystemTenant($brand)) {
             return config($configFallback)
                 ?? throw new \RuntimeException("Chiave di sistema non configurata: {$configFallback}");
         }
@@ -124,6 +127,14 @@ class BrandApiKeyService
     private function currentUserIsSuperAdmin(): bool
     {
         return Auth::user()?->role === 'superuser';
+    }
+
+    private function brandBelongsToSystemTenant(Brand $brand): bool
+    {
+        return Organization::query()
+            ->whereKey($brand->organization_id)
+            ->where('is_system_tenant', true)
+            ->exists();
     }
 
     /**
