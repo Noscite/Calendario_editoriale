@@ -137,6 +137,32 @@ ESEMPI:
   letteralmente PRIMUS e 4 ore)
 - ✓ SI: ringraziamento generico senza cifre specifiche
 
+═══ USO POSITIVO DELLA KNOWLEDGE BASE ═══
+I VINCOLI sopra ti vietano di inventare. Ma NON ti vietano di usare ciò
+che è documentato.
+
+Se i chunk KB sotto contengono NOMI PROPRI di:
+- Prodotti, corsi, percorsi formativi (es. "PRIMUS", "AI Ratio")
+- Certificazioni, qualifiche (es. "Certified AI Productivity User", "ISO 9001")
+- Metodologie, framework proprietari (es. "Metodo X", "Approccio Lean Y")
+- Servizi, linee di prodotto (es. "Premium Care", "Linea Gold")
+
+USALI VERBATIM quando pertinenti al commento del reviewer. Questo è uso
+corretto della KB, non invenzione.
+
+ESEMPI CORRETTI (assumendo siano nei chunk):
+- ✓ "Il workshop PRIMUS è pensato proprio per..."
+- ✓ "Siamo felici che la certificazione Certified AI Productivity User..."
+- ✓ "Il nostro percorso AI Ratio mira a..."
+
+ESEMPI SBAGLIATI:
+- ❌ "il nostro famoso workshop" (vago, anonimo, evita di personalizzare)
+- ❌ "il nostro corso esclusivo" (generico, perde valore brand)
+
+REGOLA OPERATIVA: se la review menziona un'area tematica (es. "workshop",
+"corso", "certificazione") e nei chunk c'è un nome proprio specifico per
+quell'area, USALO. Personalizza. Non rifugiarti nel generico per prudenza.
+
 ═══ ALTRE REGOLE NON NEGOZIABILI ═══
 - Risposta in italiano corrente.
 - Lunghezza: 40-80 parole MAX (Google sweet spot per local SEO).
@@ -215,11 +241,13 @@ PROMPT;
 
     private function strategyInstruction(string $strategy): string
     {
+        $kbHint = " Se i chunk KB contengono nomi propri pertinenti al commento (prodotti, corsi, certificazioni, metodologie), incorporali per dare specificità genuina alla risposta.";
+
         return match ($strategy) {
-            'recovery'    => "Recensione critica recuperabile. Riconosci il problema citando SOLO dettagli effettivamente presenti nel commento del reviewer (mai inventarne). Non scusarti genericamente. Proponi canale privato concreto. Obiettivo: trasformare in cliente recuperato.",
-            'advocacy'    => "Cliente entusiasta, potenziale ambassador. Amplifica positivamente con tono caloroso ma resta sui fatti documentati nei chunk KB. Personalizza richiamando solo elementi presenti nel commento del reviewer o nei chunk. Invito sottile a continuare la relazione (es. newsletter), senza inventare prodotti o eventi.",
-            'upsell'      => "Cliente soddisfatto che potrebbe acquistare di più. Puoi menzionare un servizio correlato SOLO se esplicitamente presente nei chunk KB. In assenza di chunk pertinenti, fai un invito generico al contatto privato senza inventare offerte.",
-            'testimonial' => "Recensione perfetta da promuovere. Ringrazia evidenziando il valore percepito espresso DAL REVIEWER nel commento — senza inventare cifre, risultati, statistiche o aneddoti. Considera invito a condividere su altri canali.",
+            'recovery'    => "Recensione critica recuperabile. Riconosci il problema citando SOLO dettagli effettivamente presenti nel commento del reviewer (mai inventarne). Non scusarti genericamente. Proponi canale privato concreto. Obiettivo: trasformare in cliente recuperato." . $kbHint,
+            'advocacy'    => "Cliente entusiasta, potenziale ambassador. Amplifica positivamente con tono caloroso ma resta sui fatti documentati nei chunk KB. Personalizza richiamando elementi presenti nel commento del reviewer o nei chunk. Invito sottile a continuare la relazione (es. newsletter), senza inventare prodotti o eventi." . $kbHint,
+            'upsell'      => "Cliente soddisfatto che potrebbe acquistare di più. Puoi menzionare un servizio correlato SOLO se esplicitamente presente nei chunk KB. In assenza di chunk pertinenti, fai un invito generico al contatto privato senza inventare offerte." . $kbHint,
+            'testimonial' => "Recensione perfetta da promuovere. Ringrazia evidenziando il valore percepito espresso DAL REVIEWER nel commento — senza inventare cifre, risultati, statistiche o aneddoti. Considera invito a condividere su altri canali." . $kbHint,
             default       => "Risposta standard educata e professionale.",
         };
     }

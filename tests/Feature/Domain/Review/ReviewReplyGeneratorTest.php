@@ -228,3 +228,21 @@ it('includes self-check instruction for facts', function () {
                 || str_contains($sys, 'SELF-CHECK'));
     });
 });
+
+it('includes positive kb usage block in system prompt', function () {
+    $review = makeReviewWithBrandForGenerator(['comment' => 'Workshop fantastico']);
+
+    Http::fake([
+        'api.anthropic.com/*' => Http::response(fakeReplyResponse('OK'), 200),
+    ]);
+
+    makeGenerator()->generate($review);
+
+    Http::assertSent(function (Request $req): bool {
+        $sys = $req->data()['system'] ?? '';
+        return is_string($sys)
+            && str_contains($sys, 'USO POSITIVO DELLA KNOWLEDGE BASE')
+            && str_contains($sys, 'USALI VERBATIM')
+            && str_contains($sys, 'NON ti vietano di usare');
+    });
+});
