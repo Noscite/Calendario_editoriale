@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Review\Jobs\BootstrapBrandOntologyJob;
-use App\Domain\Review\Services\OntologyBootstrapService;
+use App\Domain\Review\Contracts\OntologyBootstrapServiceInterface;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
@@ -38,7 +38,7 @@ it('calls bootstrap service for eligible brand', function () {
         'review_ontology' => null,
     ]);
 
-    $mock = Mockery::mock(OntologyBootstrapService::class);
+    $mock = Mockery::mock(OntologyBootstrapServiceInterface::class);
     $mock->shouldReceive('bootstrapForBrand')
         ->once()
         ->with(Mockery::on(fn ($b) => $b instanceof Brand && $b->id === $brand->id))
@@ -54,14 +54,14 @@ it('skips when ontology already populated', function () {
         'review_ontology' => [['id' => 'x', 'label' => 'X', 'description' => '']],
     ]);
 
-    $mock = Mockery::mock(OntologyBootstrapService::class);
+    $mock = Mockery::mock(OntologyBootstrapServiceInterface::class);
     $mock->shouldNotReceive('bootstrapForBrand');
 
     (new BootstrapBrandOntologyJob($brand->id))->handle($mock);
 });
 
 it('skips when brand does not exist', function () {
-    $mock = Mockery::mock(OntologyBootstrapService::class);
+    $mock = Mockery::mock(OntologyBootstrapServiceInterface::class);
     $mock->shouldNotReceive('bootstrapForBrand');
 
     (new BootstrapBrandOntologyJob(99999))->handle($mock);

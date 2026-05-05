@@ -5,9 +5,9 @@ declare(strict_types=1);
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Models\BrandApiKey;
 use App\Domain\Brand\Services\BrandApiKeyService;
+use App\Domain\Document\Contracts\OpenAiEmbeddingClientInterface;
 use App\Domain\Document\Models\BrandDocument;
 use App\Domain\Document\Models\DocumentChunk;
-use App\Domain\Document\Services\OpenAiEmbeddingClient;
 use App\Domain\Review\Services\PgVectorKnowledgeRetriever;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -21,20 +21,19 @@ beforeEach(function () {
  * Embedder fake che mappa input text → un vettore controllato.
  * Permette di simulare vicinanza coseno deterministica.
  */
-function makeRetrieverEmbedder(callable $vectorFor): OpenAiEmbeddingClient
+function makeRetrieverEmbedder(callable $vectorFor): OpenAiEmbeddingClientInterface
 {
-    return new class($vectorFor) extends OpenAiEmbeddingClient
+    return new class($vectorFor) implements OpenAiEmbeddingClientInterface
     {
         /** @var \Closure */
         private $resolver;
 
         public function __construct(callable $resolver)
         {
-            parent::__construct();
             $this->resolver = \Closure::fromCallable($resolver);
         }
 
-        public function withBrand(?Brand $brand): static
+        public function withBrand(?Brand $brand): self
         {
             return $this;
         }

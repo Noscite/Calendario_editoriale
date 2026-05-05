@@ -8,7 +8,7 @@ use App\Domain\Review\Enums\ReplyStatus;
 use App\Domain\Review\Enums\ReplyTone;
 use App\Domain\Review\Models\Review;
 use App\Domain\Review\Models\ReviewReply;
-use App\Domain\Review\Services\ReviewReplyGenerator;
+use App\Domain\Review\Contracts\ReviewReplyGeneratorInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -45,7 +45,7 @@ class GenerateReplyDraftJob implements ShouldQueue
         $this->strategyOverride = $strategyOverride;
     }
 
-    public function handle(ReviewReplyGenerator $generator): void
+    public function handle(ReviewReplyGeneratorInterface $generator): void
     {
         $review = Review::withoutGlobalScope('organization')->find($this->reviewId);
         if (! $review) {

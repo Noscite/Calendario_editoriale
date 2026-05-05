@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Review\Services;
 
 use App\Domain\Brand\Models\Brand;
-use App\Domain\Document\Services\OpenAiEmbeddingClient;
+use App\Domain\Document\Contracts\OpenAiEmbeddingClientInterface;
 use App\Domain\Review\Contracts\KnowledgeRetrieverInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +22,7 @@ final class PgVectorKnowledgeRetriever implements KnowledgeRetrieverInterface
     private const MIN_SIMILARITY = 0.30;
 
     public function __construct(
-        private readonly OpenAiEmbeddingClient $embedder,
+        private readonly OpenAiEmbeddingClientInterface $embedder,
     ) {
     }
 

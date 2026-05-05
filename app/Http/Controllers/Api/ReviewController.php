@@ -10,7 +10,7 @@ use App\Domain\Review\Enums\ReviewStatus;
 use App\Domain\Review\Jobs\SendReplyJob;
 use App\Domain\Review\Models\Review;
 use App\Domain\Review\Models\ReviewReply;
-use App\Domain\Review\Services\ReviewReplyGenerator;
+use App\Domain\Review\Contracts\ReviewReplyGeneratorInterface;
 use App\Domain\Subscription\Services\ReplyQuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -116,8 +116,8 @@ final class ReviewController extends Controller
             ->update(['status' => ReplyStatus::Superseded->value]);
 
         try {
-            /** @var ReviewReplyGenerator $generator */
-            $generator = app(ReviewReplyGenerator::class);
+            /** @var ReviewReplyGeneratorInterface $generator */
+            $generator = app(ReviewReplyGeneratorInterface::class);
             $result    = $generator->generate(
                 review: $review,
                 tone: $tone,

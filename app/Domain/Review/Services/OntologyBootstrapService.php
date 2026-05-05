@@ -7,6 +7,7 @@ namespace App\Domain\Review\Services;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Document\Models\BrandDocument;
 use App\Domain\Generation\Services\AnthropicApiClient;
+use App\Domain\Review\Contracts\OntologyBootstrapServiceInterface;
 use App\Domain\Review\Models\Review;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -19,7 +20,7 @@ use RuntimeException;
  * e ottiene 8-15 topic_id pertinenti al settore. Salva il risultato
  * su brands.review_ontology e include sempre "altro" come fallback.
  */
-class OntologyBootstrapService
+final class OntologyBootstrapService implements OntologyBootstrapServiceInterface
 {
     public const MODEL       = 'claude-sonnet-4-20250514';
     private const MAX_TOKENS  = 1500;

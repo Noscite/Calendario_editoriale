@@ -6,6 +6,7 @@ namespace App\Domain\Review\Jobs;
 
 use App\Domain\Review\Enums\ReviewStatus;
 use App\Domain\Review\Models\Review;
+use App\Domain\Review\Contracts\ReviewScoringServiceInterface;
 use App\Domain\Review\Services\ReviewScoringService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,7 +36,7 @@ class ScoreReviewJob implements ShouldQueue
         $this->onQueue('default');
     }
 
-    public function handle(ReviewScoringService $scorer): void
+    public function handle(ReviewScoringServiceInterface $scorer): void
     {
         $review = Review::withoutGlobalScope('organization')->find($this->reviewId);
 

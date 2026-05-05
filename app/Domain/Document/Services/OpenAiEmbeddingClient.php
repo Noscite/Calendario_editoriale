@@ -6,6 +6,7 @@ namespace App\Domain\Document\Services;
 
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Services\BrandApiKeyService;
+use App\Domain\Document\Contracts\OpenAiEmbeddingClientInterface;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -17,7 +18,7 @@ use RuntimeException;
  * sui chunk dei documenti brand. Modello di default: text-embedding-3-small
  * (1536 dim) — allineato allo schema pgvector di document_chunks.
  */
-class OpenAiEmbeddingClient
+final class OpenAiEmbeddingClient implements OpenAiEmbeddingClientInterface
 {
     private const API_URL    = 'https://api.openai.com/v1/embeddings';
     private const MAX_TRIES  = 3;
