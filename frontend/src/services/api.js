@@ -195,6 +195,7 @@ export const reviewsApi = {
   generateDraft:  (id, data)    => api.post(`/reviews/${id}/draft`, data),
   updateDraft:    (id, replyId, body) => api.patch(`/reviews/${id}/replies/${replyId}`, { body }),
   approveDraft:   (id, replyId) => api.post(`/reviews/${id}/replies/${replyId}/approve`),
+  cancelDraft:    (id, replyId) => api.post(`/reviews/${id}/replies/${replyId}/cancel`),
   ignoreReview:   (id)          => api.post(`/reviews/${id}/ignore`),
   getQuota:       ()            => api.get('/reviews/quota'),
 };

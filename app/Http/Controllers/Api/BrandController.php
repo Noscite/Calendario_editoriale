@@ -110,7 +110,24 @@ final class BrandController extends Controller
             return response()->json(['detail' => 'Brand not found'], 404);
         }
 
-        $brand = $this->brandService->update($id, $dto->toArray());
+        $data = $dto->toArray();
+
+        // M4 — auto-reply: blocca attivazione se il piano non include la feature
+        if (($data['auto_reply_enabled'] ?? null) === true) {
+            $org  = $request->user()->organization;
+            $plan = $org?->plan_id ? \App\Domain\Subscription\Models\Plan::find($org->plan_id) : null;
+            $cap  = $plan?->monthly_reply_count;
+
+            // null = illimitato → OK; >0 → OK; 0 = feature disabilitata; null plan → blocca
+            if ($plan === null || $cap === 0) {
+                return response()->json([
+                    'error'   => 'feature_unavailable',
+                    'message' => 'Funzione non disponibile sul tuo piano.',
+                ], 422);
+            }
+        }
+
+        $brand = $this->brandService->update($id, $data);
 
         return response()->json([
             'id'   => $brand->id,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Loader2, Search, MessageSquare, CheckCircle2, EyeOff, AlertTriangle } from 'lucide-react';
+import { Star, Loader2, Search, MessageSquare, CheckCircle2, EyeOff, AlertTriangle, Bot } from 'lucide-react';
 import { reviewsApi } from '../services/api';
 
 const SENTIMENT_BADGE = {
@@ -200,7 +200,14 @@ export default function ReviewsPage() {
                     </div>
                     <p className="text-sm text-gray-600 line-clamp-2 mt-0.5">{r.comment || <em className="text-gray-400">(solo stelle)</em>}</p>
                   </div>
-                  <StatusPill review={r} />
+                  <div className="flex items-center gap-2 shrink-0">
+                    {r.latest_reply_is_auto && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-semibold">
+                        <Bot size={10} /> AUTO
+                      </span>
+                    )}
+                    <StatusPill review={r} />
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5 ml-12">
                   {sent && <span className={`text-xs px-2 py-0.5 rounded ${sent.cls}`}>{sent.label}</span>}

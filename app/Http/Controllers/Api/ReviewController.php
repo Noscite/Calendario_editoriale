@@ -216,6 +216,24 @@ final class ReviewController extends Controller
         return response()->json($this->serializeReply($reply->fresh()), 202);
     }
 
+    public function cancelDraft(int $id, int $replyId): JsonResponse
+    {
+        $reply = ReviewReply::query()
+            ->where('review_id', $id)
+            ->findOrFail($replyId);
+
+        if ($reply->status !== ReplyStatus::Draft || ! (bool) $reply->was_auto_approved) {
+            return response()->json([
+                'error'   => 'invalid_reply',
+                'message' => 'Solo bozze auto-approvate in modalità revisione possono essere annullate.',
+            ], 422);
+        }
+
+        $reply->update(['status' => ReplyStatus::Superseded->value]);
+
+        return response()->json(null, 204);
+    }
+
     public function ignore(int $id): JsonResponse
     {
         $review = Review::query()->findOrFail($id);
@@ -240,6 +258,7 @@ final class ReviewController extends Controller
     {
         $activeDraft = $r->activeDraft;
         $sentReply   = $r->sentReply;
+        $latestReply = $sentReply ?? $activeDraft;
 
         return [
             'id'                    => $r->id,
@@ -259,6 +278,7 @@ final class ReviewController extends Controller
             'active_draft_id'       => $activeDraft?->id,
             'has_sent_reply'        => $sentReply !== null,
             'sent_reply_id'         => $sentReply?->id,
+            'latest_reply_is_auto'  => $latestReply !== null ? (bool) $latestReply->was_auto_approved : false,
         ];
     }
 
