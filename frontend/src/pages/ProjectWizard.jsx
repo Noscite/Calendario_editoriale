@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/dataStore';
 import BrandDocuments from '../components/BrandDocuments';
+import { generation } from '../services/api';
 import { 
   ArrowLeft, ArrowRight, Check, Calendar, FileText, File, Link, 
   Target, Sparkles, Loader2, Plus, X, Globe, Linkedin, Instagram,
@@ -217,7 +218,6 @@ export default function ProjectWizard() {
       });
       
       // Avvia generazione calendario
-      const { generation } = await import('../services/api');
       try {
         await generation.generateCalendar(createdProjectId);
       } catch (genErr) {
