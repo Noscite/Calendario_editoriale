@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Star, Loader2, ArrowLeft, EyeOff, MessageSquare, Send, RefreshCw, AlertTriangle,
-  CheckCircle2, BookOpen, Sparkles,
+  CheckCircle2, BookOpen, Sparkles, Ban, Bot, Clock,
 } from 'lucide-react';
 import { reviewsApi } from '../services/api';
 
@@ -48,6 +48,7 @@ export default function ReviewDetailPage() {
   const [editingBody, setEditingBody] = useState('');
   const [saveTimer, setSaveTimer] = useState(null);
   const [approving, setApproving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => { loadReview(); }, [id]);
@@ -126,6 +127,22 @@ export default function ReviewDetailPage() {
       setErrorMsg(err.response?.data?.message || 'Errore nell\'invio della risposta');
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleCancelAuto = async () => {
+    if (!activeDraft) return;
+    if (!confirm('Bloccare l\'invio automatico di questa risposta?')) return;
+    setCancelling(true);
+    setErrorMsg(null);
+    try {
+      await reviewsApi.cancelDraft(id, activeDraft.id);
+      await loadReview();
+    } catch (err) {
+      console.error('cancel', err);
+      setErrorMsg(err.response?.data?.message || 'Errore nel blocco dell\'invio');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -228,6 +245,11 @@ export default function ReviewDetailPage() {
               <div className="flex items-center gap-2 text-emerald-800 font-medium mb-3">
                 <CheckCircle2 size={18} />
                 Risposta inviata il {new Date(sentReply.sent_at).toLocaleString('it-IT')}
+                {sentReply.was_auto_approved && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">
+                    <Bot size={12} /> AUTO
+                  </span>
+                )}
               </div>
               <div className="bg-white border border-emerald-200 rounded p-4 text-gray-800 whitespace-pre-wrap">
                 {sentReply.body}
@@ -236,11 +258,28 @@ export default function ReviewDetailPage() {
           ) : activeDraft ? (
             <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2"><MessageSquare size={16} /> Bozza di risposta</h3>
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <MessageSquare size={16} /> Bozza di risposta
+                  {activeDraft.was_auto_approved && (
+                    <span className="ml-1 inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">
+                      <Bot size={12} /> AUTO
+                    </span>
+                  )}
+                </h3>
                 {activeDraft.was_edited && (
                   <span className="text-xs text-amber-700">Modificata</span>
                 )}
               </div>
+
+              {activeDraft.was_auto_approved && (
+                <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900 flex items-start gap-2">
+                  <Clock size={16} className="mt-0.5 shrink-0" />
+                  <span>
+                    <strong>Verrà inviata automaticamente.</strong> Puoi modificare il testo qui sotto, approvare ora o bloccare l'invio.
+                  </span>
+                </div>
+              )}
+
               <textarea
                 value={editingBody}
                 onChange={e => handleEditChange(e.target.value)}
@@ -263,10 +302,19 @@ export default function ReviewDetailPage() {
                 >
                   {generating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Rigenera
                 </button>
+                {activeDraft.was_auto_approved && (
+                  <button
+                    onClick={handleCancelAuto}
+                    disabled={cancelling}
+                    className="inline-flex items-center gap-2 ml-auto px-3 py-1.5 border border-red-300 text-red-700 rounded text-sm hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {cancelling ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />} Blocca invio
+                  </button>
+                )}
                 <button
                   onClick={handleApprove}
                   disabled={approving}
-                  className="inline-flex items-center gap-2 ml-auto px-4 py-1.5 bg-[#3DAFA8] text-white rounded text-sm hover:bg-[#2c8d87] disabled:opacity-50"
+                  className={`inline-flex items-center gap-2 ${activeDraft.was_auto_approved ? '' : 'ml-auto'} px-4 py-1.5 bg-[#3DAFA8] text-white rounded text-sm hover:bg-[#2c8d87] disabled:opacity-50`}
                 >
                   {approving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Approva e invia
                 </button>

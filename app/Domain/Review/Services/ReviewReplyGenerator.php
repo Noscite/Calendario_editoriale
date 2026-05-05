@@ -23,7 +23,7 @@ use App\Domain\Review\Models\Review;
  *    riceve un systemPrompt esplicito)
  *  - Ritorna body + metadati per persisterli su review_replies
  */
-final class ReviewReplyGenerator
+class ReviewReplyGenerator
 {
     public const MODEL       = 'claude-sonnet-4-20250514';
     private const MAX_TOKENS = 1500;

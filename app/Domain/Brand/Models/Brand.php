@@ -36,15 +36,28 @@ class Brand extends Model
         'voice_examples',
         'review_fetch_interval_minutes',
         'review_ontology',
+        // ── Auto-reply (M4) ────────────────────────────────
+        'auto_reply_enabled',
+        'auto_reply_min_rating',
+        'auto_reply_only_positive_sentiment',
+        'auto_reply_tone',
+        'auto_reply_review_mode',
+        'auto_reply_delay_minutes',
     ];
 
     protected function casts(): array
     {
         return [
-            'brand_values'                  => 'json',
-            'voice_examples'                => 'array',
-            'review_fetch_interval_minutes' => 'integer',
-            'review_ontology'               => 'array',
+            'brand_values'                       => 'json',
+            'voice_examples'                     => 'array',
+            'review_fetch_interval_minutes'      => 'integer',
+            'review_ontology'                    => 'array',
+            // ── Auto-reply (M4) ───────────────────────────
+            'auto_reply_enabled'                 => 'boolean',
+            'auto_reply_min_rating'              => 'integer',
+            'auto_reply_only_positive_sentiment' => 'boolean',
+            'auto_reply_review_mode'             => 'boolean',
+            'auto_reply_delay_minutes'           => 'integer',
         ];
     }
 

@@ -7,7 +7,9 @@ namespace App\Domain\Review\Jobs;
 use App\Domain\Review\Enums\ReplyStatus;
 use App\Domain\Review\Enums\ReviewStatus;
 use App\Domain\Review\Models\ReviewReply;
+use App\Domain\Review\Notifications\AutoReplyPostInvioNotification;
 use App\Domain\Review\Services\GoogleReviewReplier;
+use App\Domain\Review\Support\AutoReplyRecipient;
 use App\Domain\Social\Exceptions\TokenExpiredException;
 use App\Domain\Social\Models\SocialConnection;
 use App\Domain\Social\Services\TokenRefreshService;
@@ -46,8 +48,21 @@ class SendReplyJob implements ShouldQueue
             return;
         }
 
-        // Idempotenza: solo approved/sending sono inviabili
+        // Idempotenza: approved/sending sono inviabili.
+        // 'draft' è inviabile SOLO se was_auto_approved=true (auto-reply ritardato):
+        // viene auto-promosso ad 'approved' qui, così l'utente che vuole bloccarlo
+        // può marcarlo 'superseded' via l'endpoint cancelDraft prima della scadenza
+        // del delay.
         $status = $reply->status instanceof ReplyStatus ? $reply->status : ReplyStatus::tryFrom((string) $reply->getRawOriginal('status'));
+
+        if ($status === ReplyStatus::Draft && (bool) $reply->was_auto_approved) {
+            $reply->update([
+                'status'      => ReplyStatus::Approved->value,
+                'approved_at' => $reply->approved_at ?? now(),
+            ]);
+            $status = ReplyStatus::Approved;
+        }
+
         if (! in_array($status, [ReplyStatus::Approved, ReplyStatus::Sending], true)) {
             Log::info('[REPLY_SEND] Reply non in stato inviabile, skip', [
                 'reply_id' => $reply->id,
@@ -95,6 +110,15 @@ class SendReplyJob implements ShouldQueue
             ]);
             $review->update(['status' => ReviewStatus::Replied->value]);
             $quotaService->recordReplySent($review->organization_id);
+
+            // Auto-reply: post-invio email solo per le bozze create in modalità immediata
+            // (la modalità revisione ha già notificato pre-invio).
+            if ((bool) $reply->was_auto_approved && (bool) $reply->notify_after_send) {
+                $recipient = AutoReplyRecipient::for($review->organization);
+                if ($recipient !== null) {
+                    $recipient->notify(new AutoReplyPostInvioNotification($reply));
+                }
+            }
 
             Log::info('[REPLY_SEND] Reply inviata', [
                 'reply_id'  => $reply->id,

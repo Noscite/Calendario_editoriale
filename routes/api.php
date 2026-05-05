@@ -480,6 +480,7 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::post('/{id}/draft', [ReviewController::class, 'generateDraft']);
         Route::patch('/{id}/replies/{replyId}', [ReviewController::class, 'updateDraft']);
         Route::post('/{id}/replies/{replyId}/approve', [ReviewController::class, 'approve']);
+        Route::post('/{id}/replies/{replyId}/cancel', [ReviewController::class, 'cancelDraft']);
         Route::post('/{id}/ignore', [ReviewController::class, 'ignore']);
     });
 });

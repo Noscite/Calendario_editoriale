@@ -7,12 +7,13 @@ import {
   Plus, Calendar, Sparkles, Loader2, Trash2, Mic, Building2,
   Linkedin, Instagram, Facebook, MapPin, Link2, CheckCircle, XCircle,
   ExternalLink, Globe, Palette, Users, Layers, Key, Eye, EyeOff, Save, ChevronDown, ChevronUp,
-  TrendingUp,
+  TrendingUp, Star,
 } from 'lucide-react';
 import EditionBadge from '../components/EditionBadge';
 import VoiceExamplesEditor from '../components/VoiceExamplesEditor';
 import AddEditionModal from '../components/AddEditionModal';
 import AuditDashboard from './AuditDashboard';
+import { reviewsApi } from '../services/api';
 
 const PLATFORMS = [
   { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'bg-[#0077b5]' },
@@ -38,21 +39,73 @@ export default function BrandDetail() {
   const [apiKeyMessage, setApiKeyMessage] = useState(null);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
 
+  // Auto-reply state (M4)
+  const [autoReplyOpen, setAutoReplyOpen] = useState(false);
+  const [autoReplyForm, setAutoReplyForm] = useState({
+    auto_reply_enabled: false,
+    auto_reply_min_rating: 4,
+    auto_reply_only_positive_sentiment: true,
+    auto_reply_tone: 'brand_default',
+    auto_reply_review_mode: false,
+    auto_reply_delay_minutes: 30,
+  });
+  const [autoReplySaving, setAutoReplySaving] = useState(false);
+  const [autoReplyMessage, setAutoReplyMessage] = useState(null);
+  const [replyQuota, setReplyQuota] = useState(null);
+
   useEffect(() => {
     loadBrand();
     fetchProjects(id);
     loadConnections();
     loadApiKeys();
+    loadReplyQuota();
   }, [id]);
+
+  const loadReplyQuota = async () => {
+    try {
+      const res = await reviewsApi.getQuota();
+      setReplyQuota(res.data);
+    } catch (err) {
+      // Endpoint può fallire per piani senza quota — non blocchiamo la pagina
+      setReplyQuota(null);
+    }
+  };
 
   const loadBrand = async () => {
     try {
       const res = await brands.get(id);
       setBrand(res.data);
+      setAutoReplyForm({
+        auto_reply_enabled:                 !!res.data.auto_reply_enabled,
+        auto_reply_min_rating:              res.data.auto_reply_min_rating ?? 4,
+        auto_reply_only_positive_sentiment: res.data.auto_reply_only_positive_sentiment ?? true,
+        auto_reply_tone:                    res.data.auto_reply_tone ?? 'brand_default',
+        auto_reply_review_mode:             !!res.data.auto_reply_review_mode,
+        auto_reply_delay_minutes:           res.data.auto_reply_delay_minutes ?? 30,
+      });
     } catch (err) {
       console.error('Error loading brand:', err);
     }
   };
+
+  const handleAutoReplySave = async () => {
+    setAutoReplySaving(true);
+    setAutoReplyMessage(null);
+    try {
+      await brands.update(id, autoReplyForm);
+      setAutoReplyMessage({ type: 'success', text: 'Impostazioni auto-reply salvate.' });
+      await loadBrand();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || 'Errore nel salvataggio';
+      setAutoReplyMessage({ type: 'error', text: msg });
+    } finally {
+      setAutoReplySaving(false);
+    }
+  };
+
+  const planAllowsAutoReply = replyQuota === null
+    ? true // mostra disponibile per default; il backend fa il check finale
+    : replyQuota.feature_enabled !== false;
 
   const loadConnections = async () => {
     try {
@@ -479,6 +532,162 @@ export default function BrandDetail() {
         </div>
       </div>
       )}
+
+      {/* Auto-reply settings (M4) */}
+      <div className="bg-white rounded-xl shadow-sm">
+        <button
+          onClick={() => setAutoReplyOpen(o => !o)}
+          className="w-full flex items-center justify-between p-6 text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <Star size={20} className="text-gray-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-[#2C3E50]">Risposta automatica recensioni</h3>
+              <p className="text-sm text-gray-500">
+                {autoReplyForm.auto_reply_enabled ? 'Abilitata' : 'Disabilitata (default)'}
+                {' · soglia '}{autoReplyForm.auto_reply_min_rating}★
+              </p>
+            </div>
+          </div>
+          {autoReplyOpen ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+        </button>
+
+        {autoReplyOpen && (
+          <div className="px-6 pb-6 space-y-4 border-t pt-4">
+            {!planAllowsAutoReply && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                🔒 Funzione non disponibile sul tuo piano. Aggiorna a Standard, Pro o Unlimited per abilitare la risposta automatica alle recensioni.
+              </div>
+            )}
+
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <span className="text-sm font-medium text-gray-700">Abilita risposta automatica alle recensioni</span>
+              <input
+                type="checkbox"
+                disabled={!planAllowsAutoReply}
+                checked={autoReplyForm.auto_reply_enabled}
+                onChange={(e) => setAutoReplyForm(f => ({ ...f, auto_reply_enabled: e.target.checked }))}
+                className="h-5 w-5 rounded text-[#3DAFA8] focus:ring-[#3DAFA8] disabled:opacity-50"
+              />
+            </label>
+
+            {autoReplyForm.auto_reply_enabled && (
+              <div className="space-y-4 pl-2 border-l-2 border-[#3DAFA8]/30">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Soglia rating</label>
+                  <select
+                    value={autoReplyForm.auto_reply_min_rating}
+                    onChange={(e) => setAutoReplyForm(f => ({ ...f, auto_reply_min_rating: parseInt(e.target.value, 10) }))}
+                    className="px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#3DAFA8]"
+                  >
+                    <option value={3}>3 stelle e oltre</option>
+                    <option value={4}>4 stelle e oltre (consigliato)</option>
+                    <option value={5}>Solo 5 stelle</option>
+                  </select>
+                </div>
+
+                <label className="flex items-center justify-between gap-3 cursor-pointer">
+                  <span className="text-sm text-gray-700">Solo recensioni con sentiment positivo</span>
+                  <input
+                    type="checkbox"
+                    checked={autoReplyForm.auto_reply_only_positive_sentiment}
+                    onChange={(e) => setAutoReplyForm(f => ({ ...f, auto_reply_only_positive_sentiment: e.target.checked }))}
+                    className="h-5 w-5 rounded text-[#3DAFA8] focus:ring-[#3DAFA8]"
+                  />
+                </label>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tono di risposta</label>
+                  <select
+                    value={autoReplyForm.auto_reply_tone}
+                    onChange={(e) => setAutoReplyForm(f => ({ ...f, auto_reply_tone: e.target.value }))}
+                    className="px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#3DAFA8] w-full sm:w-auto"
+                  >
+                    <option value="brand_default">Tono del brand</option>
+                    <option value="empathetic">Empatico</option>
+                    <option value="professional">Professionale</option>
+                    <option value="solution">Risolutivo</option>
+                    <option value="gratitude">Ringraziamento</option>
+                    <option value="formal">Formale</option>
+                  </select>
+                </div>
+
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Modalità di invio</p>
+                  <div className="space-y-2">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="auto_reply_review_mode"
+                        checked={!autoReplyForm.auto_reply_review_mode}
+                        onChange={() => setAutoReplyForm(f => ({ ...f, auto_reply_review_mode: false }))}
+                        className="mt-1"
+                      />
+                      <span className="text-sm">
+                        <strong>Immediato</strong> (raccomandato — riceverai email di conferma post-invio)
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="auto_reply_review_mode"
+                        checked={autoReplyForm.auto_reply_review_mode}
+                        onChange={() => setAutoReplyForm(f => ({ ...f, auto_reply_review_mode: true }))}
+                        className="mt-1"
+                      />
+                      <span className="text-sm">
+                        <strong>Differito</strong> (ti avvisiamo via email X minuti prima dell'invio per intercettare)
+                      </span>
+                    </label>
+                  </div>
+
+                  {autoReplyForm.auto_reply_review_mode && (
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Ritardo (minuti)</label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={1440}
+                        value={autoReplyForm.auto_reply_delay_minutes}
+                        onChange={(e) => setAutoReplyForm(f => ({ ...f, auto_reply_delay_minutes: parseInt(e.target.value, 10) || 30 }))}
+                        className="px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#3DAFA8] w-32"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                  <strong>⚠️ La risposta automatica verrà saltata se:</strong>
+                  <ul className="list-disc list-inside mt-1 space-y-0.5">
+                    <li>la recensione è sospetta (potenzialmente fake)</li>
+                    <li>l'urgenza è alta (rischio reputazionale)</li>
+                    <li>la quota mensile è esaurita</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {autoReplyMessage && (
+              <div className={`p-3 rounded-lg text-sm ${autoReplyMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                {autoReplyMessage.text}
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleAutoReplySave}
+                disabled={autoReplySaving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#3DAFA8] text-white rounded-lg hover:bg-[#2C3E50] disabled:opacity-50 text-sm font-medium"
+              >
+                {autoReplySaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Salva impostazioni
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Add Edition Modal */}
       {editionModalProject && (
