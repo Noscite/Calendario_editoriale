@@ -19,7 +19,7 @@ use RuntimeException;
  * e ottiene 8-15 topic_id pertinenti al settore. Salva il risultato
  * su brands.review_ontology e include sempre "altro" come fallback.
  */
-final class OntologyBootstrapService
+class OntologyBootstrapService
 {
     public const MODEL       = 'claude-sonnet-4-20250514';
     private const MAX_TOKENS  = 1500;

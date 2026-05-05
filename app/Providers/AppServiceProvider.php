@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Brand\Models\Brand;
+use App\Domain\Brand\Observers\BrandObserver;
 use App\Domain\Brand\Services\BrandApiKeyService;
 use App\Domain\Review\Models\Review;
 use App\Domain\Review\Observers\ReviewObserver;
@@ -33,5 +35,6 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(SubscriptionExpiring::class, SendSubscriptionExpiringEmail::class);
 
         Review::observe(ReviewObserver::class);
+        Brand::observe(BrandObserver::class);
     }
 }
