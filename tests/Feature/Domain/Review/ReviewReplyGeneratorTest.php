@@ -192,3 +192,39 @@ it('overrides strategy when explicit', function () {
         return is_string($sys) && str_contains($sys, 'Recensione perfetta da promuovere');
     });
 });
+
+it('includes anti-hallucination block in system prompt', function () {
+    $review = makeReviewWithBrandForGenerator();
+
+    Http::fake([
+        'api.anthropic.com/*' => Http::response(fakeReplyResponse('Risposta test'), 200),
+    ]);
+
+    makeGenerator()->generate($review);
+
+    Http::assertSent(function (Request $req): bool {
+        $sys = $req->data()['system'] ?? '';
+        return is_string($sys)
+            && str_contains($sys, 'VIETATO inventare')
+            && str_contains($sys, 'SELF-CHECK')
+            && str_contains($sys, 'letteralmente nei chunk');
+    });
+});
+
+it('includes self-check instruction for facts', function () {
+    $review = makeReviewWithBrandForGenerator();
+
+    Http::fake([
+        'api.anthropic.com/*' => Http::response(fakeReplyResponse('OK'), 200),
+    ]);
+
+    makeGenerator()->generate($review);
+
+    Http::assertSent(function (Request $req): bool {
+        $sys = $req->data()['system'] ?? '';
+        return is_string($sys)
+            && (str_contains($sys, 'verifica mentalmente')
+                || str_contains($sys, 'Self-check')
+                || str_contains($sys, 'SELF-CHECK'));
+    });
+});
