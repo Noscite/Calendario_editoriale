@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domain\Brand\Models\Brand;
-use App\Domain\Review\Services\OntologyBootstrapService;
+use App\Domain\Review\Contracts\OntologyBootstrapServiceInterface;
 use Illuminate\Console\Command;
 
 class BootstrapReviewOntologyCommand extends Command
@@ -16,7 +16,7 @@ class BootstrapReviewOntologyCommand extends Command
 
     protected $description = 'Genera l\'ontologia dei topic per le review di un brand via Claude (analisi settore + KB + review esistenti).';
 
-    public function handle(OntologyBootstrapService $service): int
+    public function handle(OntologyBootstrapServiceInterface $service): int
     {
         $brandId = (int) $this->argument('brand_id');
         $brand   = Brand::withoutGlobalScope('organization')->find($brandId);

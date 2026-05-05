@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Review\Services;
 
 use App\Domain\Generation\Services\AnthropicApiClient;
+use App\Domain\Review\Contracts\ReviewScoringServiceInterface;
 use App\Domain\Review\Models\Review;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -16,7 +17,7 @@ use RuntimeException;
  * marketing_opportunity, rationale. Validato e normalizzato a default
  * sicuri se il modello restituisce valori non aderenti al contratto.
  */
-class ReviewScoringService
+final class ReviewScoringService implements ReviewScoringServiceInterface
 {
     public const MODEL      = 'claude-haiku-4-5-20251001';
     private const MAX_TOKENS = 800;

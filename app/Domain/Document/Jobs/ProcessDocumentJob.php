@@ -6,7 +6,7 @@ namespace App\Domain\Document\Jobs;
 
 use App\Domain\Document\Models\BrandDocument;
 use App\Domain\Document\Models\DocumentChunk;
-use App\Domain\Document\Services\OpenAiEmbeddingClient;
+use App\Domain\Document\Contracts\OpenAiEmbeddingClientInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -41,7 +41,7 @@ final class ProcessDocumentJob implements ShouldQueue
         $this->onQueue('default');
     }
 
-    public function handle(OpenAiEmbeddingClient $embedder): void
+    public function handle(OpenAiEmbeddingClientInterface $embedder): void
     {
         $document = BrandDocument::find($this->documentId);
         if (! $document) {
@@ -106,7 +106,7 @@ final class ProcessDocumentJob implements ShouldQueue
         $this->generateEmbeddings($document, $embedder);
     }
 
-    public function generateEmbeddings(BrandDocument $document, OpenAiEmbeddingClient $embedder): void
+    public function generateEmbeddings(BrandDocument $document, OpenAiEmbeddingClientInterface $embedder): void
     {
         Log::info("[DOC] Generating embeddings for {$this->documentId}");
 

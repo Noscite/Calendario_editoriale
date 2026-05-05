@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Document\Contracts\OpenAiEmbeddingClientInterface;
 use App\Domain\Document\Jobs\ProcessDocumentJob;
 use App\Domain\Document\Models\BrandDocument;
 use App\Domain\Document\Models\DocumentChunk;
-use App\Domain\Document\Services\OpenAiEmbeddingClient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -16,16 +16,15 @@ use Illuminate\Support\Facades\Http;
  */
 function makeFakeEmbedder(?Closure $onEmbed = null): object
 {
-    return new class($onEmbed) extends OpenAiEmbeddingClient
+    return new class($onEmbed) implements OpenAiEmbeddingClientInterface
     {
         public array $calls = [];
 
         public function __construct(public ?Closure $onEmbed = null)
         {
-            parent::__construct();
         }
 
-        public function withBrand(?Brand $brand): static
+        public function withBrand(?Brand $brand): self
         {
             return $this;
         }
@@ -90,7 +89,7 @@ beforeEach(function () {
 it('generates embeddings for all chunks', function () {
     $doc  = makeProcessableDocument(2000);
     $fake = makeFakeEmbedder();
-    app()->instance(OpenAiEmbeddingClient::class, $fake);
+    app()->instance(OpenAiEmbeddingClientInterface::class, $fake);
 
     Http::preventStrayRequests();
 

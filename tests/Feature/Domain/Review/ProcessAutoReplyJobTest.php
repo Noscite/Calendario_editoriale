@@ -9,6 +9,7 @@ use App\Domain\Review\Jobs\SendReplyJob;
 use App\Domain\Review\Models\Review;
 use App\Domain\Review\Models\ReviewReply;
 use App\Domain\Review\Notifications\AutoReplyPreInvioNotification;
+use App\Domain\Review\Contracts\ReviewReplyGeneratorInterface;
 use App\Domain\Review\Services\ReviewReplyGenerator;
 use App\Domain\Social\Models\SocialConnection;
 use App\Domain\Subscription\Models\Plan;
@@ -100,7 +101,7 @@ function makeAutoReplyWorld(array $brandOverrides = [], array $reviewOverrides =
 
 function mockGenerator(string $body = 'Grazie Mario, a presto!'): void
 {
-    test()->mock(ReviewReplyGenerator::class, function (MockInterface $m) use ($body) {
+    test()->mock(ReviewReplyGeneratorInterface::class, function (MockInterface $m) use ($body) {
         $m->shouldReceive('generate')
             ->andReturn([
                 'body'                => $body,
@@ -117,13 +118,13 @@ function mockGenerator(string $body = 'Grazie Mario, a presto!'): void
 it('skips when not eligible', function () {
     [$review] = makeAutoReplyWorld(['auto_reply_enabled' => false]);
 
-    test()->mock(ReviewReplyGenerator::class, function (MockInterface $m) {
+    test()->mock(ReviewReplyGeneratorInterface::class, function (MockInterface $m) {
         $m->shouldNotReceive('generate');
     });
 
     (new ProcessAutoReplyJob($review->id))->handle(
         app(\App\Domain\Review\Services\AutoReplyEligibilityService::class),
-        app(ReviewReplyGenerator::class),
+        app(ReviewReplyGeneratorInterface::class),
     );
 
     expect(ReviewReply::where('review_id', $review->id)->count())->toBe(0);
@@ -136,7 +137,7 @@ it('creates reply with was_auto_approved flag', function () {
 
     (new ProcessAutoReplyJob($review->id))->handle(
         app(\App\Domain\Review\Services\AutoReplyEligibilityService::class),
-        app(ReviewReplyGenerator::class),
+        app(ReviewReplyGeneratorInterface::class),
     );
 
     $reply = ReviewReply::where('review_id', $review->id)->first();
@@ -152,7 +153,7 @@ it('dispatches send immediately when review_mode disabled', function () {
 
     (new ProcessAutoReplyJob($review->id))->handle(
         app(\App\Domain\Review\Services\AutoReplyEligibilityService::class),
-        app(ReviewReplyGenerator::class),
+        app(ReviewReplyGeneratorInterface::class),
     );
 
     Queue::assertPushed(SendReplyJob::class, function (SendReplyJob $job): bool {
@@ -166,7 +167,7 @@ it('delays send when review_mode enabled', function () {
 
     (new ProcessAutoReplyJob($review->id))->handle(
         app(\App\Domain\Review\Services\AutoReplyEligibilityService::class),
-        app(ReviewReplyGenerator::class),
+        app(ReviewReplyGeneratorInterface::class),
     );
 
     $reply = ReviewReply::where('review_id', $review->id)->first();
@@ -185,7 +186,7 @@ it('sends pre-invio email in review mode', function () {
 
     (new ProcessAutoReplyJob($review->id))->handle(
         app(\App\Domain\Review\Services\AutoReplyEligibilityService::class),
-        app(ReviewReplyGenerator::class),
+        app(ReviewReplyGeneratorInterface::class),
     );
 
     Notification::assertSentTimes(AutoReplyPreInvioNotification::class, 1);
@@ -197,7 +198,7 @@ it('does not send pre-invio email in immediate mode', function () {
 
     (new ProcessAutoReplyJob($review->id))->handle(
         app(\App\Domain\Review\Services\AutoReplyEligibilityService::class),
-        app(ReviewReplyGenerator::class),
+        app(ReviewReplyGeneratorInterface::class),
     );
 
     Notification::assertSentTimes(AutoReplyPreInvioNotification::class, 0);

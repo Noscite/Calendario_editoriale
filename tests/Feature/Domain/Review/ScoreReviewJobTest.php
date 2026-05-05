@@ -8,6 +8,7 @@ use App\Domain\Review\Enums\Sentiment;
 use App\Domain\Review\Enums\Urgency;
 use App\Domain\Review\Jobs\ScoreReviewJob;
 use App\Domain\Review\Models\Review;
+use App\Domain\Review\Contracts\ReviewScoringServiceInterface;
 use App\Domain\Review\Services\ReviewScoringService;
 use App\Domain\Social\Models\SocialConnection;
 use Illuminate\Support\Facades\Queue;
@@ -51,7 +52,7 @@ it('scores review and updates status', function () {
     $review = makeNewReviewForJob();
     Queue::swap(app('queue'));
 
-    $this->mock(ReviewScoringService::class, function (MockInterface $m) {
+    $this->mock(ReviewScoringServiceInterface::class, function (MockInterface $m) {
         $m->shouldReceive('score')
             ->once()
             ->andReturn([
@@ -64,7 +65,7 @@ it('scores review and updates status', function () {
             ]);
     });
 
-    (new ScoreReviewJob($review->id))->handle(app(ReviewScoringService::class));
+    (new ScoreReviewJob($review->id))->handle(app(ReviewScoringServiceInterface::class));
 
     $fresh = Review::withoutGlobalScope('organization')->find($review->id);
     expect($fresh->sentiment)->toBe(Sentiment::Positive);
@@ -93,11 +94,11 @@ it('skips already scored review (idempotenza)', function () {
     ]);
     Queue::swap(app('queue'));
 
-    $this->mock(ReviewScoringService::class, function (MockInterface $m) {
+    $this->mock(ReviewScoringServiceInterface::class, function (MockInterface $m) {
         $m->shouldNotReceive('score');
     });
 
-    (new ScoreReviewJob($review->id))->handle(app(ReviewScoringService::class));
+    (new ScoreReviewJob($review->id))->handle(app(ReviewScoringServiceInterface::class));
 
     expect($review->fresh()->scoring_rationale)->toBe('già fatto');
 });

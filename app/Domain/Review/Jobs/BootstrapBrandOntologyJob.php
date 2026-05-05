@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Review\Jobs;
 
 use App\Domain\Brand\Models\Brand;
-use App\Domain\Review\Services\OntologyBootstrapService;
+use App\Domain\Review\Contracts\OntologyBootstrapServiceInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -38,7 +38,7 @@ class BootstrapBrandOntologyJob implements ShouldQueue
         $this->onQueue('default');
     }
 
-    public function handle(OntologyBootstrapService $bootstrap): void
+    public function handle(OntologyBootstrapServiceInterface $bootstrap): void
     {
         $brand = Brand::withoutGlobalScope('organization')->find($this->brandId);
         if (! $brand) {

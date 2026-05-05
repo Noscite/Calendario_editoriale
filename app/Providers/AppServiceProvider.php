@@ -26,6 +26,23 @@ class AppServiceProvider extends ServiceProvider
             \App\Domain\Review\Contracts\KnowledgeRetrieverInterface::class,
             \App\Domain\Review\Services\PgVectorKnowledgeRetriever::class,
         );
+
+        $this->app->bind(
+            \App\Domain\Review\Contracts\ReviewScoringServiceInterface::class,
+            \App\Domain\Review\Services\ReviewScoringService::class,
+        );
+        $this->app->bind(
+            \App\Domain\Review\Contracts\ReviewReplyGeneratorInterface::class,
+            \App\Domain\Review\Services\ReviewReplyGenerator::class,
+        );
+        $this->app->bind(
+            \App\Domain\Review\Contracts\OntologyBootstrapServiceInterface::class,
+            \App\Domain\Review\Services\OntologyBootstrapService::class,
+        );
+        $this->app->bind(
+            \App\Domain\Document\Contracts\OpenAiEmbeddingClientInterface::class,
+            \App\Domain\Document\Services\OpenAiEmbeddingClient::class,
+        );
     }
 
     public function boot(): void

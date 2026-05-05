@@ -10,7 +10,7 @@ use App\Domain\Review\Models\Review;
 use App\Domain\Review\Models\ReviewReply;
 use App\Domain\Review\Notifications\AutoReplyPreInvioNotification;
 use App\Domain\Review\Services\AutoReplyEligibilityService;
-use App\Domain\Review\Services\ReviewReplyGenerator;
+use App\Domain\Review\Contracts\ReviewReplyGeneratorInterface;
 use App\Domain\Review\Support\AutoReplyRecipient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -51,7 +51,7 @@ class ProcessAutoReplyJob implements ShouldQueue
 
     public function handle(
         AutoReplyEligibilityService $eligibility,
-        ReviewReplyGenerator $generator,
+        ReviewReplyGeneratorInterface $generator,
     ): void {
         $review = Review::withoutGlobalScope('organization')->find($this->reviewId);
         if (! $review) {

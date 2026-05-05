@@ -7,6 +7,7 @@ namespace App\Domain\Review\Services;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Services\AnthropicApiClient;
 use App\Domain\Review\Contracts\KnowledgeRetrieverInterface;
+use App\Domain\Review\Contracts\ReviewReplyGeneratorInterface;
 use App\Domain\Review\Enums\ReplyTone;
 use App\Domain\Review\Models\Review;
 
@@ -23,7 +24,7 @@ use App\Domain\Review\Models\Review;
  *    riceve un systemPrompt esplicito)
  *  - Ritorna body + metadati per persisterli su review_replies
  */
-class ReviewReplyGenerator
+final class ReviewReplyGenerator implements ReviewReplyGeneratorInterface
 {
     public const MODEL       = 'claude-sonnet-4-20250514';
     private const MAX_TOKENS = 1500;
