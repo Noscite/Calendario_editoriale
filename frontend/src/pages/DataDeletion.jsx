@@ -6,7 +6,7 @@ export default function DataDeletion() {
     <div className="min-h-screen bg-gradient-to-br from-[#2C3E50] to-[#3DAFA8]">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <Link
-          to="/login"
+          to="/"
           className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -19,7 +19,7 @@ export default function DataDeletion() {
             <h1 className="text-3xl font-bold text-[#2C3E50]">Cancellazione dei Dati</h1>
           </div>
 
-          <p className="text-sm text-gray-500 mb-8">Ultimo aggiornamento: 11 marzo 2026</p>
+          <p className="text-sm text-gray-500 mb-8">Ultimo aggiornamento: 6 maggio 2026</p>
 
           <div className="prose max-w-none text-gray-700 space-y-8">
 
@@ -67,7 +67,7 @@ export default function DataDeletion() {
                     <h3 className="font-semibold text-[#2C3E50] text-lg">Dall&apos;app (più veloce)</h3>
                   </div>
                   <p>
-                    Accedi a <a href="https://calendar.noscite.it" className="text-[#3DAFA8] hover:underline">calendar.noscite.it</a> →
+                    Accedi a <a href="https://kalendarium.it" className="text-[#3DAFA8] hover:underline">kalendarium.it</a> →
                     Impostazioni → Account → <strong>&quot;Elimina account e tutti i dati&quot;</strong> → Conferma con la tua password.
                   </p>
                   <p className="mt-1 text-sm text-gray-500">L&apos;eliminazione sarà avviata immediatamente dopo la conferma.</p>
@@ -95,11 +95,11 @@ export default function DataDeletion() {
                     <h3 className="font-semibold text-[#2C3E50] text-lg">Revoca accesso da Facebook/Instagram</h3>
                   </div>
                   <p>
-                    Vai su <strong>Facebook</strong> → Impostazioni → App e siti web → Noscite Calendar → <strong>Rimuovi</strong>.
+                    Vai su <strong>Facebook</strong> → Impostazioni → App e siti web → Kalendarium → <strong>Rimuovi</strong>.
                   </p>
                   <p className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                     Attenzione: questa operazione revoca i permessi di accesso ai dati social ma <strong>non elimina</strong> i
-                    dati del tuo account Noscite Calendar. Per l&apos;eliminazione completa di tutti i dati,
+                    dati del tuo account Kalendarium. Per l&apos;eliminazione completa di tutti i dati,
                     utilizza il Metodo 1 o il Metodo 2.
                   </p>
                 </div>
