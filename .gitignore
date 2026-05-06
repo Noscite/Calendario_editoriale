@@ -30,3 +30,6 @@ Thumbs.db
 .backup-*/
 *.php.bak
 *.jsx.bak
+
+# Asset locali non destinati a production
+frontend/_local-assets/

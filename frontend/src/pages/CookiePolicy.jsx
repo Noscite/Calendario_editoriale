@@ -83,10 +83,16 @@ export default function CookiePolicy() {
             <section>
               <h2 className="text-xl font-semibold text-[#2C3E50] mb-3">Come gestire i cookie</h2>
               <p>
-                Puoi modificare le tue preferenze in qualsiasi momento cliccando sul link &quot;Preferenze
-                cookie&quot; nel footer del sito.
+                Puoi modificare le tue preferenze in qualsiasi momento cliccando il pulsante qui
+                sotto, oppure cliccando sul link &quot;Preferenze cookie&quot; nel footer del sito.
               </p>
-              <p className="mt-2">Puoi anche disabilitare i cookie direttamente dal tuo browser:</p>
+              <button
+                onClick={() => window.dispatchEvent(new Event('kalendarium:open-cookie-banner'))}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3DAFA8] text-white font-medium hover:bg-[#2c8d87] transition mt-2"
+              >
+                Modifica preferenze cookie
+              </button>
+              <p className="mt-4">Puoi anche disabilitare i cookie direttamente dal tuo browser:</p>
               <ul className="list-disc pl-6 mt-2 space-y-1">
                 <li>Chrome: Impostazioni → Privacy e sicurezza → Cookie</li>
                 <li>Firefox: Impostazioni → Privacy e sicurezza</li>

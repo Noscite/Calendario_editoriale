@@ -147,11 +147,11 @@ export default function HomePage() {
               className="text-4xl sm:text-5xl lg:text-6xl text-[#2C3E50] leading-tight"
               style={{ fontFamily: '"Playfair Display", serif', fontWeight: 600 }}
             >
-              Gestisci la tua presenza Google con l&apos;AI
+              La tua presenza digitale, gestita dall&apos;AI
             </h1>
             <p className="mt-6 text-lg text-gray-600 leading-relaxed max-w-xl">
-              Post social automatici, risposte intelligenti alle recensioni, analytics che capisce
-              il tuo brand. Per le PMI italiane.
+              Calendario editoriale, social media, recensioni Google. Tutto in un&apos;unica
+              piattaforma. Per le PMI italiane che vogliono crescere senza perdere la propria voce.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
@@ -167,15 +167,12 @@ export default function HomePage() {
             <p className="mt-4 text-xs text-gray-500">Nessuna carta richiesta per il trial.</p>
           </div>
           <div className="relative">
-            <picture>
-              <source srcSet="/hero.webp" type="image/webp" />
-              <img
-                src="/hero.jpg"
-                alt="Kalendarium dashboard"
-                className="rounded-2xl shadow-2xl w-full h-auto"
-                loading="eager"
-              />
-            </picture>
+            <img
+              src="/hero-v2.webp"
+              alt="Kalendarium dashboard"
+              className="rounded-2xl shadow-2xl w-full h-auto"
+              loading="eager"
+            />
           </div>
         </div>
       </section>
@@ -395,8 +392,8 @@ export default function HomePage() {
                 Kalendarium
               </span>
               <p className="mt-3 text-sm leading-relaxed">
-                AI per la tua presenza Google: contenuti, recensioni, analytics. Pensato per le PMI
-                italiane.
+                AI per la tua presenza digitale: calendario editoriale, social, recensioni, analytics.
+                Pensato per le PMI italiane.
               </p>
             </div>
             <div>
@@ -415,6 +412,14 @@ export default function HomePage() {
                 <li><Link to="/terms" className="hover:text-white transition">Termini di Servizio</Link></li>
                 <li><Link to="/data-deletion" className="hover:text-white transition">Cancellazione Dati</Link></li>
                 <li><Link to="/cookies" className="hover:text-white transition">Cookie Policy</Link></li>
+                <li>
+                  <button
+                    onClick={() => window.dispatchEvent(new Event('kalendarium:open-cookie-banner'))}
+                    className="hover:text-white transition text-left"
+                  >
+                    Preferenze cookie
+                  </button>
+                </li>
               </ul>
             </div>
             <div>

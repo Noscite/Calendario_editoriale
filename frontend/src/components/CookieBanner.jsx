@@ -35,7 +35,25 @@ export default function CookieBanner() {
     }
   }, []);
 
-  if (!visible) return null;
+  // Riapertura on-demand (footer "Preferenze cookie", CTA dalla Cookie Policy, ecc.)
+  // Apre direttamente la modale "Personalizza" pre-popolata con la scelta corrente.
+  useEffect(() => {
+    const handler = () => {
+      const existing = readConsent();
+      if (existing) {
+        setAnalytics(!!existing.analytics);
+        setMarketing(!!existing.marketing);
+      } else {
+        setAnalytics(false);
+        setMarketing(false);
+      }
+      setVisible(true);
+      setShowCustom(true);
+    };
+    window.addEventListener('kalendarium:open-cookie-banner', handler);
+    return () => window.removeEventListener('kalendarium:open-cookie-banner', handler);
+  }, []);
+
 
   const closeAll = (prefs) => {
     writeConsent(prefs);
@@ -47,7 +65,7 @@ export default function CookieBanner() {
   const onlyNecessary = () => closeAll({ necessary: true, analytics: false, marketing: false });
   const saveCustom = () => closeAll({ necessary: true, analytics, marketing });
 
-  return (
+  return visible ? (
     <>
       {/* Banner principale */}
       {!showCustom && (
@@ -172,5 +190,22 @@ export default function CookieBanner() {
         </div>
       )}
     </>
+  ) : (
+    <button
+      onClick={() => {
+        const existing = readConsent();
+        if (existing) {
+          setAnalytics(!!existing.analytics);
+          setMarketing(!!existing.marketing);
+        }
+        setVisible(true);
+        setShowCustom(true);
+      }}
+      aria-label="Preferenze cookie"
+      title="Preferenze cookie"
+      className="fixed bottom-4 left-4 z-40 w-12 h-12 rounded-full bg-white border border-gray-200 shadow-lg flex items-center justify-center text-[#3DAFA8] hover:bg-[#3DAFA8] hover:text-white hover:border-[#3DAFA8] transition-all"
+    >
+      <Cookie className="w-5 h-5" />
+    </button>
   );
 }
