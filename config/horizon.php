@@ -234,6 +234,17 @@ return [
                 'timeout'      => 1800,
                 'nice'         => 0,
             ],
+            'supervisor-audits' => [
+                'connection'   => 'redis',
+                'queue'        => ['audits'],
+                'balance'      => 'auto',
+                'autoScalingStrategy' => 'time',
+                'minProcesses' => 1,
+                'maxProcesses' => 2,
+                'tries'        => 1,
+                'timeout'      => 360,
+                'nice'         => 0,
+            ],
         ],
 
         'local' => [
