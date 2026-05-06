@@ -48,3 +48,11 @@ Schedule::call(function () {
         }
     }
 })->everyTenMinutes()->name('fetch-google-reviews')->withoutOverlapping();
+
+// ── Watchdog ReviewReply orfani ──────────────────────────────────
+// Ogni 5 min: rileva auto-reply orfani (race condition crash worker)
+// e ri-dispatcha SendReplyJob, oppure marca come failed se stuck in sending.
+Schedule::command('reviews:watchdog-replies')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->name('watchdog-review-replies');
