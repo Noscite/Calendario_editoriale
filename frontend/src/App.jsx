@@ -2,8 +2,11 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { AppLayout } from './components/layout';
+import CookieBanner from './components/CookieBanner';
 
 // Pages
+import HomePage from './pages/HomePage';
+import HomePageOrRedirect from './pages/HomePageOrRedirect';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -28,6 +31,7 @@ import ApiKeys from './pages/ApiKeys';
 import Privacy from './pages/Privacy';
 import TermsOfService from './pages/TermsOfService';
 import DataDeletion from './pages/DataDeletion';
+import CookiePolicy from './pages/CookiePolicy';
 import HelpCenterPage from './pages/HelpCenterPage';
 import HelpArticlePage from './pages/HelpArticlePage';
 import ForgotPassword from './pages/ForgotPassword';
@@ -53,7 +57,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public homepage with auto-redirect for authenticated users */}
+        <Route path="/" element={<HomePageOrRedirect />} />
+
         {/* Public routes */}
+        <Route path="/home" element={<HomePage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/select-facebook-page" element={<SelectFacebookPage />} />
@@ -62,14 +70,14 @@ function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/data-deletion" element={<DataDeletion />} />
+        <Route path="/cookies" element={<CookiePolicy />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/invitation/:token" element={<AcceptInvitation />} />
         <Route path="/audit/share/:token" element={<AuditSharePage />} />
 
-        {/* Protected routes with layout */}
+        {/* Protected routes with layout (path invariati) */}
         <Route
-          path="/"
           element={
             <ProtectedRoute>
               <AppLayout />
@@ -77,54 +85,56 @@ function App() {
           }
         >
           {/* Dashboard */}
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          
+          <Route path="/dashboard" element={<Dashboard />} />
+
           {/* Brands */}
-          <Route path="brands" element={<BrandsPage />} />
-          <Route path="brand/:id" element={<BrandDetail />} />
-          
+          <Route path="/brands" element={<BrandsPage />} />
+          <Route path="/brand/:id" element={<BrandDetail />} />
+
           {/* Projects/Calendars */}
-          <Route path="calendars" element={<Navigate to="/brands" replace />} />
-          <Route path="project/:id" element={<ProjectDetail />} />
-          <Route path="brand/:brandId/new-project" element={<ProjectWizard />} />
-          <Route path="brand/:brandId/voice-interview" element={<VoiceProfilingInterview />} />
-          
+          <Route path="/calendars" element={<Navigate to="/brands" replace />} />
+          <Route path="/project/:id" element={<ProjectDetail />} />
+          <Route path="/brand/:brandId/new-project" element={<ProjectWizard />} />
+          <Route path="/brand/:brandId/voice-interview" element={<VoiceProfilingInterview />} />
+
           {/* Audit */}
-          <Route path="audit" element={<AuditProspectPage />} />
+          <Route path="/audit" element={<AuditProspectPage />} />
 
           {/* Social */}
-          <Route path="social" element={<SocialPage />} />
-          <Route path="insights" element={<InsightsPage />} />
+          <Route path="/social" element={<SocialPage />} />
+          <Route path="/insights" element={<InsightsPage />} />
 
           {/* Recensioni */}
-          <Route path="reviews" element={<ReviewsPage />} />
-          <Route path="reviews/:id" element={<ReviewDetailPage />} />
-          
+          <Route path="/reviews" element={<ReviewsPage />} />
+          <Route path="/reviews/:id" element={<ReviewDetailPage />} />
+
           {/* Documents */}
-          <Route path="documents" element={<DocumentsPage />} />
-          
+          <Route path="/documents" element={<DocumentsPage />} />
+
           {/* AI Assistant */}
-          <Route path="ai-assistant" element={<VoiceProfilingInterview />} />
-          
+          <Route path="/ai-assistant" element={<VoiceProfilingInterview />} />
+
           {/* Settings & Profile */}
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="api-keys" element={<ApiKeys />} />
-          
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/api-keys" element={<ApiKeys />} />
+
           {/* Help Center */}
-          <Route path="help" element={<HelpCenterPage />} />
-          <Route path="help/article/:slug" element={<HelpArticlePage />} />
+          <Route path="/help" element={<HelpCenterPage />} />
+          <Route path="/help/article/:slug" element={<HelpArticlePage />} />
 
           {/* Admin */}
-          <Route path="admin" element={<AdminDashboard />} />
-          <Route path="admin/saas" element={<SaasAdmin />} />
-          <Route path="admin/audits" element={<AuditAdminPage />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/saas" element={<SaasAdmin />} />
+          <Route path="/admin/audits" element={<AuditAdminPage />} />
         </Route>
 
-        {/* Catch all */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        {/* Catch all → home (gestita da HomePageOrRedirect) */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* Cookie banner globale (mostrato finché l'utente non ha scelto) */}
+      <CookieBanner />
     </BrowserRouter>
   );
 }

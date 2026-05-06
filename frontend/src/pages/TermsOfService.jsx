@@ -6,7 +6,7 @@ export default function TermsOfService() {
     <div className="min-h-screen bg-gradient-to-br from-[#2C3E50] to-[#3DAFA8]">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <Link
-          to="/login"
+          to="/"
           className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -19,7 +19,7 @@ export default function TermsOfService() {
             <h1 className="text-3xl font-bold text-[#2C3E50]">Termini di Servizio</h1>
           </div>
 
-          <p className="text-sm text-gray-500 mb-8">Ultimo aggiornamento: 11 marzo 2026</p>
+          <p className="text-sm text-gray-500 mb-8">Ultimo aggiornamento: 6 maggio 2026</p>
 
           <div className="prose max-w-none text-gray-700 space-y-8">
 
@@ -27,8 +27,8 @@ export default function TermsOfService() {
             <section>
               <h2 className="text-xl font-semibold text-[#2C3E50] mb-3">1. Informazioni sul Servizio</h2>
               <p>
-                Noscite Calendar (di seguito &quot;il Servizio&quot;) è una piattaforma SaaS accessibile
-                all&apos;indirizzo <a href="https://calendar.noscite.it" className="text-[#3DAFA8] hover:underline">calendar.noscite.it</a> che
+                Kalendarium (di seguito &quot;il Servizio&quot;) è una piattaforma SaaS accessibile
+                all&apos;indirizzo <a href="https://kalendarium.it" className="text-[#3DAFA8] hover:underline">kalendarium.it</a> che
                 consente di pianificare, generare e pubblicare contenuti per i social media attraverso
                 strumenti di intelligenza artificiale, gestione editoriale e integrazioni con piattaforme
                 terze.
@@ -68,14 +68,14 @@ export default function TermsOfService() {
               <h2 className="text-xl font-semibold text-[#2C3E50] mb-3">3. Piani e Pagamenti</h2>
               <p>Il Servizio è disponibile nei seguenti piani di abbonamento:</p>
               <ul className="list-disc pl-6 mt-2 space-y-1">
-                <li><strong>Basic</strong> — € 29,00/mese</li>
                 <li><strong>Standard</strong> — € 79,00/mese</li>
                 <li><strong>Pro</strong> — € 199,00/mese</li>
+                <li><strong>Enterprise</strong> — prezzo custom su preventivo</li>
               </ul>
               <p className="mt-2">
-                Tutti i prezzi si intendono IVA esclusa, ove applicabile. Noscite può offrire un periodo
-                di prova gratuita (trial) la cui durata è indicata al momento della registrazione. Al termine
-                del trial, l&apos;abbonamento si rinnova automaticamente al piano selezionato, salvo
+                Tutti i prezzi si intendono IVA esclusa, ove applicabile. Inizia con un periodo di prova
+                gratuita di 14 giorni; nessuna carta di credito richiesta per il trial. Al termine del
+                trial, l&apos;abbonamento si rinnova automaticamente al piano selezionato salvo
                 cancellazione da parte dell&apos;utente prima della scadenza.
               </p>
               <p className="mt-2">
@@ -117,7 +117,7 @@ export default function TermsOfService() {
               </p>
               <p className="mt-2">
                 Collegando il proprio account a tali piattaforme, l&apos;utente autorizza espressamente
-                Noscite Calendar ad operare come applicazione di terze parti per suo conto, al fine di
+                Kalendarium ad operare come applicazione di terze parti per suo conto, al fine di
                 pubblicare contenuti, raccogliere metriche e gestire la presenza social dell&apos;utente
                 nei limiti delle funzionalità offerte dal Servizio.
               </p>
@@ -156,9 +156,10 @@ export default function TermsOfService() {
             <section>
               <h2 className="text-xl font-semibold text-[#2C3E50] mb-3">7. Dati Personali e Privacy</h2>
               <p>
-                Il trattamento dei dati personali dell&apos;utente è regolato dalla nostra Privacy Policy,
-                disponibile alla
-                pagina <a href="https://noscite.it/privacy-policy" className="text-[#3DAFA8] hover:underline" target="_blank" rel="noopener noreferrer">noscite.it/privacy-policy</a>.
+                Il trattamento dei dati personali dell&apos;utente è regolato dalla nostra <Link to="/privacy" className="text-[#3DAFA8] hover:underline">Privacy Policy</Link>,
+                che include la lista completa e aggiornata dei sub-processor utilizzati per
+                l&apos;erogazione del servizio (Anthropic, OpenAI, Google, Meta, LinkedIn, Brevo,
+                OVH, ecc.).
               </p>
               <p className="mt-2">
                 Utilizzando il Servizio, l&apos;utente dichiara di aver letto e compreso l&apos;informativa
