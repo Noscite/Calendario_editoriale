@@ -29,8 +29,22 @@ final class AuthController extends Controller
     {
         $data = $request->validate([
             'email'     => 'required|email',
-            'password'  => 'required|string',
+            'password'  => [
+                'required',
+                'string',
+                'min:8',
+                'regex:/[a-z]/',      // almeno una minuscola
+                'regex:/[A-Z]/',      // almeno una maiuscola
+                'regex:/[0-9]/',      // almeno un numero
+            ],
             'full_name' => 'nullable|string|max:255',
+        ], [
+            'email.required'    => 'L\'email è obbligatoria.',
+            'email.email'       => 'L\'email non è valida.',
+            'password.required' => 'La password è obbligatoria.',
+            'password.min'      => 'La password deve contenere almeno 8 caratteri.',
+            'password.regex'    => 'La password deve contenere almeno una minuscola, una maiuscola e un numero.',
+            'full_name.max'     => 'Il nome completo non può superare 255 caratteri.',
         ]);
 
         if (User::where('email', $data['email'])->exists()) {
@@ -172,7 +186,20 @@ final class AuthController extends Controller
         $data = $request->validate([
             'token'    => 'required|string',
             'email'    => 'required|email',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/[a-z]/',      // almeno una minuscola
+                'regex:/[A-Z]/',      // almeno una maiuscola
+                'regex:/[0-9]/',      // almeno un numero
+            ],
+        ], [
+            'password.required'  => 'La password è obbligatoria.',
+            'password.min'       => 'La password deve contenere almeno 8 caratteri.',
+            'password.confirmed' => 'La conferma password non coincide.',
+            'password.regex'     => 'La password deve contenere almeno una minuscola, una maiuscola e un numero.',
         ]);
 
         $record = DB::table('password_reset_tokens')

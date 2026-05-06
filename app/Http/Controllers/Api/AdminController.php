@@ -99,9 +99,26 @@ final class AdminController extends Controller
         $data = $request->validate([
             'email'           => 'required|email',
             'full_name'       => 'required|string|max:255',
-            'password'        => 'required|string|min:6',
+            'password'        => [
+                'required',
+                'string',
+                'min:8',
+                'regex:/[a-z]/',      // almeno una minuscola
+                'regex:/[A-Z]/',      // almeno una maiuscola
+                'regex:/[0-9]/',      // almeno un numero
+            ],
             'role'            => 'nullable|string',
             'organization_id' => 'nullable|integer',
+        ], [
+            'email.required'          => 'L\'email è obbligatoria.',
+            'email.email'             => 'L\'email non è valida.',
+            'full_name.required'      => 'Il nome completo è obbligatorio.',
+            'full_name.max'           => 'Il nome completo non può superare 255 caratteri.',
+            'password.required'       => 'La password è obbligatoria.',
+            'password.min'            => 'La password deve contenere almeno 8 caratteri.',
+            'password.regex'          => 'La password deve contenere almeno una minuscola, una maiuscola e un numero.',
+            'role.string'             => 'Il ruolo deve essere una stringa valida.',
+            'organization_id.integer' => 'L\'organizzazione selezionata non è valida.',
         ]);
 
         if (User::where('email', $data['email'])->exists()) {

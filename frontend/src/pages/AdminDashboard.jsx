@@ -8,6 +8,28 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+/**
+ * Estrae un messaggio leggibile da una risposta API non-ok.
+ * Supporta:
+ *   - Laravel 422 validation: { errors: { campo: [messaggi] }, message }
+ *   - Laravel: { message }
+ *   - FastAPI legacy: { detail }
+ */
+async function parseApiError(res, fallback) {
+  try {
+    const err = await res.json();
+    if (err.errors && typeof err.errors === 'object') {
+      const messages = Object.values(err.errors).flat().filter(Boolean).join('\n');
+      if (messages) return messages;
+    }
+    if (err.message) return err.message;
+    if (err.detail) return err.detail;
+  } catch {
+    /* non-JSON body */
+  }
+  return fallback;
+}
+
 const ROLES = [
   { id: 'superuser', name: 'Superuser', icon: Crown, color: 'text-purple-600 bg-purple-100' },
   { id: 'admin', name: 'Admin', icon: Shield, color: 'text-red-600 bg-red-100' },
@@ -113,8 +135,7 @@ export default function AdminDashboard() {
       });
       
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore creazione utente');
+        throw new Error(await parseApiError(res, 'Errore creazione utente'));
       }
       
       setShowNewUser(false);
@@ -139,8 +160,7 @@ export default function AdminDashboard() {
       });
       
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore aggiornamento');
+        throw new Error(await parseApiError(res, 'Errore aggiornamento'));
       }
       
       setEditingUser(null);
@@ -160,8 +180,7 @@ export default function AdminDashboard() {
       });
       
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore eliminazione');
+        throw new Error(await parseApiError(res, 'Errore eliminazione'));
       }
       
       fetchData();
@@ -392,14 +411,19 @@ export default function AdminDashboard() {
                     className="px-3 py-2 border rounded-lg"
                     required
                   />
-                  <input
-                    type="password"
-                    placeholder="Password *"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                    className="px-3 py-2 border rounded-lg"
-                    required
-                  />
+                  <div>
+                    <input
+                      type="password"
+                      placeholder="Password *"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Min. 8 caratteri, una minuscola, una maiuscola e un numero.
+                    </p>
+                  </div>
                   <select
                     value={newUser.role}
                     onChange={(e) => setNewUser({...newUser, role: e.target.value})}

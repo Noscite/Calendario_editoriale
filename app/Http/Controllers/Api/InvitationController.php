@@ -121,8 +121,20 @@ final class InvitationController extends Controller
     public function accept(string $token, Request $request): JsonResponse
     {
         $data = $request->validate([
-            'password'  => 'required|string|min:8',
+            'password'  => [
+                'required',
+                'string',
+                'min:8',
+                'regex:/[a-z]/',      // almeno una minuscola
+                'regex:/[A-Z]/',      // almeno una maiuscola
+                'regex:/[0-9]/',      // almeno un numero
+            ],
             'full_name' => 'nullable|string|max:255',
+        ], [
+            'password.required'  => 'La password è obbligatoria.',
+            'password.min'       => 'La password deve contenere almeno 8 caratteri.',
+            'password.regex'     => 'La password deve contenere almeno una minuscola, una maiuscola e un numero.',
+            'full_name.max'      => 'Il nome completo non può superare 255 caratteri.',
         ]);
 
         $invitation = Invitation::where('token', $token)->first();

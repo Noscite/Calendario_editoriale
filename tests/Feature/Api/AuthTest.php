@@ -15,7 +15,7 @@ describe('POST /api/auth/register', function () {
     it('registers a new user', function () {
         $response = $this->postJson('/api/auth/register', [
             'email' => 'newuser@test.com',
-            'password' => 'securepassword',
+            'password' => 'SecurePass123',
             'full_name' => 'Test User',
         ]);
 
@@ -34,7 +34,7 @@ describe('POST /api/auth/register', function () {
 
         $response = $this->postJson('/api/auth/register', [
             'email' => 'existing@test.com',
-            'password' => 'password2',
+            'password' => 'Password123',
         ]);
 
         $response->assertStatus(400)
