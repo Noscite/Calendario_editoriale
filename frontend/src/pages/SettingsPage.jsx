@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Settings, Bell, Palette, Globe, Shield, Save, Loader2, Users, UserPlus, Trash2, Mail, X } from 'lucide-react';
+import { Settings, Bell, Palette, Globe, Shield, Save, Loader2, Users, UserPlus, Trash2, Mail, X, CreditCard } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { invitations } from '../services/api';
+import { invitations, subscriptions } from '../services/api';
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -31,6 +31,9 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Abbonamento */}
+        <SubscriptionSection />
+
         {/* Notifications */}
         <div className="bg-white rounded-xl shadow-sm p-6">
           <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
@@ -129,6 +132,176 @@ export default function SettingsPage() {
           )}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Trial fallback (no piano associato) ─────────────────────────────
+const TRIAL_LIMITS = {
+  monthly_tokens: 30000,
+  monthly_calendars: 1,
+};
+
+const STATUS_BADGE = {
+  trial:           { label: 'Trial in corso',       cls: 'bg-amber-100 text-amber-700' },
+  active:          { label: 'Attivo',                cls: 'bg-green-100 text-green-700' },
+  pending_payment: { label: 'In attesa di pagamento', cls: 'bg-orange-100 text-orange-700' },
+  expired:         { label: 'Scaduto',                cls: 'bg-red-100 text-red-700' },
+  cancelled:       { label: 'Cancellato',             cls: 'bg-gray-200 text-gray-700' },
+};
+
+function formatDateIt(value) {
+  if (!value) return null;
+  try {
+    return new Date(value).toLocaleDateString('it-IT', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    });
+  } catch {
+    return null;
+  }
+}
+
+function daysUntil(value) {
+  if (!value) return null;
+  const diffMs = new Date(value).getTime() - Date.now();
+  if (Number.isNaN(diffMs)) return null;
+  return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+function UsageBar({ label, used, limit }) {
+  const isUnlimited = limit === -1;
+  const pct = isUnlimited || !limit ? 0 : Math.min(100, Math.round((used / limit) * 100));
+  const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-[#3DAFA8]';
+
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm mb-1">
+        <span className="text-gray-700">{label}</span>
+        <span className="font-medium text-gray-900">
+          {used}{isUnlimited ? '' : ` / ${limit}`}
+        </span>
+      </div>
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${isUnlimited ? 'bg-gray-200' : barColor} transition-all`}
+          style={{ width: isUnlimited ? '0%' : `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SubscriptionSection() {
+  const [current, setCurrent] = useState(null);
+  const [usage, setUsage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.allSettled([
+      subscriptions.getCurrentSubscription(),
+      subscriptions.getUsage(),
+    ]).then(([curRes, usageRes]) => {
+      if (cancelled) return;
+      if (curRes.status === 'fulfilled') {
+        setCurrent(curRes.value?.data ?? null);
+      } else {
+        setError('Impossibile caricare i dati di abbonamento.');
+      }
+      if (usageRes.status === 'fulfilled') {
+        setUsage(usageRes.value?.data ?? null);
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+          <CreditCard className="text-[#3DAFA8]" size={20} /> Abbonamento
+        </h3>
+        <div className="flex items-center gap-2 text-gray-500 text-sm">
+          <Loader2 className="animate-spin" size={16} /> Caricamento…
+        </div>
+      </div>
+    );
+  }
+
+  const status     = current?.subscription_status ?? 'trial';
+  const badge      = STATUS_BADGE[status] || STATUS_BADGE.trial;
+  const planName   = current?.plan_name;
+  const isTrial    = status === 'trial';
+  const trialEnds  = current?.trial_ends_at;
+  const renewsAt   = current?.subscription_ends_at;
+  const daysLeft   = isTrial ? daysUntil(trialEnds) : null;
+
+  const tokensUsed     = usage?.tokens_used ?? 0;
+  const tokensLimit    = isTrial ? TRIAL_LIMITS.monthly_tokens : (usage?.tokens_limit ?? 0);
+  const calendarsUsed  = usage?.calendars_used ?? 0;
+  const calendarsLimit = isTrial ? TRIAL_LIMITS.monthly_calendars : (usage?.calendars_limit ?? 0);
+
+  const ctaLabel = isTrial
+    ? 'Attiva il piano'
+    : status === 'active'
+      ? 'Gestisci abbonamento'
+      : 'Riattiva abbonamento';
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-6">
+      <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+        <CreditCard className="text-[#3DAFA8]" size={20} /> Abbonamento
+      </h3>
+
+      {error && (
+        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Stato + piano */}
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-xs font-medium px-2 py-1 rounded-full ${badge.cls}`}>
+              {badge.label}
+            </span>
+            <span className="text-sm text-gray-500">
+              {isTrial ? 'Trial 14 giorni' : (planName || '—')}
+            </span>
+          </div>
+          {isTrial && trialEnds && (
+            <p className="text-sm text-gray-600 mt-1">
+              Trial scade il <span className="font-medium">{formatDateIt(trialEnds)}</span>
+              {daysLeft !== null && (
+                <> · <span className="font-medium">{daysLeft} {daysLeft === 1 ? 'giorno rimanente' : 'giorni rimanenti'}</span></>
+              )}
+            </p>
+          )}
+          {!isTrial && status === 'active' && renewsAt && (
+            <p className="text-sm text-gray-600 mt-1">
+              Rinnovo: <span className="font-medium">{formatDateIt(renewsAt)}</span>
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Usage */}
+      <div className="space-y-3 mb-5">
+        <h4 className="text-sm font-medium text-gray-700">Utilizzo</h4>
+        <UsageBar label="Token consumati"      used={tokensUsed}    limit={tokensLimit} />
+        <UsageBar label="Calendari generati"   used={calendarsUsed} limit={calendarsLimit} />
+      </div>
+
+      {/* CTA */}
+      <a
+        href="mailto:service@noscite.it?subject=Attivazione%20piano%20Kalendarium"
+        className="w-full inline-flex items-center justify-center gap-2 bg-[#3DAFA8] text-white px-4 py-2.5 rounded-lg hover:bg-[#2d8e88] transition-colors font-medium"
+      >
+        <Mail size={16} /> {ctaLabel}
+      </a>
     </div>
   );
 }

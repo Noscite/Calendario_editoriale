@@ -290,11 +290,13 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::post('/{id}/regenerate', [PostController::class, 'regenerate']);
         Route::post('/{id}/generate-image', [PostController::class, 'generateImage']);
 
-        // Scheduling & Pubblicazione
-        Route::post('/{id}/schedule', [PostController::class, 'schedule']);
+        // Scheduling & Pubblicazione — gated dietro feature social_auto_publish durante il trial
+        Route::post('/{id}/schedule', [PostController::class, 'schedule'])
+            ->middleware('check.feature:social_auto_publish');
         Route::delete('/{id}/schedule', [PostController::class, 'cancelSchedule']);
         Route::get('/{id}/schedule-status', [PostController::class, 'scheduleStatus']);
-        Route::post('/{id}/publish', [PostController::class, 'publish']);
+        Route::post('/{id}/publish', [PostController::class, 'publish'])
+            ->middleware('check.feature:social_auto_publish');
 
         // Media upload
         Route::post('/{id}/upload-media', [PostController::class, 'uploadMedia']);
@@ -357,7 +359,8 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
 
     Route::prefix('social')->group(function () {
         Route::get('/connections/{brand_id}', [SocialController::class, 'connections']);
-        Route::delete('/disconnect/{connection_id}', [SocialController::class, 'disconnect']);
+        Route::delete('/disconnect/{connection_id}', [SocialController::class, 'disconnect'])
+            ->middleware('check.feature:social_account_connect');
 
         // ─── SOCIAL STATS — /api/social/stats  (prefix Python: /api/social/stats)
         Route::prefix('stats')->group(function () {

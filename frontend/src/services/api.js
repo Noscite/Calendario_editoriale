@@ -21,21 +21,47 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
+
+    // Feature gated durante il trial → emette evento globale e
+    // non rilancia l'errore (lo gestisce il modal lato UI).
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.error?.code === 'FEATURE_DISABLED_DURING_TRIAL'
+    ) {
+      const feature = error.response.data.error.feature ?? null;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('kalendarium:feature-gated', { detail: { feature } })
+        );
+      }
+      return Promise.resolve({ data: { _featureGated: true, feature } });
+    }
+
+    // Subscription inattiva → redirect alla pagina dedicata.
+    if (
+      error.response?.status === 402 &&
+      error.response?.data?.error?.code === 'SUBSCRIPTION_INACTIVE' &&
+      typeof window !== 'undefined' &&
+      !window.location.pathname.startsWith('/subscription/inactive')
+    ) {
+      window.location.href = '/subscription/inactive';
+      return Promise.reject(error);
+    }
+
     // Se 401 e non è già un retry e non è la chiamata refresh stessa
     if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/refresh')) {
       originalRequest._retry = true;
-      
+
       try {
         // Usa authApi per evitare loop
         const refreshResponse = await authApi.post('/auth/refresh', {}, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const newToken = refreshResponse.data.access_token;
-        
+
         localStorage.setItem('token', newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
-        
+
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh fallito, vai al login
@@ -44,7 +70,7 @@ api.interceptors.response.use(
         return Promise.reject(refreshError);
       }
     }
-    
+
     return Promise.reject(error);
   }
 );

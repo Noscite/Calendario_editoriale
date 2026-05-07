@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { AppLayout } from './components/layout';
@@ -40,6 +40,8 @@ import AcceptInvitation from './pages/AcceptInvitation';
 import AuditProspectPage from './pages/AuditProspectPage';
 import AuditSharePage from './pages/AuditSharePage';
 import AuditAdminPage from './pages/AuditAdminPage';
+import SubscriptionInactive from './pages/SubscriptionInactive';
+import FeatureGatedModal from './components/FeatureGatedModal';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -49,10 +51,17 @@ function ProtectedRoute({ children }) {
 
 function App() {
   const { checkAuth } = useAuthStore();
+  const [gatedFeature, setGatedFeature] = useState(null);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    const handler = (e) => setGatedFeature(e.detail?.feature ?? 'unknown');
+    window.addEventListener('kalendarium:feature-gated', handler);
+    return () => window.removeEventListener('kalendarium:feature-gated', handler);
+  }, []);
 
   return (
     <BrowserRouter>
@@ -75,6 +84,7 @@ function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/invitation/:token" element={<AcceptInvitation />} />
         <Route path="/audit/share/:token" element={<AuditSharePage />} />
+        <Route path="/subscription/inactive" element={<SubscriptionInactive />} />
 
         {/* Protected routes with layout (path invariati) */}
         <Route
@@ -135,6 +145,13 @@ function App() {
 
       {/* Cookie banner globale (mostrato finché l'utente non ha scelto) */}
       <CookieBanner />
+
+      {/* Modal globale: mostrato quando un endpoint risponde con FEATURE_DISABLED_DURING_TRIAL */}
+      <FeatureGatedModal
+        isOpen={gatedFeature !== null}
+        onClose={() => setGatedFeature(null)}
+        feature={gatedFeature}
+      />
     </BrowserRouter>
   );
 }

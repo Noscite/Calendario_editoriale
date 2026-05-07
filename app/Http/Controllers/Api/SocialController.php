@@ -147,6 +147,19 @@ final class SocialController extends Controller
             return response()->json(['detail' => 'Brand non trovato'], 404);
         }
 
+        // Feature gate: connessione account social non disponibile durante il trial
+        $org = $currentUser->organization;
+        $sub = $org?->subscription;
+        if ($org && ! $org->is_system_tenant && $sub && ! $sub->canUseFeature('social_account_connect')) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'FEATURE_DISABLED_DURING_TRIAL',
+                    'feature' => 'social_account_connect',
+                    'message' => 'Questa funzionalità è disponibile dopo l\'attivazione del piano.',
+                ],
+            ], 403);
+        }
+
         // Genera state token (come Python: secrets.token_urlsafe(32))
         $state = Str::random(43); // ~32 bytes urlsafe base64
 

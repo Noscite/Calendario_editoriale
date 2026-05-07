@@ -32,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.key'              => \App\Http\Middleware\PublicApiAuth::class,
             'ensure.organization'  => \App\Http\Middleware\EnsureOrganization::class,
             'check.limits'         => \App\Http\Middleware\CheckSubscriptionLimits::class,
+            'check.feature'        => \App\Http\Middleware\CheckFeatureAvailable::class,
             'subscription.active'  => \App\Http\Middleware\EnsureSubscriptionActive::class,
         ]);
     })
