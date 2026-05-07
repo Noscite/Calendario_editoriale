@@ -21,7 +21,12 @@ use Illuminate\Support\Facades\Log;
  * Viene eseguito ogni minuto via Laravel Scheduler.
  *
  * Logica:
- * 1. Trova post con scheduled_date = oggi E scheduled_time (HH:MM) in finestra ±2 min
+ * 1. Trova post con scheduled_date = oggi (Europe/Rome) E scheduled_time (HH:MM)
+ *    in finestra ±2 min, sempre in Europe/Rome.
+ *    Il timezone applicativo (config/app.php) resta UTC per non sfasare i
+ *    timestamp Eloquent storici. Lo scheduler converte esplicitamente a
+ *    Europe/Rome perché scheduled_time è salvato come ora locale italiana
+ *    (convenzione UI/UX: l'utente inserisce "12:30" pensando ora italiana).
  * 2. Filtra per publication_status IN (scheduled)
  * 3. Per ogni post trovato:
  *    - Applica lock ottimistico impostando publication_status = 'publishing'
@@ -45,11 +50,15 @@ class PublishScheduledPostsJob implements ShouldQueue
 
     public function handle(): void
     {
-        $currentDate  = now()->toDateString();
-        $windowStart  = now()->subMinutes(2)->format('H:i');
-        $windowEnd    = now()->addMinutes(2)->format('H:i');
+        // Calcoliamo la finestra in Europe/Rome perché scheduled_time è salvato
+        // come ora locale italiana (convenzione UI/UX). Il timezone applicativo
+        // resta UTC per compatibilità con timestamp Eloquent (created_at ecc.).
+        $nowRome      = now()->setTimezone('Europe/Rome');
+        $currentDate  = $nowRome->toDateString();
+        $windowStart  = $nowRome->copy()->subMinutes(2)->format('H:i');
+        $windowEnd    = $nowRome->copy()->addMinutes(2)->format('H:i');
 
-        Log::info("Scheduler check: {$currentDate} finestra [{$windowStart} - {$windowEnd}]");
+        Log::info("Scheduler check: {$currentDate} (Europe/Rome) finestra [{$windowStart} - {$windowEnd}]");
 
         // Trova post da pubblicare con finestra temporale ±2 minuti.
         // Usa SUBSTRING per confrontare solo HH:MM (ignora secondi nel campo scheduled_time).
