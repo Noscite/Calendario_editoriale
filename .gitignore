@@ -33,3 +33,10 @@ Thumbs.db
 
 # Asset locali non destinati a production
 frontend/_local-assets/
+
+# Python virtual environments and cache (prevenzione)
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
