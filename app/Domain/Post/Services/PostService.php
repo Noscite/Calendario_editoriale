@@ -141,6 +141,10 @@ final class PostService implements PostServiceInterface
                     'cta' => $generated->cta ?? '',
                     'call_to_action' => $generated->cta ?? '',
                     'status' => 'draft',
+                    // Propaga il metadata del Post AI-generato sorgente: il post
+                    // ricreato qui condivide la stessa generazione, solo con
+                    // date/orari/piattaforma forzati a quelli del post originale.
+                    'generation_metadata' => $generated->generation_metadata,
                 ];
 
                 $newPosts->push($this->postRepository->create($newData));

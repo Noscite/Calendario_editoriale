@@ -46,6 +46,7 @@ class Post extends Model
         'content_type',
         'status',
         'publication_status',
+        'generation_metadata',
     ];
 
     protected $attributes = [
@@ -70,6 +71,7 @@ class Post extends Model
             'is_carousel' => 'boolean',
             'status' => PostStatus::class,
             'publication_status' => PublicationStatus::class,
+            'generation_metadata' => 'array',
         ];
     }
 

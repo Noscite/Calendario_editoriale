@@ -126,6 +126,7 @@ final class DomainServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        // Traccia le modifiche manuali sui post AI-generated.
+        \App\Domain\Post\Models\Post::observe(\App\Domain\Post\Observers\PostObserver::class);
     }
 }

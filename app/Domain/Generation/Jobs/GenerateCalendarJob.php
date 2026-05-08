@@ -198,29 +198,26 @@ final class GenerateCalendarJob implements ShouldQueue
         Log::info("[GEN] Deleted {$deleted} future posts (kept past posts)");
 
         // ── 7. Salva nuovi post — bulk insert (1 query invece di N) ──
-        // NOTA: Post::insert() bypassa i Model casts, quindi i campi array
-        // devono essere serializzati manualmente in JSON.
+        // NOTA: Post::insert() bypassa i Model casts. La costruzione delle
+        // righe (incluso json_encode di hashtags e generation_metadata) è
+        // centralizzata in ClaudeContentGenerator::buildPostRow($forBulkInsert=true).
         if (! empty($posts)) {
-            $now      = now();
-            $bulkRows = array_map(function (array $postData) use ($project, $now): array {
-                return [
-                    'organization_id'   => $project->organization_id,
-                    'project_id'        => $this->projectId,
-                    'platform'          => $postData['platform'] ?? '',
-                    'scheduled_date'    => $postData['scheduled_date'] ?? null,
-                    'scheduled_time'    => $postData['scheduled_time'] ?? '09:00',
-                    'content'           => $postData['content'] ?? '',
-                    'hashtags'          => json_encode($postData['hashtags'] ?? []),
-                    'pillar'            => $postData['pillar'] ?? '',
-                    'post_type'         => $postData['post_type'] ?? '',
-                    'content_type'      => $postData['content_type'] ?? 'post',
-                    'visual_suggestion' => $postData['visual_suggestion'] ?? '',
-                    'call_to_action'    => $postData['call_to_action'] ?? ($postData['cta'] ?? ''),
-                    'cta'               => $postData['cta'] ?? '',
-                    'status'            => 'draft',
-                    'created_at'        => $now,
-                ];
-            }, $posts);
+            $contentPillars = $project->content_pillars ?? $project->themes ?? [];
+            $organizationId = $project->organization_id;
+            // Risolvi git_commit una sola volta per evitare N shell_exec.
+            $gitCommit = $generator->getCurrentGitCommit();
+
+            $bulkRows = array_map(
+                fn (array $raw): array => $generator->buildPostRow(
+                    $raw,
+                    $this->projectId,
+                    $organizationId,
+                    $contentPillars,
+                    $gitCommit,
+                    forBulkInsert: true,
+                ),
+                $posts,
+            );
 
             // Inserisci in chunk da 100 per sicurezza su VPS con poca RAM
             foreach (array_chunk($bulkRows, 100) as $chunk) {

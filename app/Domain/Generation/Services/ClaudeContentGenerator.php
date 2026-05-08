@@ -89,22 +89,20 @@ TXT;
             projectId:    $project->id,
         );
 
-        $created = new Collection();
+        $created          = new Collection();
+        $gitCommit        = $this->getCurrentGitCommit();
+        $contentPillars   = $project->content_pillars ?? $project->themes ?? [];
+        $organizationId   = $project->organization_id;
         foreach ($posts as $raw) {
-            $created->push(Post::create([
-                'project_id'        => $project->id,
-                'platform'          => $raw['platform'] ?? '',
-                'scheduled_date'    => $raw['scheduled_date'] ?? null,
-                'scheduled_time'    => $raw['scheduled_time'] ?? null,
-                'content'           => $raw['content'] ?? '',
-                'hashtags'          => $raw['hashtags'] ?? [],
-                'content_type'      => $raw['content_type'] ?? 'post',
-                'post_type'         => $raw['post_type'] ?? 'educational',
-                'pillar'            => $raw['pillar'] ?? null,
-                'visual_suggestion' => $raw['visual_suggestion'] ?? null,
-                'call_to_action'    => $raw['call_to_action'] ?? $raw['cta'] ?? null,
-                'status'            => 'draft',
-            ]));
+            $row = $this->buildPostRow(
+                $raw,
+                $project->id,
+                $organizationId,
+                $contentPillars,
+                $gitCommit,
+                forBulkInsert: false,
+            );
+            $created->push(Post::create($row));
         }
 
         $this->logTokenUsage($project->organization_id, $tokens, 'generate_ai_posts');
@@ -567,6 +565,18 @@ TXT;
                 $strategyPlan, $batchPosts, $batchNum + 1, $batches,
             );
 
+            // Inietta metadata di provenienza per ciascun post:
+            //  - _strategy: angle/hook_type/persona_target/cta_goal dal piano
+            //  - _tokens.strategy: quota proporzionale dei token Opus
+            //  - _tokens.copy: quota proporzionale dei token Sonnet del batch
+            $posts = $this->attachGenerationMetadata(
+                $posts,
+                $batchPosts,
+                strategyTokensTotal: $strategyTokens,
+                strategyPostsTotal: max(1, count($strategyPlan['posts'] ?? [])),
+                batchTokens: $batchTokens,
+            );
+
             array_push($allPosts, ...$posts);
             $totalTokensUsed += $batchTokens;
         }
@@ -706,6 +716,175 @@ TXT;
             }
         }
         return implode("\n\n", $contents);
+    }
+
+    /**
+     * Attacca a ciascun post di output dal copy batch i metadati di
+     * provenienza presi dallo strategy plan e una quota di token.
+     *
+     * Match strategia → output per chiave (scheduled_date + platform);
+     * se mancano (o si verifica conflitto), fallback all'ordine d'indice.
+     *
+     * @param  list<array<string, mixed>>  $posts
+     * @param  list<array<string, mixed>>  $batchStrategyPosts
+     * @return list<array<string, mixed>>
+     */
+    private function attachGenerationMetadata(
+        array $posts,
+        array $batchStrategyPosts,
+        int $strategyTokensTotal,
+        int $strategyPostsTotal,
+        int $batchTokens,
+    ): array {
+        // Costruisci indice strategy: scheduled_date|platform → entry
+        $byKey = [];
+        foreach ($batchStrategyPosts as $sp) {
+            $date = $sp['scheduled_date'] ?? null;
+            $plat = $sp['platform'] ?? null;
+            if ($date && $plat) {
+                $byKey["{$date}|{$plat}"] = $sp;
+            }
+        }
+
+        $copyShare     = count($posts) > 0 ? (int) round($batchTokens / count($posts)) : 0;
+        $strategyShare = $strategyPostsTotal > 0
+            ? (int) round($strategyTokensTotal / $strategyPostsTotal)
+            : 0;
+
+        $out = [];
+        foreach ($posts as $i => $raw) {
+            $key      = ($raw['scheduled_date'] ?? '') . '|' . ($raw['platform'] ?? '');
+            $strategy = $byKey[$key] ?? ($batchStrategyPosts[$i] ?? null);
+
+            if (is_array($strategy)) {
+                $raw['_strategy'] = [
+                    'angle'          => $strategy['angle']          ?? null,
+                    'hook_type'      => $strategy['hook_type']      ?? null,
+                    'persona_target' => $strategy['persona_target'] ?? null,
+                    'cta_goal'       => $strategy['cta_goal']       ?? null,
+                ];
+            }
+
+            $raw['_tokens'] = [
+                'strategy' => $strategyShare,
+                'copy'     => $copyShare,
+            ];
+
+            $out[] = $raw;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Costruisce la row Eloquent di un Post AI-generated includendo
+     * `generation_metadata`. Helper unico chiamato da TUTTI i punti che
+     * persistono Post AI-generated: generateAiPosts(), GenerateCalendarJob,
+     * PostService::batchReplace.
+     *
+     * - $forBulkInsert=false → row "Eloquent friendly" (hashtags e
+     *   generation_metadata come array nativi); compatibile con Post::create()
+     *   che applica i casts del model.
+     * - $forBulkInsert=true → row "Post::insert() friendly" (hashtags e
+     *   generation_metadata già JSON-serializzati come stringa, created_at
+     *   incluso); Post::insert() bypassa i casts Eloquent.
+     *
+     * Se $raw['pillar'] non è in $projectContentPillars logga un warning
+     * (NON modifica il pillar — fix vero in commit successivo).
+     *
+     * Idempotente: $raw può essere sparse, $metadata è sempre un array
+     * con la struttura completa (campi opzionali a null).
+     *
+     * @param  array<string, mixed>  $raw
+     * @param  list<string>          $projectContentPillars
+     * @return array<string, mixed>
+     */
+    public function buildPostRow(
+        array $raw,
+        int $projectId,
+        int $organizationId,
+        array $projectContentPillars = [],
+        ?string $gitCommit = null,
+        bool $forBulkInsert = false,
+    ): array {
+        $now        = now();
+        $gitCommit ??= $this->getCurrentGitCommit();
+
+        $platform       = $raw['platform']       ?? '';
+        $scheduledDate  = $raw['scheduled_date'] ?? null;
+        $pillarProposed = $raw['pillar']         ?? null;
+        $hashtags       = $raw['hashtags']       ?? [];
+
+        if (
+            ! empty($projectContentPillars)
+            && $pillarProposed !== null && $pillarProposed !== ''
+            && ! in_array($pillarProposed, $projectContentPillars, true)
+        ) {
+            Log::warning('[GENERATION] Pillar fuori da content_pillars', [
+                'project_id'      => $projectId,
+                'platform'        => $platform,
+                'scheduled_date'  => $scheduledDate,
+                'pillar_proposed' => $pillarProposed,
+                'pillars_allowed' => $projectContentPillars,
+            ]);
+        }
+
+        $metadata = [
+            'generated_at'             => $now->toIso8601String(),
+            'git_commit'               => $gitCommit,
+            'strategy_angle'           => $raw['_strategy']['angle']          ?? null,
+            'strategy_hook_type'       => $raw['_strategy']['hook_type']      ?? null,
+            'strategy_persona_target'  => $raw['_strategy']['persona_target'] ?? null,
+            'strategy_cta_goal'        => $raw['_strategy']['cta_goal']       ?? null,
+            'tokens_strategy'          => $raw['_tokens']['strategy']         ?? null,
+            'tokens_copy'              => $raw['_tokens']['copy']             ?? null,
+            'model_strategy'           => self::MODEL_OPUS,
+            'model_copy'               => self::MODEL,
+        ];
+
+        $row = [
+            'organization_id'     => $organizationId,
+            'project_id'          => $projectId,
+            'platform'            => $platform,
+            'scheduled_date'      => $scheduledDate,
+            'scheduled_time'      => $raw['scheduled_time']    ?? '09:00',
+            'content'             => $raw['content']           ?? '',
+            'hashtags'            => $hashtags,
+            'pillar'              => $pillarProposed           ?? '',
+            'post_type'           => $raw['post_type']         ?? '',
+            'content_type'        => $raw['content_type']      ?? 'post',
+            'visual_suggestion'   => $raw['visual_suggestion'] ?? '',
+            'call_to_action'      => $raw['call_to_action']    ?? ($raw['cta'] ?? ''),
+            'cta'                 => $raw['cta']               ?? ($raw['call_to_action'] ?? ''),
+            'status'              => 'draft',
+            'generation_metadata' => $metadata,
+        ];
+
+        if ($forBulkInsert) {
+            // Post::insert() bypassa i casts Eloquent → serializza i campi JSON
+            // e includi created_at (che Eloquent gestirebbe automaticamente in create()).
+            $row['hashtags']            = json_encode($hashtags, JSON_UNESCAPED_UNICODE);
+            $row['generation_metadata'] = json_encode($metadata, JSON_UNESCAPED_UNICODE);
+            $row['created_at']          = $now;
+        }
+
+        return $row;
+    }
+
+    /**
+     * Ritorna il commit hash corto del repo, o 'unknown' se non recuperabile.
+     * Usato per tracciare quale versione del prompt era attiva al momento
+     * della generazione di un post. Public per consentire ai Job di
+     * pre-fetcharlo una volta sola per batch (evitando N shell_exec).
+     */
+    public function getCurrentGitCommit(): string
+    {
+        try {
+            $hash = trim((string) shell_exec('cd ' . escapeshellarg(base_path()) . ' && git rev-parse --short HEAD 2>/dev/null'));
+            return $hash !== '' ? $hash : 'unknown';
+        } catch (\Throwable $e) {
+            return 'unknown';
+        }
     }
 
     private function logTokenUsage(int $organizationId, int $tokens, string $operation): void
