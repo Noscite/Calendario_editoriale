@@ -95,6 +95,7 @@ export const brands = {
   create: (data) => api.post('/brands/', data),
   update: (id, data) => api.put(`/brands/${id}`, data),
   delete: (id) => api.delete(`/brands/${id}`),
+  completeness: (id) => api.get(`/brands/${id}/completeness`),
 };
 
 export const projects = {
