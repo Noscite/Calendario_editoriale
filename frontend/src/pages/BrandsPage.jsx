@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Plus, Trash2, Calendar, Loader2, ExternalLink } from "lucide-react";
+import { Building2, Plus, Trash2, Calendar, Loader2, ExternalLink, Sparkles } from "lucide-react";
 import { brands as brandsApi } from "../services/api";
 
 export default function BrandsPage() {
@@ -67,12 +67,20 @@ export default function BrandsPage() {
         <div>
           <p className="text-gray-500">Gestisci i tuoi brand e i loro calendari editoriali</p>
         </div>
-        <button
-          onClick={() => setShowNewBrand(true)}
-          className="flex items-center gap-2 bg-[#3DAFA8] text-white px-4 py-2 rounded-lg hover:bg-[#2C3E50] transition-colors"
-        >
-          <Plus size={20} /> Nuovo Brand
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => navigate('/brand/new-wizard')}
+            className="flex items-center gap-2 border border-[#3DAFA8] text-[#3DAFA8] px-4 py-2 rounded-lg hover:bg-teal-50 transition-colors"
+          >
+            <Sparkles size={20} /> Crea con wizard
+          </button>
+          <button
+            onClick={() => setShowNewBrand(true)}
+            className="flex items-center gap-2 bg-[#3DAFA8] text-white px-4 py-2 rounded-lg hover:bg-[#2C3E50] transition-colors"
+          >
+            <Plus size={20} /> Nuovo Brand
+          </button>
+        </div>
       </div>
 
       {showNewBrand && (

@@ -868,6 +868,12 @@ PROMPT;
         $toneOfVoice    = trim((string) ($brandInfo['tone_of_voice'] ?? ''));
         $brandValues    = $this->flattenToCommaList($brandInfo['brand_values'] ?? null);
 
+        // Wizard PR-1: fonti strutturate (lista chiusa) per anti-invenzione.
+        $tagline         = trim((string) ($brandInfo['tagline'] ?? ''));
+        $founderLine     = $this->formatFounderLine($brandInfo['founder'] ?? null);
+        $narrativeAssets = $this->formatNarrativeAssetsList($brandInfo['narrative_assets'] ?? []);
+        $forbiddenTopics = $this->flattenToCommaList($brandInfo['forbidden_topics'] ?? null);
+
         $brief         = trim((string) ($projectInfo['brief'] ?? ''));
         $customPrompt  = trim((string) ($projectInfo['custom_prompt'] ?? ''));
         $specialDates  = $this->formatSpecialDatesList($projectInfo['special_dates'] ?? []);
@@ -910,18 +916,100 @@ PROMPT;
         if ($specialDates !== '') {
             $section .= "11. Eventi/date specifiche del progetto (FATTI VERIFICABILI, citabili come aneddoti reali):\n{$specialDates}\n";
         }
+        // Wizard PR-1: fonti strutturate aggiuntive (lista chiusa).
+        if ($narrativeAssets !== '') {
+            $section .= "12. Asset narrativi del brand (LISTA CHIUSA, fonte primaria per nomi prodotti/corsi/libri/eventi/partner — vietato citare nomi non in elenco):\n{$narrativeAssets}\n";
+        }
+        if ($founderLine !== '') {
+            $section .= "13. {$founderLine}\n";
+        }
+        if ($tagline !== '') {
+            $section .= "14. Tagline del brand: {$tagline}\n";
+        }
 
         $section .= "\nREGOLA OPERATIVA: se per scrivere un post hai bisogno di citare un asset specifico (nome corso, nome libro, durata, prezzo, partner, data evento) che NON è esplicitamente presente in una delle fonti sopra, NON inventarlo, NON parafrasarlo, NON ipotizzarlo. Ometti il dato e riformula, oppure usa un costrutto generico (\"uno dei nostri corsi\", \"un recente intervento\", \"una collaborazione del settore\"). È preferibile un post privo di nomi specifici a un post con nomi inventati.\n";
 
         // Sub-sezione "ASSET DA NON CITARE" (semantica opposta: divieto, non
-        // disponibilità). Emessa solo se ci sono competitor configurati.
-        if ($competitors !== '') {
-            $section .= "\n## ASSET DA NON CITARE\n\n"
-                      . "I seguenti competitor sono noti al brand: NON CITARLI per nome nei post. È vietato menzionarli, comparare il brand con loro esplicitamente, o usare il loro nome anche in costrutti negativi (\"a differenza di X...\", \"meglio di Y...\").\n\n"
-                      . "Competitor da NON menzionare: {$competitors}\n";
+        // disponibilità). Emessa se ci sono competitor o forbidden_topics
+        // configurati. I due blocchi sono distinti: competitor sono nomi da
+        // non menzionare, forbidden_topics sono argomenti da non trattare.
+        if ($competitors !== '' || $forbiddenTopics !== '') {
+            $section .= "\n## ASSET DA NON CITARE\n\n";
+
+            if ($competitors !== '') {
+                $section .= "I seguenti competitor sono noti al brand: NON CITARLI per nome nei post. È vietato menzionarli, comparare il brand con loro esplicitamente, o usare il loro nome anche in costrutti negativi (\"a differenza di X...\", \"meglio di Y...\").\n\n"
+                          . "Competitor da NON menzionare: {$competitors}\n";
+            }
+
+            if ($forbiddenTopics !== '') {
+                if ($competitors !== '') {
+                    $section .= "\n";
+                }
+                $section .= "Argomenti proibiti per questo brand (NON trattare questi temi nei post, neanche di sfuggita):\n"
+                          . "Argomenti da NON trattare: {$forbiddenTopics}\n";
+            }
         }
 
         return $section;
+    }
+
+    /**
+     * Formatta `narrative_assets` come bullet list strutturata. Accetta
+     * shape `[{type, name, details?}]`. Ritorna stringa vuota se input
+     * vuoto/non valido.
+     */
+    private function formatNarrativeAssetsList(mixed $value): string
+    {
+        if (! is_array($value) || empty($value)) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($value as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $type    = trim((string) ($entry['type'] ?? ''));
+            $name    = trim((string) ($entry['name'] ?? ''));
+            $details = trim((string) ($entry['details'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $line = "- Tipo: " . ($type !== '' ? $type : '(non specificato)')
+                  . " | Nome: {$name}";
+            if ($details !== '') {
+                $line .= " | Dettagli: {$details}";
+            }
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Formatta il founder come una riga "Founder del brand: {name}, ruolo: {role}; bio: {bio}".
+     * Accetta array `{name, role, bio_short}`. Ritorna stringa vuota se name assente.
+     */
+    private function formatFounderLine(mixed $value): string
+    {
+        if (! is_array($value)) {
+            return '';
+        }
+        $name = trim((string) ($value['name'] ?? ''));
+        if ($name === '') {
+            return '';
+        }
+        $role = trim((string) ($value['role'] ?? ''));
+        $bio  = trim((string) ($value['bio_short'] ?? ''));
+
+        $line = "Founder del brand: {$name}";
+        if ($role !== '') {
+            $line .= ", ruolo: {$role}";
+        }
+        if ($bio !== '') {
+            $line .= "; bio: {$bio}";
+        }
+        return $line;
     }
 
     /**

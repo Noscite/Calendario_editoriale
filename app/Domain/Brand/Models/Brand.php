@@ -43,6 +43,12 @@ class Brand extends Model
         'auto_reply_tone',
         'auto_reply_review_mode',
         'auto_reply_delay_minutes',
+        // ── Wizard PR-1 ────────────────────────────────────
+        'tagline',
+        'founder',
+        'narrative_assets',
+        'default_content_pillars',
+        'forbidden_topics',
     ];
 
     protected function casts(): array
@@ -58,6 +64,11 @@ class Brand extends Model
             'auto_reply_only_positive_sentiment' => 'boolean',
             'auto_reply_review_mode'             => 'boolean',
             'auto_reply_delay_minutes'           => 'integer',
+            // ── Wizard PR-1 ───────────────────────────────
+            'founder'                            => 'array',
+            'narrative_assets'                   => 'array',
+            'default_content_pillars'            => 'array',
+            'forbidden_topics'                   => 'array',
         ];
     }
 

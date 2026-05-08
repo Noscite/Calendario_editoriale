@@ -150,14 +150,22 @@ final class GenerateCalendarJob implements ShouldQueue
         }
 
         // ── 4. Prepara brand_info e project_info (stessi campi del Python) ──
+        // NB: tenuto coerente con ClaudeContentGenerator::brandInfoArray() per
+        // evitare drift tra path legacy e path API generateAiPosts.
         $brandInfo = [
-            'sector'               => $brand->sector,
-            'description'          => $brand->description,
-            'target_audience'      => $brand->target_audience,
-            'unique_selling_points' => $brand->unique_selling_points,
-            'brand_values'         => $brand->brand_values,
-            'tone_of_voice'        => $brand->tone_of_voice,
-            'style_guide'          => $brand->style_guide,
+            'sector'                  => $brand->sector,
+            'description'             => $brand->description,
+            'target_audience'         => $brand->target_audience,
+            'unique_selling_points'   => $brand->unique_selling_points,
+            'brand_values'            => $brand->brand_values,
+            'tone_of_voice'           => $brand->tone_of_voice,
+            'style_guide'             => $brand->style_guide,
+            // ── Wizard PR-1: fonti citabili strutturate ──────────────
+            'tagline'                 => $brand->tagline,
+            'founder'                 => $brand->founder ?? null,
+            'narrative_assets'        => $brand->narrative_assets ?? [],
+            'default_content_pillars' => $brand->default_content_pillars ?? [],
+            'forbidden_topics'        => $brand->forbidden_topics ?? [],
         ];
 
         $projectInfo = [

@@ -38,6 +38,9 @@ class Project extends Model
         'competitors',
         'special_dates',
         'buyer_personas',
+        // ── Wizard PR-2 (preparati ora, popolati in PR successiva) ─
+        'personas_source',
+        'personas_ai_suggestion',
     ];
 
     protected $attributes = [
@@ -59,6 +62,7 @@ class Project extends Model
             'competitors' => 'json',
             'special_dates' => 'json',
             'buyer_personas' => 'json',
+            'personas_ai_suggestion' => 'array',
         ];
     }
 

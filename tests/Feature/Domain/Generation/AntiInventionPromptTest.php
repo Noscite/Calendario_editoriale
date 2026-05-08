@@ -266,6 +266,161 @@ describe('PromptBuilder anti-invenzione', function () {
             ->and($prompt)->toContain('VINCOLO 1 — Aderenza assoluta al brand kit');
     });
 
+    // ── Wizard PR-1: fonti 12-14 + forbidden_topics ─────────────────
+
+    it('narrative_assets popolato appare in fonte 12 con bullet list typed', function () {
+        $brandInfo = [
+            'sector'           => 'Formazione AI',
+            'description'      => 'Brand di formazione AI per PMI.',
+            'narrative_assets' => [
+                ['type' => 'course', 'name' => 'PRIMUS',         'details' => '4 ore, EU AI Act'],
+                ['type' => 'book',   'name' => 'Restare Umani'],
+                ['type' => 'partner','name' => 'Politecnico di Milano'],
+            ],
+        ];
+
+        $prompt = $this->builder->buildStrategyPrompt(
+            brandName:    'Noscite',
+            brandInfo:    $brandInfo,
+            projectInfo:  ['brief' => 'Brief'],
+            startDate:    Carbon::parse('2026-05-01'),
+            endDate:      Carbon::parse('2026-05-15'),
+            platforms:    ['linkedin'],
+            postsPerWeek: ['linkedin' => 3],
+            themes:       ['T1'],
+            urlContext:   null,
+            ragContext:   '',
+            buyerPersonas: [],
+            contentMixData: [],
+        );
+
+        expect($prompt)
+            ->toContain('12. Asset narrativi del brand (LISTA CHIUSA')
+            ->toContain('Tipo: course | Nome: PRIMUS | Dettagli: 4 ore, EU AI Act')
+            ->toContain('Tipo: book | Nome: Restare Umani')
+            ->toContain('Tipo: partner | Nome: Politecnico di Milano');
+    });
+
+    it('founder con name+role appare in fonte 13', function () {
+        $brandInfo = [
+            'sector'      => 'Generic',
+            'description' => 'Brand test.',
+            'founder'     => [
+                'name'      => 'Stefano Andrello',
+                'role'      => 'Founder',
+                'bio_short' => 'Esperto AI etica per PMI italiane.',
+            ],
+        ];
+
+        $prompt = $this->builder->buildStrategyPrompt(
+            brandName:    'Noscite',
+            brandInfo:    $brandInfo,
+            projectInfo:  ['brief' => 'Brief'],
+            startDate:    Carbon::parse('2026-05-01'),
+            endDate:      Carbon::parse('2026-05-15'),
+            platforms:    ['linkedin'],
+            postsPerWeek: ['linkedin' => 3],
+            themes:       ['T1'],
+            urlContext:   null,
+            ragContext:   '',
+            buyerPersonas: [],
+            contentMixData: [],
+        );
+
+        expect($prompt)
+            ->toContain('13. Founder del brand: Stefano Andrello, ruolo: Founder')
+            ->toContain('bio: Esperto AI etica per PMI italiane');
+    });
+
+    it('tagline appare in fonte 14', function () {
+        $brandInfo = [
+            'sector'      => 'Generic',
+            'description' => 'Brand test.',
+            'tagline'     => 'AI etica per PMI italiane',
+        ];
+
+        $prompt = $this->builder->buildStrategyPrompt(
+            brandName:    'Noscite',
+            brandInfo:    $brandInfo,
+            projectInfo:  ['brief' => 'Brief'],
+            startDate:    Carbon::parse('2026-05-01'),
+            endDate:      Carbon::parse('2026-05-15'),
+            platforms:    ['linkedin'],
+            postsPerWeek: ['linkedin' => 3],
+            themes:       ['T1'],
+            urlContext:   null,
+            ragContext:   '',
+            buyerPersonas: [],
+            contentMixData: [],
+        );
+
+        expect($prompt)->toContain('14. Tagline del brand: AI etica per PMI italiane');
+    });
+
+    it('forbidden_topics appare in ## ASSET DA NON CITARE come blocco distinto dai competitors', function () {
+        $brandInfo = [
+            'sector'           => 'Generic',
+            'description'      => 'Brand test.',
+            'forbidden_topics' => ['marketing politico', 'gambling', 'criptovalute speculative'],
+        ];
+        $projectInfo = [
+            'brief'       => 'Brief',
+            'competitors' => ['CompetitorAlfa', 'CompetitorBeta'],
+        ];
+
+        $prompt = $this->builder->buildStrategyPrompt(
+            brandName:    'Noscite',
+            brandInfo:    $brandInfo,
+            projectInfo:  $projectInfo,
+            startDate:    Carbon::parse('2026-05-01'),
+            endDate:      Carbon::parse('2026-05-15'),
+            platforms:    ['linkedin'],
+            postsPerWeek: ['linkedin' => 3],
+            themes:       ['T1'],
+            urlContext:   null,
+            ragContext:   '',
+            buyerPersonas: [],
+            contentMixData: [],
+        );
+
+        expect($prompt)
+            ->toContain('## ASSET DA NON CITARE')
+            // Competitor block (esistente)
+            ->toContain('Competitor da NON menzionare: CompetitorAlfa, CompetitorBeta')
+            // Forbidden topics block (NUOVO PR-1)
+            ->toContain('Argomenti proibiti per questo brand')
+            ->toContain('Argomenti da NON trattare: marketing politico, gambling, criptovalute speculative');
+    });
+
+    it('forbidden_topics da solo (senza competitors) genera comunque ## ASSET DA NON CITARE', function () {
+        $brandInfo = [
+            'sector'           => 'Generic',
+            'description'      => 'Brand test.',
+            'forbidden_topics' => ['gambling'],
+        ];
+
+        $prompt = $this->builder->buildStrategyPrompt(
+            brandName:    'Noscite',
+            brandInfo:    $brandInfo,
+            projectInfo:  ['brief' => 'Brief'],  // niente competitors
+            startDate:    Carbon::parse('2026-05-01'),
+            endDate:      Carbon::parse('2026-05-15'),
+            platforms:    ['linkedin'],
+            postsPerWeek: ['linkedin' => 3],
+            themes:       ['T1'],
+            urlContext:   null,
+            ragContext:   '',
+            buyerPersonas: [],
+            contentMixData: [],
+        );
+
+        expect($prompt)
+            ->toContain('## ASSET DA NON CITARE')
+            ->toContain('Argomenti da NON trattare: gambling')
+            // Niente sezione "Competitor da NON menzionare" perché non ci sono competitor
+            ->not->toContain('Competitor da NON menzionare:');
+    });
+
     it('reminder anti-invenzione presente nel copy prompt (Sonnet)', function () {
         $parts = $this->builder->buildCopyPromptParts(
             brandName:     'Test Brand',

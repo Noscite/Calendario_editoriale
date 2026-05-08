@@ -18,6 +18,8 @@ import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
 import SaasAdmin from './pages/SaasAdmin';
 import BrandsPage from './pages/BrandsPage';
+import CreateBrandWizard from './pages/CreateBrandWizard';
+import EditBrandWizard from './pages/EditBrandWizard';
 import SocialPage from './pages/SocialPage';
 import ReviewsPage from './pages/ReviewsPage';
 import ReviewDetailPage from './pages/ReviewDetailPage';
@@ -99,7 +101,9 @@ function App() {
 
           {/* Brands */}
           <Route path="/brands" element={<BrandsPage />} />
+          <Route path="/brand/new-wizard" element={<CreateBrandWizard />} />
           <Route path="/brand/:id" element={<BrandDetail />} />
+          <Route path="/brand/:id/wizard" element={<EditBrandWizard />} />
 
           {/* Projects/Calendars */}
           <Route path="/calendars" element={<Navigate to="/brands" replace />} />

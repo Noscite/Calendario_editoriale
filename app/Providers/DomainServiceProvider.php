@@ -122,6 +122,9 @@ final class DomainServiceProvider extends ServiceProvider
         foreach ($this->aiServices as $interface => $implementation) {
             $this->app->bind($interface, $implementation);
         }
+
+        // Wizard PR-1: BrandCompletenessService come singleton (stateless).
+        $this->app->singleton(\App\Domain\Brand\Services\BrandCompletenessService::class);
     }
 
     public function boot(): void

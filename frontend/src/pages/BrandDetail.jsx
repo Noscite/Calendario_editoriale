@@ -7,7 +7,7 @@ import {
   Plus, Calendar, Sparkles, Loader2, Trash2, Mic, Building2,
   Linkedin, Instagram, Facebook, MapPin, Link2, CheckCircle, XCircle,
   ExternalLink, Globe, Palette, Users, Layers, Key, Eye, EyeOff, Save, ChevronDown, ChevronUp,
-  TrendingUp, Star,
+  TrendingUp, Star, AlertTriangle,
 } from 'lucide-react';
 import EditionBadge from '../components/EditionBadge';
 import VoiceExamplesEditor from '../components/VoiceExamplesEditor';
@@ -53,12 +53,32 @@ export default function BrandDetail() {
   const [autoReplyMessage, setAutoReplyMessage] = useState(null);
   const [replyQuota, setReplyQuota] = useState(null);
 
+  // Wizard PR-1: completeness banner + toast post-wizard
+  const [completeness, setCompleteness] = useState(null);
+  const [wizardToast, setWizardToast] = useState(null);
+
   useEffect(() => {
     loadBrand();
     fetchProjects(id);
     loadConnections();
     loadApiKeys();
     loadReplyQuota();
+    loadCompleteness();
+  }, [id]);
+
+  // Wizard PR-1: toast one-shot al rientro dal wizard
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('kalendarium:brand-wizard-toast');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data && data.brandId === parseInt(id, 10)) {
+        setWizardToast(data);
+        sessionStorage.removeItem('kalendarium:brand-wizard-toast');
+        const t = setTimeout(() => setWizardToast(null), 6000);
+        return () => clearTimeout(t);
+      }
+    } catch { /* no-op */ }
   }, [id]);
 
   const loadReplyQuota = async () => {
@@ -85,6 +105,15 @@ export default function BrandDetail() {
       });
     } catch (err) {
       console.error('Error loading brand:', err);
+    }
+  };
+
+  const loadCompleteness = async () => {
+    try {
+      const res = await brands.completeness(id);
+      setCompleteness(res.data);
+    } catch {
+      setCompleteness(null);
     }
   };
 
@@ -185,6 +214,46 @@ export default function BrandDetail() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Wizard PR-1: toast post-wizard (one-shot, auto-dismiss 6s) */}
+      {wizardToast && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-emerald-800 font-medium flex items-center gap-2">
+            <CheckCircle size={16} className="text-emerald-600" />
+            {wizardToast.message}
+          </p>
+          <button
+            onClick={() => setWizardToast(null)}
+            className="text-emerald-600 hover:text-emerald-800 text-lg leading-none"
+            aria-label="Chiudi notifica"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Wizard PR-1: alert completeness < soglia */}
+      {completeness && completeness.score < (completeness.threshold ?? 70) && (
+        <div className="sticky top-4 z-20 bg-amber-50 border-l-4 border-amber-400 px-4 py-3 rounded-lg shadow-sm flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={18} className="text-amber-500 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-900">
+                Brand al {completeness.score}% — completalo per generare contenuti AI di qualità.
+              </p>
+              <p className="text-xs text-amber-700">
+                Soglia minima: {completeness.threshold ?? 70}%
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate(`/brand/${id}/wizard`)}
+            className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 text-sm font-medium whitespace-nowrap"
+          >
+            <Sparkles size={16} /> Completa setup brand
+          </button>
+        </div>
+      )}
+
       {/* Brand Header Card */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="flex items-start justify-between">
