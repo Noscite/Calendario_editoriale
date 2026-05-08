@@ -63,6 +63,41 @@ function normalizePillars(pillars) {
 }
 
 /**
+ * Sintetizza una stringa target_audience leggibile dalle buyer_personas
+ * confermate. Usato per auto-popolare la textarea Step 2 quando l'utente
+ * conferma le personas senza aver editato manualmente il target_audience.
+ *
+ * Output: ~150-300 char tipici, max 3 personas inline + "+ N altri".
+ * Se input vuoto/non valido: stringa vuota.
+ */
+function synthesizeTargetAudienceFromPersonas(buyerPersonas) {
+  const list = Array.isArray(buyerPersonas?.personas) ? buyerPersonas.personas : [];
+  if (list.length === 0) return '';
+
+  const summarize = (p) => {
+    const demo = p?.demographics ?? {};
+    const role = (demo.role || p?.name || 'Profilo').toString().trim();
+    const ageRange = (demo.age_range || '').toString().trim();
+    const location = (demo.location || '').toString().trim();
+    const painPoints = Array.isArray(p?.pain_points)
+      ? p.pain_points.slice(0, 2).map((s) => String(s).trim()).filter(Boolean).join(', ')
+      : '';
+
+    const parenthetical = [ageRange, location].filter(Boolean).join(', ');
+    const main = parenthetical ? `${role} (${parenthetical})` : role;
+    return painPoints ? `${main} — pain: ${painPoints}` : main;
+  };
+
+  const top = list.slice(0, 3).map(summarize);
+  const remaining = list.length - 3;
+
+  let result = `Audience principale del progetto: ${top.join('; ')}`;
+  if (remaining > 0) result += `; +${remaining} altri profili`;
+  result += '.';
+  return result;
+}
+
+/**
  * Pre-popola pillar dal brand quando il project è "vuoto" (nessun
  * content_pillars salvato). Marca tutti i pillar di brand come source='brand'.
  */
@@ -93,6 +128,9 @@ export default function EditProjectWizardV2() {
   const [brandCompleteness, setBrandCompleteness] = useState(null);
   const [brandDefaultPillars, setBrandDefaultPillars] = useState([]);
   const [promotePillarsEnabled, setPromotePillarsEnabled] = useState(false);
+  // Wizard PR-2 hotfix: dirty flag per target_audience — se l'utente ha
+  // editato manualmente la textarea, l'auto-popolazione da personas è bypassata.
+  const [targetAudienceDirty, setTargetAudienceDirty] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -254,7 +292,20 @@ export default function EditProjectWizardV2() {
 
   // ── Step 2 callback dalla card AI ─────────────────────────
   const handlePersonasConfirm = (buyerPersonas) => {
-    updateField('buyer_personas', buyerPersonas);
+    setFormData((prev) => {
+      const next = { ...prev, buyer_personas: buyerPersonas };
+      // Auto-popolazione target_audience: solo se l'utente non ha mai editato
+      // manualmente la textarea (dirty=false) E il valore corrente è sotto la
+      // soglia di validation (typicamente vuoto al primo entry).
+      const currentTaLen = (prev.target_audience || '').trim().length;
+      if (!targetAudienceDirty && currentTaLen < TARGET_AUDIENCE_MIN) {
+        const synth = synthesizeTargetAudienceFromPersonas(buyerPersonas);
+        if (synth) {
+          next.target_audience = synth;
+        }
+      }
+      return next;
+    });
   };
 
   // ── Click "Avanti" ────────────────────────────────────────
@@ -445,11 +496,20 @@ export default function EditProjectWizardV2() {
             </div>
             <textarea
               value={formData.target_audience}
-              onChange={(e) => updateField('target_audience', e.target.value)}
+              onChange={(e) => {
+                if (!targetAudienceDirty) setTargetAudienceDirty(true);
+                updateField('target_audience', e.target.value);
+              }}
               rows={4}
               placeholder="Chi è il target di questo project? Demografia, ruolo, sfide, contesto."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#3DAFA8] focus:border-transparent resize-y"
             />
+            {!targetAudienceDirty && taLen > 0 && (
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <span aria-hidden>✨</span>
+                Compilato automaticamente dalle personas confermate. Modifica liberamente.
+              </p>
+            )}
           </div>
 
           <AISuggestionPersonasCard
