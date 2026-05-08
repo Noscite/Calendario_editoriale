@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Generatore di contenuti via Anthropic Claude.
@@ -777,6 +778,49 @@ TXT;
     }
 
     /**
+     * Confronta un pillar proposto contro la lista dei pillar consentiti
+     * dal Project, con tre stati di output:
+     *
+     * - 'exact':      $proposed === $allowed[i] (uguaglianza letterale)
+     * - 'normalized': dopo normalizzazione (Str::ascii + lowercase + collapse
+     *                 spazi/underscore + strip punctuation) c'è un match —
+     *                 il valore restituito è il casing canonico del progetto
+     * - 'invented':   nessun match (anche fuzzy). Da loggare e segnalare.
+     *
+     * @param  list<string>  $allowed
+     * @return array{status: 'exact'|'normalized'|'invented', matched_value: string|null, original: string}
+     */
+    private function matchPillar(string $proposed, array $allowed): array
+    {
+        $original = $proposed;
+
+        foreach ($allowed as $a) {
+            if ((string) $a === $proposed) {
+                return ['status' => 'exact', 'matched_value' => (string) $a, 'original' => $original];
+            }
+        }
+
+        $normalize = static function (string $s): string {
+            $s = (string) Str::ascii($s);                          // fold accents → ASCII
+            $s = mb_strtolower(trim($s));
+            $s = preg_replace('/[^a-z0-9\s_]+/', ' ', $s) ?? $s;   // qualunque non-alfanumerico → spazio
+            $s = preg_replace('/[\s_]+/', ' ', $s) ?? $s;          // collapse spazi+underscore
+            return trim($s);
+        };
+
+        $normalizedProposed = $normalize($proposed);
+        if ($normalizedProposed !== '') {
+            foreach ($allowed as $a) {
+                if ($normalize((string) $a) === $normalizedProposed) {
+                    return ['status' => 'normalized', 'matched_value' => (string) $a, 'original' => $original];
+                }
+            }
+        }
+
+        return ['status' => 'invented', 'matched_value' => null, 'original' => $original];
+    }
+
+    /**
      * Costruisce la row Eloquent di un Post AI-generated includendo
      * `generation_metadata`. Helper unico chiamato da TUTTI i punti che
      * persistono Post AI-generated: generateAiPosts(), GenerateCalendarJob,
@@ -815,18 +859,41 @@ TXT;
         $pillarProposed = $raw['pillar']         ?? null;
         $hashtags       = $raw['hashtags']       ?? [];
 
+        // Pillar coercion: tre stati (exact / normalized / invented).
+        // - exact     → no-op
+        // - normalized → coerce al casing canonico del Project + log INFO + traccia in metadata
+        // - invented   → mantieni il valore proposto + log WARNING + traccia in metadata
+        // Mutex sui due campi metadata: solo uno valorizzato per post.
+        $pillarNormalizedFrom = null;
+        $pillarInvented       = null;
         if (
             ! empty($projectContentPillars)
             && $pillarProposed !== null && $pillarProposed !== ''
-            && ! in_array($pillarProposed, $projectContentPillars, true)
         ) {
-            Log::warning('[GENERATION] Pillar fuori da content_pillars', [
-                'project_id'      => $projectId,
-                'platform'        => $platform,
-                'scheduled_date'  => $scheduledDate,
-                'pillar_proposed' => $pillarProposed,
-                'pillars_allowed' => $projectContentPillars,
-            ]);
+            $pillarMatch = $this->matchPillar($pillarProposed, $projectContentPillars);
+
+            if ($pillarMatch['status'] === 'normalized') {
+                $pillarNormalizedFrom = $pillarMatch['original'];
+                $pillarProposed       = $pillarMatch['matched_value'];
+
+                Log::info('[GENERATION] Pillar normalizzato', [
+                    'project_id'       => $projectId,
+                    'platform'         => $platform,
+                    'scheduled_date'   => $scheduledDate,
+                    'pillar_original'  => $pillarMatch['original'],
+                    'pillar_canonical' => $pillarMatch['matched_value'],
+                ]);
+            } elseif ($pillarMatch['status'] === 'invented') {
+                $pillarInvented = $pillarMatch['original'];
+
+                Log::warning('[GENERATION] Pillar fuori da content_pillars', [
+                    'project_id'      => $projectId,
+                    'platform'        => $platform,
+                    'scheduled_date'  => $scheduledDate,
+                    'pillar_proposed' => $pillarProposed,
+                    'pillars_allowed' => $projectContentPillars,
+                ]);
+            }
         }
 
         $metadata = [
@@ -840,6 +907,10 @@ TXT;
             'tokens_copy'              => $raw['_tokens']['copy']             ?? null,
             'model_strategy'           => self::MODEL_OPUS,
             'model_copy'               => self::MODEL,
+            // Audit trail della pillar-coercion. Sempre mutex: al massimo uno
+            // dei due è non-null per ogni post (vedi logica sopra).
+            'pillar_normalized_from'   => $pillarNormalizedFrom,
+            'pillar_invented'          => $pillarInvented,
         ];
 
         $row = [
