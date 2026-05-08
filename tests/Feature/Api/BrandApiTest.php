@@ -138,6 +138,22 @@ describe('PUT /api/brands/{id}', function () {
         $response->assertOk()
             ->assertJsonFragment(['name' => 'New Name']);
     });
+
+    it('brand_values accepts array of strings (regression: PR-WIZARD-1 hotfix)', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand = createBrand($org, ['name' => 'Values Brand']);
+
+        $response = $this->actingAs($user)->putJson("/api/brands/{$brand->id}", [
+            'brand_values' => ['etica', 'professionalità', 'preparazione'],
+        ]);
+
+        $response->assertOk();
+
+        $brand->refresh();
+        expect($brand->brand_values)
+            ->toBeArray()
+            ->toEqual(['etica', 'professionalità', 'preparazione']);
+    });
 });
 
 describe('DELETE /api/brands/{id}', function () {

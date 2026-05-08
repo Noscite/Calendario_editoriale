@@ -18,7 +18,7 @@ final class CreateBrandData extends Data
         #[Max(255)]
         public readonly Optional|string $sector,
         public readonly Optional|string $tone_of_voice,
-        public readonly Optional|string|array $brand_values,
+        public readonly Optional|array $brand_values,
         public readonly Optional|string $description,
         #[Url]
         public readonly Optional|string $website_url,
