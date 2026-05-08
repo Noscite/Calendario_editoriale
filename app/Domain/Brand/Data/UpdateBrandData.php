@@ -34,6 +34,13 @@ final class UpdateBrandData extends Data
         public readonly Optional|string $colors,
         public readonly Optional|string $style_guide,
         public readonly Optional|array $voice_examples,
+        // ── Wizard PR-1 (additivi, tutti opzionali) ─────────
+        #[Max(180)]
+        public readonly Optional|string $tagline,
+        public readonly Optional|array $founder,
+        public readonly Optional|array $narrative_assets,
+        public readonly Optional|array $default_content_pillars,
+        public readonly Optional|array $forbidden_topics,
         // ── Auto-reply settings (M4) ────────────────────────
         public readonly Optional|bool $auto_reply_enabled,
         #[Min(3), Max(5)]

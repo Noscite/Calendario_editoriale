@@ -1012,16 +1012,22 @@ TXT;
     private function brandInfoArray(Brand $brand): array
     {
         return [
-            'sector'                => $brand->sector,
-            'description'           => $brand->description,
-            'tone_of_voice'         => $brand->tone_of_voice,
-            'brand_values'          => $brand->brand_values ?? [],
-            'target_audience'       => $brand->target_audience,
-            'unique_selling_points' => $brand->unique_selling_points,
-            'voice_examples'        => $brand->voice_examples ?? [],
+            'sector'                  => $brand->sector,
+            'description'             => $brand->description,
+            'tone_of_voice'           => $brand->tone_of_voice,
+            'brand_values'            => $brand->brand_values ?? [],
+            'target_audience'         => $brand->target_audience,
+            'unique_selling_points'   => $brand->unique_selling_points,
+            'voice_examples'          => $brand->voice_examples ?? [],
             // Esposto per buildBrandAssetsSection (anti-invenzione): contiene
             // spesso pattern di voce e dettagli citabili (corsi, libri, partner).
-            'style_guide'           => $brand->style_guide,
+            'style_guide'             => $brand->style_guide,
+            // ── Wizard PR-1: fonti citabili strutturate per anti-invenzione ──
+            'tagline'                 => $brand->tagline,
+            'founder'                 => $brand->founder ?? null,
+            'narrative_assets'        => $brand->narrative_assets ?? [],
+            'default_content_pillars' => $brand->default_content_pillars ?? [],
+            'forbidden_topics'        => $brand->forbidden_topics ?? [],
         ];
     }
 

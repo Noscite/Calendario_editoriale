@@ -205,6 +205,10 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::put('/{id}', [BrandController::class, 'update']);
         Route::delete('/{id}', [BrandController::class, 'destroy']);
 
+        // Wizard PR-1: completeness score (route model binding + scope org)
+        Route::get('/{brand}/completeness', [BrandController::class, 'completeness'])
+            ->scopeBindings();
+
         // API Keys per brand
         Route::get('/{brand}/api-keys', [BrandApiKeyController::class, 'index']);
         Route::post('/{brand}/api-keys', [BrandApiKeyController::class, 'store']);
