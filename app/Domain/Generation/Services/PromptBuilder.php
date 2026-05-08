@@ -539,6 +539,97 @@ PROMPT;
     }
 
     /**
+     * Costruisce il prompt per la valutazione del fit personas storiche → brief nuovo.
+     * Usato da EvaluateOrGeneratePersonasJob (PR-WIZARD-2).
+     *
+     * @param  array<int, array{project_id: int, name: string, brief: string, personas: array, similarity: float}>  $candidates
+     */
+    public function buildPersonasEvaluationPrompt(
+        Brand  $brand,
+        string $newBrief,
+        array  $candidates,
+    ): string {
+        $candidatesJson = json_encode(
+            array_map(static fn (array $c): array => [
+                'project_id' => $c['project_id'],
+                'project_name' => $c['name'],
+                'brief'      => $c['brief'],
+                'personas'   => $c['personas'],
+                'similarity' => round((float) ($c['similarity'] ?? 0), 3),
+            ], $candidates),
+            JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT,
+        );
+
+        return <<<PROMPT
+Sei un analista di buyer personas. Devi valutare se le personas storiche di un brand
+sono adatte a un nuovo project del medesimo brand.
+
+## BRAND
+- Nome: {$brand->name}
+- Settore: {$brand->sector}
+- Descrizione: {$brand->description}
+
+## NUOVO BRIEF
+{$newBrief}
+
+## PROJECT STORICI CANDIDATI (top 3 per similarity sul brief)
+{$candidatesJson}
+
+## ISTRUZIONI
+Considera quanto il target del nuovo brief si sovrappone ai target dei project storici.
+Scegli UN verdict tra:
+- "reuse"      → fit ≥ 85%: le personas storiche sono praticamente già adatte al nuovo brief.
+- "adapt"      → fit 50-85%: le personas storiche sono parzialmente adatte ma serve rifinitura.
+- "regenerate" → fit < 50%: target sostanzialmente diverso, conviene generare nuove personas.
+
+Se "reuse" o "adapt": indica `source_project_id` (uno dei candidati). Se "regenerate": null.
+
+## FORMATO OUTPUT (JSON valido, niente markdown)
+{"verdict": "reuse|adapt|regenerate", "source_project_id": <int|null>, "reasoning": "<2-3 frasi in italiano>", "confidence": <float 0-1>}
+PROMPT;
+    }
+
+    /**
+     * Costruisce il prompt per la rifinitura ('adapt') di personas riutilizzate.
+     * Usato da EvaluateOrGeneratePersonasJob quando verdict='adapt'.
+     */
+    public function buildPersonasAdaptationPrompt(
+        Brand  $brand,
+        string $newBrief,
+        array  $sourcePersonas,
+    ): string {
+        $sourceJson    = json_encode($sourcePersonas, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $brandValues   = is_array($brand->brand_values)
+            ? implode(', ', $brand->brand_values)
+            : ($brand->brand_values ?? '');
+
+        return <<<PROMPT
+Sei un esperto di marketing digitale. Stai rifinendo personas esistenti per un nuovo project.
+
+## BRAND
+- Nome: {$brand->name}
+- Settore: {$brand->sector}
+- Descrizione: {$brand->description}
+- Valori: {$brandValues}
+
+## NUOVO BRIEF DEL PROJECT
+{$newBrief}
+
+## PERSONAS DI PARTENZA (da un project precedente dello stesso brand)
+{$sourceJson}
+
+## ISTRUZIONI
+Adatta queste personas al nuovo brief. Mantieni la stessa struttura JSON identica.
+Modifica SOLO i campi che hanno senso ricalibrare per il nuovo brief: pain_points,
+interests, buying_triggers, weight, eventualmente digital_behavior.
+Non cambiare struttura, non aggiungere/rimuovere personas: la rifinitura è qualitativa.
+
+## FORMATO OUTPUT (JSON valido, stessa struttura completa: personas + scheduling_strategy + recommended_posts_per_week + analysis_notes)
+Rispondi SOLO con il JSON, senza markdown.
+PROMPT;
+    }
+
+    /**
      * Costruisce il prompt per generare un prompt immagine DALL-E.
      * Estratto da ClaudeContentGenerator::generateImagePrompt().
      */

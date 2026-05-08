@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  Sparkles, Mic, Library, Target, FileText, Loader2, Plus, X, Info,
+  Sparkles, Mic, Library, Target, FileText, Loader2, Plus, Info,
 } from 'lucide-react';
 import Wizard from '../components/Wizard';
 import BrandCompletenessIndicator from '../components/BrandCompletenessIndicator';
@@ -9,6 +9,7 @@ import VoiceExamplesEditor from '../components/VoiceExamplesEditor';
 import NarrativeAssetsEditor from '../components/NarrativeAssetsEditor';
 import DefaultPillarsEditor from '../components/DefaultPillarsEditor';
 import BrandDocuments from '../components/BrandDocuments';
+import TagsInput from '../components/TagsInput';
 import { brands as brandsApi } from '../services/api';
 
 const STEPS = [
@@ -67,74 +68,6 @@ function normalizeStringArray(value) {
   if (Array.isArray(value)) return value.map((s) => String(s).trim()).filter(Boolean);
   if (typeof value === 'string') return value.split(',').map((s) => s.trim()).filter(Boolean);
   return [];
-}
-
-function TagsInput({ value = [], onChange, placeholder, helper, error = null }) {
-  const [draft, setDraft] = useState('');
-  const tags = Array.isArray(value) ? value : [];
-
-  const addTag = () => {
-    const v = draft.trim();
-    if (!v) return;
-    if (tags.includes(v)) {
-      setDraft('');
-      return;
-    }
-    onChange?.([...tags, v]);
-    setDraft('');
-  };
-
-  const removeTag = (idx) => {
-    onChange?.(tags.filter((_, i) => i !== idx));
-  };
-
-  const onKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addTag();
-    } else if (e.key === 'Backspace' && draft === '' && tags.length > 0) {
-      removeTag(tags.length - 1);
-    }
-  };
-
-  return (
-    <div>
-      <div
-        className={[
-          'flex flex-wrap gap-2 px-2 py-2 border rounded-lg bg-white',
-          error ? 'border-red-300' : 'border-gray-300',
-        ].join(' ')}
-      >
-        {tags.map((t, i) => (
-          <span
-            key={`${t}-${i}`}
-            className="inline-flex items-center gap-1 bg-teal-50 text-[#2C3E50] border border-teal-200 rounded-full px-2.5 py-0.5 text-xs"
-          >
-            {t}
-            <button
-              type="button"
-              onClick={() => removeTag(i)}
-              className="text-gray-400 hover:text-red-500"
-              aria-label={`Rimuovi ${t}`}
-            >
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKeyDown}
-          onBlur={addTag}
-          placeholder={tags.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[140px] px-1 py-1 text-sm focus:outline-none"
-        />
-      </div>
-      {helper && <p className="text-xs text-gray-500 mt-1">{helper}</p>}
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-    </div>
-  );
 }
 
 export default function EditBrandWizard() {

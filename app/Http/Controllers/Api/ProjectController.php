@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Brand\Contracts\BrandServiceInterface;
+use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Services\EditionHistoryService;
+use App\Domain\Generation\Services\PersonasEvaluationTracker;
 use App\Domain\Project\Contracts\ProjectServiceInterface;
 use App\Domain\Project\Data\CreateProjectData;
 use App\Domain\Project\Data\UpdateProjectData;
 use App\Domain\Project\Enums\ProjectStatus;
+use App\Domain\Project\Jobs\EvaluateOrGeneratePersonasJob;
 use App\Domain\Project\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,7 +50,7 @@ final class ProjectController extends Controller
             'reference_urls'    => $p->reference_urls ?? [],
             'target_audience'   => $p->target_audience ?? '',
             'objectives'        => $p->objectives ?? [],
-            'content_pillars'   => $p->content_pillars ?? [],
+            'content_pillars'   => Project::normalizeContentPillarsList($p->content_pillars),
             'competitors'       => $p->competitors ?? [],
             'special_dates'     => $p->special_dates ?? [],
             'buyer_personas'    => $p->buyer_personas,
@@ -223,5 +227,161 @@ final class ProjectController extends Controller
             'has_history'     => $context !== '',
             'history_context' => $context,
         ]);
+    }
+
+    // ─── WIZARD PR-2: AI personas evaluation ─────────────────
+
+    /**
+     * POST /api/projects/{id}/evaluate-personas
+     *
+     * Dispatcha EvaluateOrGeneratePersonasJob in background.
+     * Idempotente: 409 se job già in stato 'evaluating'.
+     */
+    public function evaluatePersonas(int $id, Request $request): JsonResponse
+    {
+        $project = $this->findProjectInUserOrgOrFail($id, $request);
+
+        if (PersonasEvaluationTracker::isEvaluating($id)) {
+            return response()->json([
+                'status'  => 'already_evaluating',
+                'message' => 'Valutazione personas già in corso per questo project.',
+            ], 409);
+        }
+
+        EvaluateOrGeneratePersonasJob::dispatch($project->id);
+
+        return response()->json([
+            'status'             => PersonasEvaluationTracker::STATUS_EVALUATING,
+            'estimated_seconds'  => 15,
+            'message'            => 'Valutazione personas avviata.',
+        ], 202);
+    }
+
+    /**
+     * GET /api/projects/{id}/personas-status
+     *
+     * Polling: ritorna stato cache (evaluating/ready/failed) + payload completo
+     * dal DB se ready (buyer_personas + personas_source + personas_ai_suggestion).
+     */
+    public function personasStatus(int $id, Request $request): JsonResponse
+    {
+        $project = $this->findProjectInUserOrgOrFail($id, $request);
+
+        $tracker = PersonasEvaluationTracker::get($id);
+        $cacheStatus = $tracker['status'] ?? null;
+
+        // Se cache scaduta ma DB ha personas + source → consideralo ready
+        $hasPersistedSuggestion = $project->personas_ai_suggestion !== null;
+        $hasPersonas            = ! empty($project->buyer_personas);
+
+        if ($cacheStatus === null && $hasPersistedSuggestion && $hasPersonas) {
+            $cacheStatus = PersonasEvaluationTracker::STATUS_READY;
+        }
+        if ($cacheStatus === null) {
+            $cacheStatus = 'idle';
+        }
+
+        return response()->json([
+            'status'                 => $cacheStatus,
+            'tracker'                => $tracker,
+            'personas_source'        => $project->personas_source,
+            'personas_ai_suggestion' => $project->personas_ai_suggestion,
+            'buyer_personas'         => $project->buyer_personas,
+        ]);
+    }
+
+    /**
+     * POST /api/projects/{id}/force-regenerate-personas
+     *
+     * Dispatcha job con forceGenerateNew=true. Resetta tracker.
+     */
+    public function forceRegeneratePersonas(int $id, Request $request): JsonResponse
+    {
+        $project = $this->findProjectInUserOrgOrFail($id, $request);
+
+        PersonasEvaluationTracker::clear($id);
+        EvaluateOrGeneratePersonasJob::dispatch($project->id, forceGenerateNew: true);
+
+        return response()->json([
+            'status'            => PersonasEvaluationTracker::STATUS_EVALUATING,
+            'estimated_seconds' => 12,
+            'message'           => 'Rigenerazione personas avviata.',
+        ], 202);
+    }
+
+    /**
+     * POST /api/projects/{id}/confirm-personas
+     *
+     * Marca le buyer_personas come confermate (confirmed=true). Endpoint
+     * dedicato wizard-v2; il legacy /api/generate/personas/{id}/confirm resta
+     * per il vecchio ProjectWizard (deprecato in PR-WIZARD-3).
+     */
+    public function confirmPersonas(int $id, Request $request): JsonResponse
+    {
+        $project = $this->findProjectInUserOrgOrFail($id, $request);
+
+        $bp = $project->buyer_personas;
+        if (empty($bp) || ! is_array($bp)) {
+            return response()->json([
+                'status'  => 'no_personas',
+                'message' => 'Nessuna persona da confermare.',
+            ], 422);
+        }
+
+        $bp['confirmed']    = true;
+        $bp['confirmed_at'] = now()->toIso8601String();
+        $project->update(['buyer_personas' => $bp]);
+
+        return response()->json([
+            'status'  => 'confirmed',
+            'message' => 'Personas confermate.',
+        ]);
+    }
+
+    /**
+     * POST /api/projects/{id}/promote-pillars-to-brand
+     *
+     * Body: { pillars: [{name, description}, ...] }.
+     * Invoca BrandService::mergeDefaultPillars con la lista passata.
+     */
+    public function promotePillarsToBrand(int $id, Request $request, BrandServiceInterface $brandService): JsonResponse
+    {
+        $project = $this->findProjectInUserOrgOrFail($id, $request);
+        $brand   = Brand::find($project->brand_id);
+
+        if (! $brand || $brand->organization_id !== $request->user()->organization_id) {
+            return response()->json(['detail' => 'Brand not found'], 404);
+        }
+
+        $data = $request->validate([
+            'pillars'                 => 'required|array|min:1',
+            'pillars.*.name'          => 'required|string|max:60',
+            'pillars.*.description'   => 'nullable|string|max:200',
+        ]);
+
+        $result = $brandService->mergeDefaultPillars($brand, $data['pillars']);
+
+        return response()->json([
+            'status'             => 'ok',
+            'pillars'            => $result['pillars'],
+            'added_count'        => $result['added_count'],
+            'dropped_count'      => $result['dropped_count'],
+            'skipped_duplicates' => $result['skipped_duplicates'],
+        ]);
+    }
+
+    // ─── helper privato ───────────────────────────────────────
+
+    /**
+     * Carica il project + verifica che appartenga all'organizzazione dell'utente.
+     * 404 silenzioso se non trovato o other-org.
+     */
+    private function findProjectInUserOrgOrFail(int $id, Request $request): Project
+    {
+        $project = Project::find($id);
+        if (! $project || $project->organization_id !== $request->user()->organization_id) {
+            abort(404, 'Project not found');
+        }
+        return $project;
     }
 }

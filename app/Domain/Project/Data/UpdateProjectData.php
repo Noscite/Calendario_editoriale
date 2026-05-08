@@ -42,5 +42,13 @@ final class UpdateProjectData extends Data
         public readonly Optional|string|null $custom_prompt = new Optional(),
         /** @var array<string>|Optional */
         public readonly Optional|array $objectives = new Optional(),
+        // ── Wizard PR-2 ────────────────────────────────────────────
+        // NB: tipi singolari (Optional|string, Optional|array). Niente unione
+        // string|array — Spatie Laravel-Data interpreta string|array come AND
+        // delle rule (validation.string E validation.array): nessun valore
+        // passerebbe. Vedi fix brand_values di PR-WIZARD-1 (commit 5932946).
+        public readonly Optional|string|null $personas_source = new Optional(),
+        /** @var array<string, mixed>|Optional */
+        public readonly Optional|array $personas_ai_suggestion = new Optional(),
     ) {}
 }

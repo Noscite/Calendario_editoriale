@@ -103,10 +103,17 @@ export const projects = {
   get: (id) => api.get(`/projects/${id}`),
   create: (data) => api.post('/projects/', data),
   update: (id, data) => api.put(`/projects/${id}`, data),
+  patch: (id, data) => api.patch(`/projects/${id}`, data),
   delete: (id) => api.delete(`/projects/${id}`),
   // Editions
   addEdition: (id, data) => api.post(`/projects/${id}/editions`, data),
   historyContext: (id) => api.get(`/projects/${id}/history-context`),
+  // Wizard PR-2 — AI personas evaluation + pillar promote
+  evaluatePersonas:        (id)         => api.post(`/projects/${id}/evaluate-personas`),
+  personasStatus:          (id)         => api.get(`/projects/${id}/personas-status`),
+  forceRegeneratePersonas: (id)         => api.post(`/projects/${id}/force-regenerate-personas`),
+  confirmPersonas:         (id)         => api.post(`/projects/${id}/confirm-personas`),
+  promotePillarsToBrand:   (id, pillars) => api.post(`/projects/${id}/promote-pillars-to-brand`, { pillars }),
 };
 
 export const posts = {

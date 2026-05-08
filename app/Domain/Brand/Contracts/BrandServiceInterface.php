@@ -33,4 +33,21 @@ interface BrandServiceInterface
      * Elimina un brand e tutte le risorse associate.
      */
     public function delete(int $brandId): void;
+
+    /**
+     * Aggiunge nuovi pillar al set default_content_pillars del brand.
+     *
+     * Idempotente (dedup case-insensitive via PillarNameNormalizer), FIFO su
+     * overflow del massimo (6 pillar). Non sovrascrive le description di pillar
+     * preesistenti — pillar con stesso name normalizzato sono saltati.
+     *
+     * @param  array<int, array{name: string, description?: string}>  $newPillars
+     * @return array{
+     *   pillars: array<int, array{name: string, description: string}>,
+     *   added_count: int,
+     *   dropped_count: int,
+     *   skipped_duplicates: int
+     * }
+     */
+    public function mergeDefaultPillars(Brand $brand, array $newPillars): array;
 }

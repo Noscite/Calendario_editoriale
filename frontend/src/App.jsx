@@ -13,6 +13,8 @@ import Dashboard from './pages/Dashboard';
 import BrandDetail from './pages/BrandDetail';
 import ProjectDetail from './pages/ProjectDetail';
 import ProjectWizard from './pages/ProjectWizard';
+import CreateProjectWizardV2 from './pages/CreateProjectWizardV2';
+import EditProjectWizardV2 from './pages/EditProjectWizardV2';
 import VoiceProfilingInterview from './pages/VoiceProfilingInterview';
 import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
@@ -109,6 +111,8 @@ function App() {
           <Route path="/calendars" element={<Navigate to="/brands" replace />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
           <Route path="/brand/:brandId/new-project" element={<ProjectWizard />} />
+          <Route path="/brand/:brandId/new-project-v2" element={<CreateProjectWizardV2 />} />
+          <Route path="/brand/:brandId/edit-project-v2/:projectId" element={<EditProjectWizardV2 />} />
           <Route path="/brand/:brandId/voice-interview" element={<VoiceProfilingInterview />} />
 
           {/* Audit */}

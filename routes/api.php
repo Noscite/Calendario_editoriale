@@ -252,12 +252,19 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::get('/', [ProjectController::class, 'index']);
         Route::get('/{id}', [ProjectController::class, 'show']);
         Route::post('/', [ProjectController::class, 'store']);
-        Route::put('/{id}', [ProjectController::class, 'update']);
+        Route::match(['put', 'patch'], '/{id}', [ProjectController::class, 'update']);
         Route::delete('/{id}', [ProjectController::class, 'destroy']);
 
         // Editions
         Route::post('/{id}/editions', [ProjectController::class, 'addEdition']);
         Route::get('/{id}/history-context', [ProjectController::class, 'historyContext']);
+
+        // Wizard PR-2 — AI personas evaluation + pillar promote
+        Route::post('/{id}/evaluate-personas',         [ProjectController::class, 'evaluatePersonas']);
+        Route::get('/{id}/personas-status',            [ProjectController::class, 'personasStatus']);
+        Route::post('/{id}/force-regenerate-personas', [ProjectController::class, 'forceRegeneratePersonas']);
+        Route::post('/{id}/confirm-personas',          [ProjectController::class, 'confirmPersonas']);
+        Route::post('/{id}/promote-pillars-to-brand',  [ProjectController::class, 'promotePillarsToBrand']);
     });
 
     // ─── POSTS — /api/posts  (prefix Python: /api/posts) ──────

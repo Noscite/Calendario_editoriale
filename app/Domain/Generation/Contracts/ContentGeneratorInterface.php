@@ -4,12 +4,19 @@ declare(strict_types=1);
 
 namespace App\Domain\Generation\Contracts;
 
+use App\Domain\Brand\Models\Brand;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
 use Illuminate\Database\Eloquent\Collection;
 
 interface ContentGeneratorInterface
 {
+    /**
+     * Configura i client AI per usare le chiavi API del brand corrente.
+     * Chiamato dai Job prima di avviare le chiamate Anthropic/OpenAI.
+     */
+    public function useBrandKeys(Brand $brand): void;
+
     /**
      * Genera un piano editoriale completo (batch di post) per un progetto.
      * La generazione avviene in background tramite job/thread.
@@ -84,4 +91,21 @@ interface ContentGeneratorInterface
      * }
      */
     public function getGenerationStatus(int $projectId): array;
+
+    // ── Wizard PR-2: AI personas evaluation ────────────────────
+
+    /**
+     * Valuta il fit di personas storiche su un nuovo brief via Sonnet.
+     *
+     * @param  array<int, array{project_id: int, name: string, brief: string, personas: array, similarity: float}>  $candidates
+     * @return array{verdict: string, source_project_id: int|null, reasoning: string, confidence: float}
+     */
+    public function evaluatePersonasFit(Brand $brand, string $newBrief, array $candidates): array;
+
+    /**
+     * Adatta personas esistenti a un nuovo brief via Sonnet (verdict='adapt').
+     *
+     * @return array  Stessa shape di buyer_personas (personas + scheduling_strategy + ...)
+     */
+    public function adaptPersonas(Brand $brand, string $newBrief, array $sourcePersonas): array;
 }
