@@ -846,19 +846,32 @@ PROMPT;
     }
 
     /**
-     * Costruisce la sezione "ELEMENTI DEL BRAND DISPONIBILI" che ridichiarano
-     * gli asset del brand (description + USP + brief) come unica fonte di
-     * verità per i nomi di prodotti/corsi/libri/partner. Riferisce alle
-     * sezioni ## BRAND e ## KNOWLEDGE BASE che appaiono prima nel prompt.
+     * Costruisce la sezione "ELEMENTI DEL BRAND DISPONIBILI" più la
+     * sub-sezione "## ASSET DA NON CITARE" (semantica opposta: divieto).
      *
-     * Il pattern di ridondanza è intenzionale: il modello vede gli asset
-     * names una volta in ## BRAND e una volta qui, sotto un vincolo esplicito.
+     * Fonti propagate (tutte opzionali, presenti solo se popolate):
+     *   - Brand.description, .unique_selling_points, .style_guide,
+     *     .brand_values, .target_audience, .tone_of_voice
+     *   - Project.brief, .custom_prompt, .special_dates
+     *   - Project.competitors → sub-sezione "ASSET DA NON CITARE"
+     *
+     * Il pattern di ridondanza con ## BRAND è intenzionale: il modello vede
+     * gli asset una volta nella sezione header e una volta qui, sotto un
+     * vincolo esplicito di non-invenzione.
      */
     private function buildBrandAssetsSection(array $brandInfo, array $projectInfo): string
     {
-        $description = trim((string) ($brandInfo['description'] ?? ''));
-        $usp         = trim((string) ($brandInfo['unique_selling_points'] ?? ''));
-        $brief       = trim((string) ($projectInfo['brief'] ?? ''));
+        $description    = trim((string) ($brandInfo['description'] ?? ''));
+        $usp            = trim((string) ($brandInfo['unique_selling_points'] ?? ''));
+        $styleGuide     = trim((string) ($brandInfo['style_guide'] ?? ''));
+        $targetAudience = trim((string) ($brandInfo['target_audience'] ?? ''));
+        $toneOfVoice    = trim((string) ($brandInfo['tone_of_voice'] ?? ''));
+        $brandValues    = $this->flattenToCommaList($brandInfo['brand_values'] ?? null);
+
+        $brief         = trim((string) ($projectInfo['brief'] ?? ''));
+        $customPrompt  = trim((string) ($projectInfo['custom_prompt'] ?? ''));
+        $specialDates  = $this->formatSpecialDatesList($projectInfo['special_dates'] ?? []);
+        $competitors   = $this->flattenToCommaList($projectInfo['competitors'] ?? null);
 
         $section = "## ELEMENTI DEL BRAND DISPONIBILI (UNICA FONTE DI VERITÀ PER NOMI E DETTAGLI)\n\n"
                  . "I nomi di prodotti, corsi, libri, partner, piattaforme, eventi, location e qualsiasi altro asset specifico citabile nei post DEVONO essere SOLO quelli ricavabili dalle fonti elencate sotto. È VIETATO inventare nuovi nomi, anche se suonano plausibili.\n\n"
@@ -877,10 +890,107 @@ PROMPT;
         if ($description !== '') {
             $section .= "5. Descrizione brand (riepilogo): {$description}\n";
         }
+        if ($styleGuide !== '') {
+            $section .= "6. Style guide del brand: {$styleGuide}\n";
+        }
+        if ($brandValues !== '') {
+            $section .= "7. Valori del brand: {$brandValues}\n";
+        }
+        if ($targetAudience !== '') {
+            $section .= "8. Audience target: {$targetAudience}\n";
+        }
+        if ($toneOfVoice !== '') {
+            $section .= "9. Tono di voce: {$toneOfVoice}\n";
+        }
+        // Project.custom_prompt è la fonte primaria per liste corsi/libri/divieti
+        // dichiarati esplicitamente a livello progetto.
+        if ($customPrompt !== '') {
+            $section .= "10. Istruzioni custom del progetto: {$customPrompt}\n";
+        }
+        if ($specialDates !== '') {
+            $section .= "11. Eventi/date specifiche del progetto (FATTI VERIFICABILI, citabili come aneddoti reali):\n{$specialDates}\n";
+        }
 
         $section .= "\nREGOLA OPERATIVA: se per scrivere un post hai bisogno di citare un asset specifico (nome corso, nome libro, durata, prezzo, partner, data evento) che NON è esplicitamente presente in una delle fonti sopra, NON inventarlo, NON parafrasarlo, NON ipotizzarlo. Ometti il dato e riformula, oppure usa un costrutto generico (\"uno dei nostri corsi\", \"un recente intervento\", \"una collaborazione del settore\"). È preferibile un post privo di nomi specifici a un post con nomi inventati.\n";
 
+        // Sub-sezione "ASSET DA NON CITARE" (semantica opposta: divieto, non
+        // disponibilità). Emessa solo se ci sono competitor configurati.
+        if ($competitors !== '') {
+            $section .= "\n## ASSET DA NON CITARE\n\n"
+                      . "I seguenti competitor sono noti al brand: NON CITARLI per nome nei post. È vietato menzionarli, comparare il brand con loro esplicitamente, o usare il loro nome anche in costrutti negativi (\"a differenza di X...\", \"meglio di Y...\").\n\n"
+                      . "Competitor da NON menzionare: {$competitors}\n";
+        }
+
         return $section;
+    }
+
+    /**
+     * Appiattisce un valore (stringa, array di stringhe, array di oggetti)
+     * in una lista comma-separated. Estrae automaticamente il primo campo
+     * disponibile tra name/value/label/title quando l'elemento è un dict.
+     * Ritorna stringa vuota per input null/vuoti.
+     */
+    private function flattenToCommaList(mixed $value): string
+    {
+        if (is_string($value)) {
+            return trim($value);
+        }
+        if (! is_array($value)) {
+            return '';
+        }
+
+        $items = [];
+        foreach ($value as $entry) {
+            if (is_string($entry)) {
+                $s = trim($entry);
+                if ($s !== '') {
+                    $items[] = $s;
+                }
+                continue;
+            }
+            if (is_array($entry)) {
+                foreach (['name', 'value', 'label', 'title'] as $k) {
+                    if (isset($entry[$k]) && is_string($entry[$k]) && trim($entry[$k]) !== '') {
+                        $items[] = trim($entry[$k]);
+                        continue 2;
+                    }
+                }
+            }
+        }
+
+        return implode(', ', $items);
+    }
+
+    /**
+     * Formatta un array di special_dates come bullet list di "Data evento {date}: {description}".
+     * Accetta sia array di stringhe semplici sia array di oggetti {date, description}.
+     * Ritorna stringa vuota se input vuoto/non valido.
+     */
+    private function formatSpecialDatesList(mixed $value): string
+    {
+        if (! is_array($value) || empty($value)) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($value as $entry) {
+            if (is_string($entry) && trim($entry) !== '') {
+                $lines[] = "    - " . trim($entry);
+                continue;
+            }
+            if (is_array($entry)) {
+                $date = trim((string) ($entry['date'] ?? ''));
+                $desc = trim((string) ($entry['description'] ?? ''));
+                if ($date === '' && $desc === '') {
+                    continue;
+                }
+                $datePart = $date !== '' ? $date : '(data non specificata)';
+                $descPart = $desc !== '' ? $desc : '(senza descrizione)';
+                $lines[] = "    - Data evento {$datePart}: {$descPart}";
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**

@@ -1019,6 +1019,9 @@ TXT;
             'target_audience'       => $brand->target_audience,
             'unique_selling_points' => $brand->unique_selling_points,
             'voice_examples'        => $brand->voice_examples ?? [],
+            // Esposto per buildBrandAssetsSection (anti-invenzione): contiene
+            // spesso pattern di voce e dettagli citabili (corsi, libri, partner).
+            'style_guide'           => $brand->style_guide,
         ];
     }
 
@@ -1028,6 +1031,12 @@ TXT;
             'brief'           => $project->brief,
             'objectives'      => $project->objectives ?? [],
             'target_audience' => $project->target_audience ?? null,
+            // Campi propagati a buildBrandAssetsSection per il vincolo di
+            // aderenza al brand kit. custom_prompt è la fonte primaria per
+            // liste di corsi/libri specifici dichiarati a livello progetto.
+            'custom_prompt'   => $project->custom_prompt,
+            'special_dates'   => $project->special_dates ?? [],
+            'competitors'     => $project->competitors ?? [],
         ];
     }
 }
