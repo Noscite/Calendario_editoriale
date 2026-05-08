@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Generation\Services;
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Brand\Support\PillarNameNormalizer;
 use App\Domain\Generation\Contracts\ContentGeneratorInterface;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
@@ -305,6 +306,88 @@ TXT;
         return GenerationTracker::get($projectId) ?? [
             'status' => 'idle', 'post_count' => 0, 'percent' => 0, 'current_batch' => 0, 'total_batches' => 0,
         ];
+    }
+
+    // ── Personas evaluation (PR-WIZARD-2) ──────────────────────
+
+    /**
+     * Valuta il fit di personas storiche su un nuovo brief via Sonnet.
+     * Usato da EvaluateOrGeneratePersonasJob.
+     *
+     * @param  array<int, array{project_id: int, name: string, brief: string, personas: array, similarity: float}>  $candidates
+     * @return array{verdict: string, source_project_id: int|null, reasoning: string, confidence: float}
+     */
+    public function evaluatePersonasFit(Brand $brand, string $newBrief, array $candidates): array
+    {
+        $prompt = $this->promptBuilder->buildPersonasEvaluationPrompt($brand, $newBrief, $candidates);
+
+        try {
+            $response = $this->apiClient->call(
+                $prompt,
+                self::MAX_TOKENS_PERSONAS,
+                self::MODEL,
+                $this->systemPrompts->forPersonaAnalysis(),
+            );
+            $parsed = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
+        } catch (\Throwable $e) {
+            Log::warning("[PERSONAS-EVAL] Sonnet evaluate failed: {$e->getMessage()}");
+            return [
+                'verdict'           => 'regenerate',
+                'source_project_id' => null,
+                'reasoning'         => 'Valutazione AI non riuscita, fallback a generazione standard.',
+                'confidence'        => 0.0,
+            ];
+        }
+
+        $verdict = (string) ($parsed['verdict'] ?? 'regenerate');
+        if (! in_array($verdict, ['reuse', 'adapt', 'regenerate'], true)) {
+            $verdict = 'regenerate';
+        }
+        $sourceId = $parsed['source_project_id'] ?? null;
+        if ($sourceId !== null && ! is_int($sourceId)) {
+            $sourceId = is_numeric($sourceId) ? (int) $sourceId : null;
+        }
+        // Se verdict regenerate, ignora source_project_id
+        if ($verdict === 'regenerate') {
+            $sourceId = null;
+        }
+
+        return [
+            'verdict'           => $verdict,
+            'source_project_id' => $sourceId,
+            'reasoning'         => (string) ($parsed['reasoning'] ?? ''),
+            'confidence'        => (float) ($parsed['confidence'] ?? 0.0),
+        ];
+    }
+
+    /**
+     * Adatta personas esistenti a un nuovo brief via Sonnet ('adapt' verdict).
+     *
+     * @return array  Stessa shape di buyer_personas (personas + scheduling_strategy + ...)
+     */
+    public function adaptPersonas(Brand $brand, string $newBrief, array $sourcePersonas): array
+    {
+        $prompt = $this->promptBuilder->buildPersonasAdaptationPrompt($brand, $newBrief, $sourcePersonas);
+
+        try {
+            $response = $this->apiClient->call(
+                $prompt,
+                self::MAX_TOKENS_PERSONAS,
+                self::MODEL,
+                $this->systemPrompts->forPersonaAnalysis(),
+            );
+            $adapted = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
+            $adapted['generated_at'] = now()->toIso8601String();
+            $adapted['source']       = 'ai_adapted';
+            return $adapted;
+        } catch (\Throwable $e) {
+            Log::warning("[PERSONAS-ADAPT] Sonnet adapt failed: {$e->getMessage()}");
+            // Fallback: ritorna personas di partenza marcate come reused
+            $fallback = $sourcePersonas;
+            $fallback['generated_at'] = now()->toIso8601String();
+            $fallback['source']       = 'ai_adapt_fallback_reuse';
+            return $fallback;
+        }
     }
 
     // ── Core generation ────────────────────────────────────────
@@ -800,18 +883,10 @@ TXT;
             }
         }
 
-        $normalize = static function (string $s): string {
-            $s = (string) Str::ascii($s);                          // fold accents → ASCII
-            $s = mb_strtolower(trim($s));
-            $s = preg_replace('/[^a-z0-9\s_]+/', ' ', $s) ?? $s;   // qualunque non-alfanumerico → spazio
-            $s = preg_replace('/[\s_]+/', ' ', $s) ?? $s;          // collapse spazi+underscore
-            return trim($s);
-        };
-
-        $normalizedProposed = $normalize($proposed);
+        $normalizedProposed = PillarNameNormalizer::normalize($proposed);
         if ($normalizedProposed !== '') {
             foreach ($allowed as $a) {
-                if ($normalize((string) $a) === $normalizedProposed) {
+                if (PillarNameNormalizer::normalize((string) $a) === $normalizedProposed) {
                     return ['status' => 'normalized', 'matched_value' => (string) $a, 'original' => $original];
                 }
             }
