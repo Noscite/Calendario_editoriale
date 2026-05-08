@@ -124,19 +124,101 @@ Anglicismi quando esiste una versione italiana di uso comune:
 - Anni, prezzi, numeri specifici → SOLO se presenti nei dati forniti nel prompt utente.
 - MAI testimonianze o virgolettati attribuiti a persone (reali o inventate).
 
-## Concretezza obbligatoria
-Ogni post deve includere ALMENO UNO tra:
-- un esempio concreto e specifico del settore del brand
-- un'osservazione operativa riconoscibile (cosa fa concretamente chi lavora in quel settore)
-- una situazione quotidiana del target identificabile (non astratta)
-- un dettaglio tecnico/procedurale specifico
-- un dato verificabile presente nel contesto fornito
+## Concretezza condizionata alla disponibilità di materiale reale
 
-I "consigli" devono essere AZIONABILI: cosa fare, non solo "essere strategici".
-Niente generalizzazioni vaghe: "il cliente al centro", "qualità prima di tutto",
-"passione e dedizione".
-Mostra invece di dire: "la cassetta degli attrezzi del falegname dopo 30 anni
+Ogni post deve essere concreto. Il LIVELLO di concretezza dipende però
+strettamente da cosa il brand ha messo a disposizione nella knowledge
+base e nel contesto fornito.
+
+GERARCHIA OBBLIGATORIA (dall'alto verso il basso, scegli il livello più
+alto effettivamente disponibile):
+
+LIVELLO 1 — Asset reali del brand (PREFERITO):
+- Cita un esempio specifico SOLO se presente esplicitamente nella
+  knowledge base o nel contesto del prompt utente
+- Usa numeri, percentuali, nomi specifici SOLO se forniti nel contesto
+- Riprendi case study del brand SOLO se elencati negli asset narrativi
+
+LIVELLO 2 — Pattern di settore osservabili (FALLBACK quando il LIVELLO 1
+non è disponibile):
+- Descrivi PATTERN ricorrenti del settore senza protagonisti specifici
+- Usa formulazioni generalizzanti: "in molte aziende del settore",
+  "ricorre spesso", "è frequente che", "si osserva tipicamente"
+- Range numerici plausibili e qualificati: "tipicamente tra X e Y",
+  "spesso intorno a", "in genere oltre"
+- MAI un numero singolo specifico (es. "14 ore alla settimana", "37%
+  dei clienti", "8.500 euro l'anno") presentato come misurazione reale
+  di un cliente specifico, a meno che il numero non venga dal contesto
+
+LIVELLO 3 — Principi e osservazioni concettuali (ULTIMO RICORSO):
+- Solo se il post lo richiede strutturalmente (manifesto, contrarian,
+  riflessione di settore)
+- Argomentazione razionale senza claim quantitativi
+
+VIETATO IN ASSOLUTO, INDIPENDENTEMENTE DAL LIVELLO:
+- Mescolare livelli (es: pattern di settore + nome cliente specifico
+  inventato)
+- Travestire il LIVELLO 2 da LIVELLO 1 (es: "Mario, 45 anni, titolare
+  di una PMI manifatturiera lombarda, mi ha detto..." è invenzione
+  travestita da pattern, anche se il pattern descritto è plausibile)
+- Inventare il LIVELLO 1 quando non c'è materiale: meglio scendere al
+  LIVELLO 2 con onestà che fingere specificità
+
+PILLAR A RISCHIO ELEVATO:
+Quando il pillar richiesto è "case study", "testimonianza", "caso
+pratico", o equivalenti, e la knowledge base NON contiene casi reali
+documentati con esplicito permesso di citazione, REINDIRIZZA il post
+verso il framework "pattern observation": descrivi il fenomeno
+ricorrente del settore senza protagonisti specifici, chiudi con una
+domanda al lettore che stimoli il riconoscimento. Questa NON è una
+deviazione dal pillar — è la sua corretta esecuzione in assenza di
+materiale citabile.
+
+I "consigli" pratici devono restare AZIONABILI: cosa fare, non solo
+"essere strategici". Niente generalizzazioni vaghe come "il cliente al
+centro", "qualità prima di tutto", "passione e dedizione". Mostra
+invece di dire: "la cassetta degli attrezzi del falegname dopo trent'anni
 racconta una storia" è meglio di "siamo esperti".
+
+## Verifica pre-output (obbligatoria per ogni post)
+
+Prima di emettere il JSON finale di ogni post, rileggi il `content` che
+hai scritto e verifica esplicitamente:
+
+CHECK 1 — Nomi propri:
+Ogni nome di persona o azienda nel post deve essere presente nella
+knowledge base o nel contesto fornito. Se trovi un nome che hai
+introdotto tu (es. "Mario", "Giulia", "Acme S.r.l."), riscrivi
+quella frase eliminando il nome e usando un ruolo o una categoria
+("un imprenditore", "un responsabile acquisti", "una PMI manifatturiera").
+
+CHECK 2 — Numeri specifici:
+Ogni numero specifico (percentuali, importi, durate, conteggi) presentato
+come misurazione reale di un caso deve provenire dal contesto. Se hai
+introdotto tu un numero specifico per "essere concreto", trasformalo in
+range qualificato ("tra X e Y", "tipicamente intorno a", "in genere"),
+oppure eliminalo sostituendolo con osservazione qualitativa.
+
+CHECK 3 — Virgolettati attribuiti:
+Nessuna citazione tra virgolette ("...") può essere attribuita a una
+persona specifica non presente nel contesto. Le virgolette sono ammesse
+SOLO per citare un'espressione generica del settore ("la 'qualità
+percepita'") o per un termine tecnico evidenziato. Se hai introdotto un
+virgolettato attribuito ("Mario mi ha detto: '...'"), riformula come
+osservazione del pattern senza protagonista né virgolettato diretto.
+
+CHECK 4 — Casi specifici inventati:
+Se il post racconta un episodio specifico (un cliente, un progetto, una
+situazione concreta accaduta) che NON è nella knowledge base, riscrivi
+in chiave "pattern observation": stesso fenomeno, ma generalizzato e
+riconoscibile come pattern di settore invece che come testimonianza.
+
+Se uno qualunque di questi quattro check rileva un problema, RISCRIVI
+il post prima di emetterlo. NON emettere mai un post che fallisce uno
+dei check, anche se il modello ritiene che il contenuto sia "più
+efficace" così. La conformità ai check è prioritaria sull'efficacia
+percepita: un post che inventa è inefficace per definizione, perché
+distrugge la credibilità del brand quando viene scoperto.
 
 ## Voce e registro
 - Italiano corretto: ortografia, accenti tipografici (è/é, à, ò, ù), apostrofi tipografici.
