@@ -56,6 +56,8 @@ export default function BrandDetail() {
   // Wizard PR-1: completeness banner + toast post-wizard
   const [completeness, setCompleteness] = useState(null);
   const [wizardToast, setWizardToast] = useState(null);
+  // Wizard PR-2: toast post-wizard project
+  const [projectToast, setProjectToast] = useState(null);
 
   useEffect(() => {
     loadBrand();
@@ -76,6 +78,21 @@ export default function BrandDetail() {
         setWizardToast(data);
         sessionStorage.removeItem('kalendarium:brand-wizard-toast');
         const t = setTimeout(() => setWizardToast(null), 6000);
+        return () => clearTimeout(t);
+      }
+    } catch { /* no-op */ }
+  }, [id]);
+
+  // Wizard PR-2: toast one-shot al rientro dal wizard project
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('kalendarium:project-wizard-toast');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data && data.brandId === parseInt(id, 10)) {
+        setProjectToast(data);
+        sessionStorage.removeItem('kalendarium:project-wizard-toast');
+        const t = setTimeout(() => setProjectToast(null), 6000);
         return () => clearTimeout(t);
       }
     } catch { /* no-op */ }
@@ -223,6 +240,23 @@ export default function BrandDetail() {
           </p>
           <button
             onClick={() => setWizardToast(null)}
+            className="text-emerald-600 hover:text-emerald-800 text-lg leading-none"
+            aria-label="Chiudi notifica"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Wizard PR-2: toast post-wizard project */}
+      {projectToast && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-emerald-800 font-medium flex items-center gap-2">
+            <CheckCircle size={16} className="text-emerald-600" />
+            {projectToast.message}
+          </p>
+          <button
+            onClick={() => setProjectToast(null)}
             className="text-emerald-600 hover:text-emerald-800 text-lg leading-none"
             aria-label="Chiudi notifica"
           >
