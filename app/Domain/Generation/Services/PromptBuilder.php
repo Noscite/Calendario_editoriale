@@ -846,6 +846,211 @@ PROMPT;
     }
 
     /**
+     * Costruisce la sezione "ELEMENTI DEL BRAND DISPONIBILI" più la
+     * sub-sezione "## ASSET DA NON CITARE" (semantica opposta: divieto).
+     *
+     * Fonti propagate (tutte opzionali, presenti solo se popolate):
+     *   - Brand.description, .unique_selling_points, .style_guide,
+     *     .brand_values, .target_audience, .tone_of_voice
+     *   - Project.brief, .custom_prompt, .special_dates
+     *   - Project.competitors → sub-sezione "ASSET DA NON CITARE"
+     *
+     * Il pattern di ridondanza con ## BRAND è intenzionale: il modello vede
+     * gli asset una volta nella sezione header e una volta qui, sotto un
+     * vincolo esplicito di non-invenzione.
+     */
+    private function buildBrandAssetsSection(array $brandInfo, array $projectInfo): string
+    {
+        $description    = trim((string) ($brandInfo['description'] ?? ''));
+        $usp            = trim((string) ($brandInfo['unique_selling_points'] ?? ''));
+        $styleGuide     = trim((string) ($brandInfo['style_guide'] ?? ''));
+        $targetAudience = trim((string) ($brandInfo['target_audience'] ?? ''));
+        $toneOfVoice    = trim((string) ($brandInfo['tone_of_voice'] ?? ''));
+        $brandValues    = $this->flattenToCommaList($brandInfo['brand_values'] ?? null);
+
+        $brief         = trim((string) ($projectInfo['brief'] ?? ''));
+        $customPrompt  = trim((string) ($projectInfo['custom_prompt'] ?? ''));
+        $specialDates  = $this->formatSpecialDatesList($projectInfo['special_dates'] ?? []);
+        $competitors   = $this->flattenToCommaList($projectInfo['competitors'] ?? null);
+
+        $section = "## ELEMENTI DEL BRAND DISPONIBILI (UNICA FONTE DI VERITÀ PER NOMI E DETTAGLI)\n\n"
+                 . "I nomi di prodotti, corsi, libri, partner, piattaforme, eventi, location e qualsiasi altro asset specifico citabile nei post DEVONO essere SOLO quelli ricavabili dalle fonti elencate sotto. È VIETATO inventare nuovi nomi, anche se suonano plausibili.\n\n"
+                 . "Fonti consultabili per gli asset (in ordine di priorità):\n"
+                 . "1. Sezione ## BRAND sopra (descrizione, valori, tono di voce)\n"
+                 . "2. Sezione ## KNOWLEDGE BASE sopra (documenti caricati dal brand)\n";
+
+        if ($usp !== '') {
+            $section .= "3. Unique selling points: {$usp}\n";
+        }
+        if ($brief !== '') {
+            $section .= "4. Brief del progetto: {$brief}\n";
+        }
+        // La descrizione viene già esposta in ## BRAND, ma la riponiamo qui
+        // come refresher dedicato al modello al momento della pianificazione.
+        if ($description !== '') {
+            $section .= "5. Descrizione brand (riepilogo): {$description}\n";
+        }
+        if ($styleGuide !== '') {
+            $section .= "6. Style guide del brand: {$styleGuide}\n";
+        }
+        if ($brandValues !== '') {
+            $section .= "7. Valori del brand: {$brandValues}\n";
+        }
+        if ($targetAudience !== '') {
+            $section .= "8. Audience target: {$targetAudience}\n";
+        }
+        if ($toneOfVoice !== '') {
+            $section .= "9. Tono di voce: {$toneOfVoice}\n";
+        }
+        // Project.custom_prompt è la fonte primaria per liste corsi/libri/divieti
+        // dichiarati esplicitamente a livello progetto.
+        if ($customPrompt !== '') {
+            $section .= "10. Istruzioni custom del progetto: {$customPrompt}\n";
+        }
+        if ($specialDates !== '') {
+            $section .= "11. Eventi/date specifiche del progetto (FATTI VERIFICABILI, citabili come aneddoti reali):\n{$specialDates}\n";
+        }
+
+        $section .= "\nREGOLA OPERATIVA: se per scrivere un post hai bisogno di citare un asset specifico (nome corso, nome libro, durata, prezzo, partner, data evento) che NON è esplicitamente presente in una delle fonti sopra, NON inventarlo, NON parafrasarlo, NON ipotizzarlo. Ometti il dato e riformula, oppure usa un costrutto generico (\"uno dei nostri corsi\", \"un recente intervento\", \"una collaborazione del settore\"). È preferibile un post privo di nomi specifici a un post con nomi inventati.\n";
+
+        // Sub-sezione "ASSET DA NON CITARE" (semantica opposta: divieto, non
+        // disponibilità). Emessa solo se ci sono competitor configurati.
+        if ($competitors !== '') {
+            $section .= "\n## ASSET DA NON CITARE\n\n"
+                      . "I seguenti competitor sono noti al brand: NON CITARLI per nome nei post. È vietato menzionarli, comparare il brand con loro esplicitamente, o usare il loro nome anche in costrutti negativi (\"a differenza di X...\", \"meglio di Y...\").\n\n"
+                      . "Competitor da NON menzionare: {$competitors}\n";
+        }
+
+        return $section;
+    }
+
+    /**
+     * Appiattisce un valore (stringa, array di stringhe, array di oggetti)
+     * in una lista comma-separated. Estrae automaticamente il primo campo
+     * disponibile tra name/value/label/title quando l'elemento è un dict.
+     * Ritorna stringa vuota per input null/vuoti.
+     */
+    private function flattenToCommaList(mixed $value): string
+    {
+        if (is_string($value)) {
+            return trim($value);
+        }
+        if (! is_array($value)) {
+            return '';
+        }
+
+        $items = [];
+        foreach ($value as $entry) {
+            if (is_string($entry)) {
+                $s = trim($entry);
+                if ($s !== '') {
+                    $items[] = $s;
+                }
+                continue;
+            }
+            if (is_array($entry)) {
+                foreach (['name', 'value', 'label', 'title'] as $k) {
+                    if (isset($entry[$k]) && is_string($entry[$k]) && trim($entry[$k]) !== '') {
+                        $items[] = trim($entry[$k]);
+                        continue 2;
+                    }
+                }
+            }
+        }
+
+        return implode(', ', $items);
+    }
+
+    /**
+     * Formatta un array di special_dates come bullet list di "Data evento {date}: {description}".
+     * Accetta sia array di stringhe semplici sia array di oggetti {date, description}.
+     * Ritorna stringa vuota se input vuoto/non valido.
+     */
+    private function formatSpecialDatesList(mixed $value): string
+    {
+        if (! is_array($value) || empty($value)) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($value as $entry) {
+            if (is_string($entry) && trim($entry) !== '') {
+                $lines[] = "    - " . trim($entry);
+                continue;
+            }
+            if (is_array($entry)) {
+                $date = trim((string) ($entry['date'] ?? ''));
+                $desc = trim((string) ($entry['description'] ?? ''));
+                if ($date === '' && $desc === '') {
+                    continue;
+                }
+                $datePart = $date !== '' ? $date : '(data non specificata)';
+                $descPart = $desc !== '' ? $desc : '(senza descrizione)';
+                $lines[] = "    - Data evento {$datePart}: {$descPart}";
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Sezione "VINCOLI ANTI-INVENZIONE" con i 3 vincoli (brand kit, aneddoti,
+     * statistiche). Non parametrica: il contenuto è uguale per tutti i brand,
+     * la specificità degli asset è già nella sezione precedente.
+     *
+     * Stile testuale denso: ogni vincolo ha la sua regola positiva e i suoi
+     * controesempi concreti, per ridurre il margine di interpretazione.
+     */
+    private function buildAntiInventionSection(): string
+    {
+        return <<<'TXT'
+## VINCOLI ANTI-INVENZIONE (priorità assoluta — sopra ogni altra istruzione di stile)
+
+VINCOLO 1 — Aderenza assoluta al brand kit:
+I nomi dei prodotti, corsi, libri, partner, piattaforme, eventi citati nei post DEVONO essere SOLO quelli ricavabili dalla sezione "ELEMENTI DEL BRAND DISPONIBILI" sopra. È vietato inventare nomi nuovi, anche se suonano plausibili. Se il brand kit elenca 5 corsi, puoi citare solo quei 5 e non un sesto. Se non hai la durata di un corso, NON la inventi: ometti il dato. Se nominare un corso/libro/prodotto non è strettamente necessario per il post, evitalo del tutto invece di inventare.
+
+VINCOLO 2 — Niente aneddoti specifici inventati:
+Vietato aprire post (o includere costrutti) del tipo:
+- "Ieri / Settimana scorsa / Stamattina, X mi ha detto/chiesto/raccontato Y"
+- "Un imprenditore / Un cliente / Un'azienda mi ha detto..."
+- Citazioni dirette tra virgolette di persone non specificate ("Mario mi ha detto: '...'")
+
+ECCEZIONE: se il brief o la KNOWLEDGE BASE contiene aneddoti specifici verificabili (es. "Stefano ha tenuto un workshop alla XYZ Spa il 12 marzo"), allora puoi citare quei fatti specifici. Altrimenti usa costrutti onesti che esprimono esperienza senza inventare l'aneddoto:
+- "Una domanda ricorrente nei workshop"
+- "Lavorando con PMI italiane si nota che..."
+- "Una preoccupazione che emerge spesso..."
+- "Capita di sentirsi chiedere..."
+
+VINCOLO 3 — Niente statistiche numeriche inventate:
+Vietato citare percentuali, ratio, numeri di aziende, durate di studi senza che il dato venga da un input verificabile (brand kit, brief, KNOWLEDGE BASE, dati pubblici noti). Sostituire con costrutti qualitativi:
+- "Una riduzione misurabile" invece di "il 23%"
+- "Un incremento significativo" invece di "+34%"
+- "Una quota rilevante" invece di "l'89%"
+- "Diverse aziende" invece di "7 PMI"
+
+ECCEZIONE COMPLIANCE NORMATIVA: numeri e date normativi (date AI Act, percentuali sanzioni del Regolamento UE 2024/1689, ecc.) DEVONO essere precisi e citare la fonte. Se non sei certo del numero esatto, NON lo citi: usa la fonte normativa generica ("le sanzioni previste dal Regolamento UE 2024/1689") senza specificare la percentuale.
+TXT;
+    }
+
+    /**
+     * Versione condensata dei 3 vincoli anti-invenzione, da iniettare come
+     * REMINDER finale nel copy prompt (Sonnet) prima della generazione del
+     * testo, per controbilanciare la deriva tipica del modello in fase
+     * di scrittura. Mantiene gli stessi divieti ma è più breve della
+     * versione strategy per non gonfiare il prompt cached.
+     */
+    private function buildAntiInventionReminder(): string
+    {
+        return <<<'TXT'
+## REMINDER ANTI-INVENZIONE (priorità assoluta)
+
+1. NOMI BRAND: cita SOLO prodotti/corsi/libri/partner presenti negli input (## BRAND, ## KNOWLEDGE BASE, brief). Vietato inventare nomi nuovi anche se plausibili. Se serve un dato che non hai, omettilo o usa costrutti generici.
+2. ANEDDOTI: vietato "Ieri/Settimana scorsa X mi ha detto Y", citazioni virgolettate di persone non specificate. Usa "Una domanda ricorrente", "Capita di sentirsi chiedere", "Lavorando con PMI italiane si nota che...". Eccezione: aneddoti documentati nel brief/KB.
+3. STATISTICHE: vietato percentuali/ratio/numeri non documentati. Usa "una riduzione misurabile", "un incremento significativo", "una quota rilevante". Eccezione compliance: cita Regolamento UE 2024/1689 generico se non hai il numero esatto.
+TXT;
+    }
+
+    /**
      * STRATEGY prompt — passato a Opus 4.7 in 1 sola chiamata.
      * Output atteso: JSON con editorial_narrative + pillar_distribution + posts[].
      */
@@ -888,6 +1093,13 @@ PROMPT;
             $platforms
         );
 
+        // Vincoli anti-invenzione (additivi, non rimpiazzano alcuna sezione
+        // esistente). Vengono iniettati DOPO ## PROGETTO e PRIMA di
+        // ## IL TUO COMPITO, in modo da essere freschi quando il modello
+        // inizia a comporre il piano.
+        $brandAssetsSection   = $this->buildBrandAssetsSection($brandInfo, $projectInfo);
+        $antiInventionSection = $this->buildAntiInventionSection();
+
         return <<<PROMPT
 Pianifica il calendario editoriale per questo periodo. NON scrivere ancora il copy dei post — quello è uno step successivo. Ora devi solo definire la STRATEGIA.
 
@@ -920,6 +1132,9 @@ Post per settimana: {$postsPerWeekJson}
 {$pillarsLabel}: {$themesList}
 Brief: {$this->arr($projectInfo, 'brief', 'N/A')}
 Obiettivi: {$objectivesList}
+
+{$brandAssetsSection}
+{$antiInventionSection}
 
 ## IL TUO COMPITO
 Produci un PIANO STRATEGICO completo per il periodo. Il piano sarà la base
@@ -1003,7 +1218,8 @@ PROMPT;
         $staticStrategy = "## STRATEGY PLAN (già approvato — rispetta angle/pillar/hook/cta_goal di ogni post)\n"
                         . "{$strategyJson}\n";
 
-        $batchPostsJson = json_encode($batchPosts, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $batchPostsJson    = json_encode($batchPosts, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $antiInventionTldr = $this->buildAntiInventionReminder();
         $dynamic = "## BATCH {$batchNum}/{$totalBatches}\n"
                  . "Scrivi il copy finale SOLO per questi post (estratti dal piano strategico sopra):\n\n"
                  . "{$batchPostsJson}\n\n"
@@ -1012,6 +1228,7 @@ PROMPT;
                  . "NON ridiscutere angle/pillar/hook_type — sono già decisi nel piano. Tu li ESEGUI nel copy.\n"
                  . "Mantieni date, time, platform, content_type esattamente come nel piano.\n"
                  . "Rispetta tutte le regole dal system prompt (anti-slop, anti-allucinazione, vincoli deontologici).\n\n"
+                 . "{$antiInventionTldr}\n\n"
                  . "## OUTPUT (JSON array)\n"
                  . "[\n"
                  . "  {\n"

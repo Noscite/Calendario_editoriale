@@ -166,6 +166,11 @@ final class GenerateCalendarJob implements ShouldQueue
             'custom_prompt'   => $project->custom_prompt,
             'objectives'      => $project->objectives ?? [],
             'history_context' => $this->historyContext,
+            // Propagati per buildBrandAssetsSection (anti-invenzione):
+            // special_dates → fonte di aneddoti reali citabili
+            // competitors  → sotto-sezione "ASSET DA NON CITARE"
+            'special_dates'   => $project->special_dates ?? [],
+            'competitors'     => $project->competitors ?? [],
         ];
 
         $themes = $project->content_pillars ?? $project->themes ?? [];
