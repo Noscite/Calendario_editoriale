@@ -89,21 +89,36 @@ TXT;
             projectId:    $project->id,
         );
 
-        $created = new Collection();
+        $created   = new Collection();
+        $gitCommit = $this->getCurrentGitCommit();
         foreach ($posts as $raw) {
+            $metadata = [
+                'generated_at'             => now()->toIso8601String(),
+                'git_commit'               => $gitCommit,
+                'strategy_angle'           => $raw['_strategy']['angle'] ?? null,
+                'strategy_hook_type'       => $raw['_strategy']['hook_type'] ?? null,
+                'strategy_persona_target'  => $raw['_strategy']['persona_target'] ?? null,
+                'strategy_cta_goal'        => $raw['_strategy']['cta_goal'] ?? null,
+                'tokens_strategy'          => $raw['_tokens']['strategy'] ?? null,
+                'tokens_copy'              => $raw['_tokens']['copy'] ?? null,
+                'model_strategy'           => self::MODEL_OPUS,
+                'model_copy'               => self::MODEL,
+            ];
+
             $created->push(Post::create([
-                'project_id'        => $project->id,
-                'platform'          => $raw['platform'] ?? '',
-                'scheduled_date'    => $raw['scheduled_date'] ?? null,
-                'scheduled_time'    => $raw['scheduled_time'] ?? null,
-                'content'           => $raw['content'] ?? '',
-                'hashtags'          => $raw['hashtags'] ?? [],
-                'content_type'      => $raw['content_type'] ?? 'post',
-                'post_type'         => $raw['post_type'] ?? 'educational',
-                'pillar'            => $raw['pillar'] ?? null,
-                'visual_suggestion' => $raw['visual_suggestion'] ?? null,
-                'call_to_action'    => $raw['call_to_action'] ?? $raw['cta'] ?? null,
-                'status'            => 'draft',
+                'project_id'          => $project->id,
+                'platform'            => $raw['platform'] ?? '',
+                'scheduled_date'      => $raw['scheduled_date'] ?? null,
+                'scheduled_time'      => $raw['scheduled_time'] ?? null,
+                'content'             => $raw['content'] ?? '',
+                'hashtags'            => $raw['hashtags'] ?? [],
+                'content_type'        => $raw['content_type'] ?? 'post',
+                'post_type'           => $raw['post_type'] ?? 'educational',
+                'pillar'              => $raw['pillar'] ?? null,
+                'visual_suggestion'   => $raw['visual_suggestion'] ?? null,
+                'call_to_action'      => $raw['call_to_action'] ?? $raw['cta'] ?? null,
+                'status'              => 'draft',
+                'generation_metadata' => $metadata,
             ]));
         }
 
@@ -567,6 +582,18 @@ TXT;
                 $strategyPlan, $batchPosts, $batchNum + 1, $batches,
             );
 
+            // Inietta metadata di provenienza per ciascun post:
+            //  - _strategy: angle/hook_type/persona_target/cta_goal dal piano
+            //  - _tokens.strategy: quota proporzionale dei token Opus
+            //  - _tokens.copy: quota proporzionale dei token Sonnet del batch
+            $posts = $this->attachGenerationMetadata(
+                $posts,
+                $batchPosts,
+                strategyTokensTotal: $strategyTokens,
+                strategyPostsTotal: max(1, count($strategyPlan['posts'] ?? [])),
+                batchTokens: $batchTokens,
+            );
+
             array_push($allPosts, ...$posts);
             $totalTokensUsed += $batchTokens;
         }
@@ -706,6 +733,79 @@ TXT;
             }
         }
         return implode("\n\n", $contents);
+    }
+
+    /**
+     * Attacca a ciascun post di output dal copy batch i metadati di
+     * provenienza presi dallo strategy plan e una quota di token.
+     *
+     * Match strategia → output per chiave (scheduled_date + platform);
+     * se mancano (o si verifica conflitto), fallback all'ordine d'indice.
+     *
+     * @param  list<array<string, mixed>>  $posts
+     * @param  list<array<string, mixed>>  $batchStrategyPosts
+     * @return list<array<string, mixed>>
+     */
+    private function attachGenerationMetadata(
+        array $posts,
+        array $batchStrategyPosts,
+        int $strategyTokensTotal,
+        int $strategyPostsTotal,
+        int $batchTokens,
+    ): array {
+        // Costruisci indice strategy: scheduled_date|platform → entry
+        $byKey = [];
+        foreach ($batchStrategyPosts as $sp) {
+            $date = $sp['scheduled_date'] ?? null;
+            $plat = $sp['platform'] ?? null;
+            if ($date && $plat) {
+                $byKey["{$date}|{$plat}"] = $sp;
+            }
+        }
+
+        $copyShare     = count($posts) > 0 ? (int) round($batchTokens / count($posts)) : 0;
+        $strategyShare = $strategyPostsTotal > 0
+            ? (int) round($strategyTokensTotal / $strategyPostsTotal)
+            : 0;
+
+        $out = [];
+        foreach ($posts as $i => $raw) {
+            $key      = ($raw['scheduled_date'] ?? '') . '|' . ($raw['platform'] ?? '');
+            $strategy = $byKey[$key] ?? ($batchStrategyPosts[$i] ?? null);
+
+            if (is_array($strategy)) {
+                $raw['_strategy'] = [
+                    'angle'          => $strategy['angle']          ?? null,
+                    'hook_type'      => $strategy['hook_type']      ?? null,
+                    'persona_target' => $strategy['persona_target'] ?? null,
+                    'cta_goal'       => $strategy['cta_goal']       ?? null,
+                ];
+            }
+
+            $raw['_tokens'] = [
+                'strategy' => $strategyShare,
+                'copy'     => $copyShare,
+            ];
+
+            $out[] = $raw;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Ritorna il commit hash corto del repo, o 'unknown' se non recuperabile.
+     * Usato per tracciare quale versione del prompt era attiva al momento
+     * della generazione di un post.
+     */
+    private function getCurrentGitCommit(): string
+    {
+        try {
+            $hash = trim((string) shell_exec('cd ' . escapeshellarg(base_path()) . ' && git rev-parse --short HEAD 2>/dev/null'));
+            return $hash !== '' ? $hash : 'unknown';
+        } catch (\Throwable $e) {
+            return 'unknown';
+        }
     }
 
     private function logTokenUsage(int $organizationId, int $tokens, string $operation): void
