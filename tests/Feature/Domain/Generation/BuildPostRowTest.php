@@ -162,4 +162,123 @@ describe('ClaudeContentGenerator::buildPostRow', function () {
 
         Log::shouldNotHaveReceived('warning');
     });
+
+    // ── Pillar coercion (matchPillar) ───────────────────────────────
+
+    it('pillar exact match → status exact, niente coercion né log', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand   = createBrand($org);
+        $project = createProject($brand, [
+            'content_pillars' => ['Frontiera tecnica', 'Pattern operativi'],
+        ]);
+
+        Log::spy();
+
+        $gen = app(ClaudeContentGenerator::class);
+        $row = $gen->buildPostRow(
+            raw: ['platform' => 'instagram', 'pillar' => 'Pattern operativi'],
+            projectId: $project->id,
+            organizationId: $org->id,
+            projectContentPillars: $project->content_pillars,
+            forBulkInsert: false,
+        );
+
+        expect($row['pillar'])->toBe('Pattern operativi')
+            ->and($row['generation_metadata']['pillar_normalized_from'])->toBeNull()
+            ->and($row['generation_metadata']['pillar_invented'])->toBeNull();
+
+        Log::shouldNotHaveReceived('warning');
+        Log::shouldNotHaveReceived('info');
+    });
+
+    it('pillar case mismatch → status normalized, coerced al casing canonico, log INFO', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand   = createBrand($org);
+        $project = createProject($brand, [
+            'content_pillars' => ['Frontiera tecnica', 'Pattern operativi', 'Posizione contrarian'],
+        ]);
+
+        Log::spy();
+
+        $gen = app(ClaudeContentGenerator::class);
+        $row = $gen->buildPostRow(
+            raw: ['platform' => 'instagram', 'pillar' => 'frontiera tecnica'],
+            projectId: $project->id,
+            organizationId: $org->id,
+            projectContentPillars: $project->content_pillars,
+            forBulkInsert: false,
+        );
+
+        // Coerce al casing canonico
+        expect($row['pillar'])->toBe('Frontiera tecnica')
+            ->and($row['generation_metadata']['pillar_normalized_from'])->toBe('frontiera tecnica')
+            ->and($row['generation_metadata']['pillar_invented'])->toBeNull();
+
+        Log::shouldHaveReceived('info')
+            ->once()
+            ->withArgs(function (string $msg, array $ctx): bool {
+                return str_contains($msg, 'Pillar normalizzato')
+                    && $ctx['pillar_original']  === 'frontiera tecnica'
+                    && $ctx['pillar_canonical'] === 'Frontiera tecnica';
+            });
+        Log::shouldNotHaveReceived('warning');
+    });
+
+    it('pillar slug mismatch → status normalized (anche con accenti diversi)', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand   = createBrand($org);
+        $project = createProject($brand, [
+            'content_pillars' => ['Conformità AI Act', 'Mappatura percorso'],
+        ]);
+
+        Log::spy();
+
+        $gen = app(ClaudeContentGenerator::class);
+        $row = $gen->buildPostRow(
+            raw: ['platform' => 'linkedin', 'pillar' => 'conformita_ai_act'],
+            projectId: $project->id,
+            organizationId: $org->id,
+            projectContentPillars: $project->content_pillars,
+            forBulkInsert: false,
+        );
+
+        expect($row['pillar'])->toBe('Conformità AI Act')
+            ->and($row['generation_metadata']['pillar_normalized_from'])->toBe('conformita_ai_act')
+            ->and($row['generation_metadata']['pillar_invented'])->toBeNull();
+
+        Log::shouldHaveReceived('info')->once();
+        Log::shouldNotHaveReceived('warning');
+    });
+
+    it('pillar inventato → status invented, valore mantenuto, log WARNING e tracciato in metadata', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand   = createBrand($org);
+        $project = createProject($brand, [
+            'content_pillars' => ['Frontiera tecnica', 'Pattern operativi', 'Posizione contrarian'],
+        ]);
+
+        Log::spy();
+
+        $gen = app(ClaudeContentGenerator::class);
+        $row = $gen->buildPostRow(
+            raw: ['platform' => 'instagram', 'pillar' => 'thought leadership'],
+            projectId: $project->id,
+            organizationId: $org->id,
+            projectContentPillars: $project->content_pillars,
+            forBulkInsert: false,
+        );
+
+        // Mantieni il valore inventato (debt visibile, no fallback aggressivo)
+        expect($row['pillar'])->toBe('thought leadership')
+            ->and($row['generation_metadata']['pillar_normalized_from'])->toBeNull()
+            ->and($row['generation_metadata']['pillar_invented'])->toBe('thought leadership');
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $msg, array $ctx) use ($project): bool {
+                return str_contains($msg, 'Pillar fuori da content_pillars')
+                    && $ctx['project_id']      === $project->id
+                    && $ctx['pillar_proposed'] === 'thought leadership';
+            });
+    });
 });

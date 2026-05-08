@@ -53,6 +53,13 @@ final class PromptBuilder
         $platformsList    = implode(', ', $platforms);
         $postsPerWeekJson = json_encode($postsPerWeek, JSON_UNESCAPED_UNICODE);
         $themesList       = !empty($themes) ? implode(', ', $themes) : 'Generici per il settore';
+        // Quando ci sono pillar configurati, etichettiamo la sezione come
+        // "PILLAR DISPONIBILI" con vincolo di matching letterale (no
+        // parafrasi/traduzione/slug). Se assenti, fallback al label storico
+        // "Temi" per non rompere progetti senza content_pillars.
+        $pillarsLabel = !empty($themes)
+            ? 'PILLAR DISPONIBILI (USA ESATTAMENTE UNO DI QUESTI VALORI per il campo "pillar", senza parafrasi, traduzione o slug)'
+            : 'Temi';
         $objectivesList   = implode(', ', $projectInfo['objectives'] ?? ['brand_awareness']);
         $objectives       = $projectInfo['objectives'] ?? ['brand_awareness'];
 
@@ -120,7 +127,7 @@ Per ogni post, considera quale persona stai indirizzando e adatta:
 Periodo: {$startDate->toDateString()} - {$endDate->toDateString()}
 Piattaforme: {$platformsList}
 Post per settimana: {$postsPerWeekJson}
-Temi: {$themesList}
+{$pillarsLabel}: {$themesList}
 Brief: {$this->arr($projectInfo, 'brief', 'N/A')}
 Obiettivi: {$objectivesList}
 
@@ -191,7 +198,7 @@ cosa troverà l'utente.
     "hashtags": ["hashtag1", "hashtag2"],
     "content_type": "post",
     "post_type": "educational",
-    "pillar": "thought leadership",
+    "pillar": "<uno dei pillar disponibili>",
     "visual_suggestion": "Carousel con 5 slide infografiche",
     "call_to_action": "Testo della CTA"
   }
@@ -597,7 +604,7 @@ Componilo seguendo questi blocchi nell'ordine:
 Esempio per settore food, pillar lifestyle, instagram post:
 "Close-up of a freshly baked focaccia on a rustic wooden board, golden crust glistening with olive oil and rosemary sprigs scattered around, warm natural daylight streaming from the left, shallow depth of field with soft bokeh background, terracotta and warm earth color palette with hints of green from herbs, professional food photography, high detail, sharp focus, no text, no letters or numbers, no logos or watermarks."
 
-Esempio per settore consulenza B2B, pillar thought leadership, linkedin:
+Esempio per settore consulenza B2B, linkedin:
 "Modern minimalist office desk with an open notebook, a fountain pen, and a steaming espresso cup arranged on a clean walnut wood surface, soft directional window light from the right creating subtle shadows, horizontal landscape composition with subject offset to the left third, muted neutral palette with deep teal accents, editorial photography style, professional, sober, sharp focus, high detail, no text, no letters or numbers, no logos or watermarks, no human faces."
 
 ## OUTPUT
@@ -859,6 +866,14 @@ PROMPT;
         $totalDays        = $startDate->diffInDays($endDate) + 1;
         $platformsList    = implode(', ', $platforms);
         $themesList       = !empty($themes) ? implode(', ', $themes) : 'Generici per il settore';
+        // Stesso pattern del legacy batch: label condizionato a se ci sono
+        // pillar configurati (additivo, no breaking).
+        $pillarsLabel = !empty($themes)
+            ? 'PILLAR DISPONIBILI (USA ESATTAMENTE UNO DI QUESTI VALORI per il campo "pillar", senza parafrasi, traduzione o slug)'
+            : 'Temi';
+        $pillarConstraintBullet = !empty($themes)
+            ? "\n- Il valore del campo \"pillar\" di OGNI post DEVE essere uno dei valori elencati nella sezione PILLAR DISPONIBILI sopra, copiato letteralmente. NON parafrasare, tradurre, abbreviare, trasformare in slug."
+            : '';
         $objectivesList   = implode(', ', $projectInfo['objectives'] ?? ['brand_awareness']);
         $postsPerWeekJson = json_encode($postsPerWeek, JSON_UNESCAPED_UNICODE);
 
@@ -902,7 +917,7 @@ Valori: {$this->arrJson($brandInfo, 'brand_values', '[]')}
 Periodo: {$startDate->toDateString()} → {$endDate->toDateString()} ({$totalDays} giorni)
 Piattaforme: {$platformsList}
 Post per settimana: {$postsPerWeekJson}
-Temi: {$themesList}
+{$pillarsLabel}: {$themesList}
 Brief: {$this->arr($projectInfo, 'brief', 'N/A')}
 Obiettivi: {$objectivesList}
 
@@ -927,7 +942,7 @@ Vincoli sull'angle:
 Vincoli su pillar_distribution:
 - Almeno 3 pillar diversi
 - Nessun pillar oltre il 50% del totale
-- Coerente con gli obiettivi del progetto
+- Coerente con gli obiettivi del progetto{$pillarConstraintBullet}
 
 ## OUTPUT (JSON valido — niente markdown, niente preambolo)
 {
