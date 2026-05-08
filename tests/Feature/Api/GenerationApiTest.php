@@ -115,11 +115,11 @@ describe('POST /api/generate/calendar/{project_id}', function () {
         Bus::assertDispatched(GenerateCalendarJob::class);
     });
 
-    it('blocks generation with 422 when brand api keys are missing', function () {
+    it('starts calendar generation even when brand has no AI keys (env-served)', function () {
         Bus::fake([GenerateCalendarJob::class]);
 
         [$user, $org] = createAuthenticatedUser();
-        $brand = createBrand($org); // no api keys set
+        $brand = createBrand($org); // nessuna chiave configurata
         $project = createProject($brand, [
             'buyer_personas' => ['personas' => [['name' => 'P1']], 'confirmed' => true],
         ]);
@@ -127,23 +127,20 @@ describe('POST /api/generate/calendar/{project_id}', function () {
         $response = $this->actingAs($user)
             ->postJson("/api/generate/calendar/{$project->id}");
 
-        $response->assertStatus(422)
-            ->assertJsonFragment(['status' => 'missing_api_keys'])
-            ->assertJsonStructure(['missing_keys', 'brand_id', 'brand_name', 'message']);
+        $response->assertOk()
+            ->assertJsonFragment(['status' => 'generating']);
 
         $project->refresh();
-        expect($project->status->value)->toBe('draft'); // non passa a generating
+        expect($project->status->value)->toBe('generating');
 
-        Bus::assertNotDispatched(GenerateCalendarJob::class);
+        Bus::assertDispatched(GenerateCalendarJob::class);
     });
 });
 
 describe('GET /api/generate/preflight/{project_id}', function () {
-    it('returns can_generate=true when all required keys are present', function () {
+    it('returns can_generate=true regardless of brand AI keys (env-served)', function () {
         [$user, $org] = createAuthenticatedUser();
-        $brand = createBrand($org);
-        \App\Domain\Brand\Models\BrandApiKey::create(['brand_id' => $brand->id, 'key_name' => 'anthropic_api_key', 'encrypted_value' => 'sk-test']);
-        \App\Domain\Brand\Models\BrandApiKey::create(['brand_id' => $brand->id, 'key_name' => 'perplexity_api_key', 'encrypted_value' => 'pplx-test']);
+        $brand = createBrand($org); // nessuna chiave configurata
         $project = createProject($brand);
 
         $response = $this->actingAs($user)
@@ -154,19 +151,23 @@ describe('GET /api/generate/preflight/{project_id}', function () {
         expect($response->json('missing_keys'))->toBe([]);
     });
 
-    it('returns can_generate=false with missing keys list', function () {
+    it('returns can_generate=false only when project has no brand', function () {
         [$user, $org] = createAuthenticatedUser();
-        $brand = createBrand($org); // no keys
+
+        // Lo schema DB ha projects.brand_id NOT NULL: per testare il caso
+        // "no_brand" sfruttiamo Brand SoftDeletes. Dopo soft-delete, l'eager
+        // load $project->brand ritorna null (global scope di SoftDeletes),
+        // riproducendo esattamente la condizione di branching del controller.
+        $brand   = createBrand($org);
         $project = createProject($brand);
+        $brand->delete(); // soft delete
 
         $response = $this->actingAs($user)
             ->getJson("/api/generate/preflight/{$project->id}");
 
         $response->assertOk()
             ->assertJsonFragment(['can_generate' => false])
-            ->assertJsonFragment(['reason' => 'missing_api_keys']);
-        expect($response->json('missing_keys'))->toHaveKey('anthropic_api_key');
-        expect($response->json('missing_keys'))->toHaveKey('perplexity_api_key');
+            ->assertJsonFragment(['reason' => 'no_brand']);
     });
 });
 

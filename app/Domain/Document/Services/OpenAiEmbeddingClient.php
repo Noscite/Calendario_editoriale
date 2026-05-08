@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Document\Services;
 
 use App\Domain\Brand\Models\Brand;
-use App\Domain\Brand\Services\BrandApiKeyService;
 use App\Domain\Document\Contracts\OpenAiEmbeddingClientInterface;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -31,18 +30,12 @@ final class OpenAiEmbeddingClient implements OpenAiEmbeddingClientInterface
         $this->apiKey = (string) config('services.openai.api_key', '');
     }
 
+    /**
+     * No-op: le chiavi AI sono sempre lette da .env (config/services.openai.api_key).
+     * Il parametro $brand è ignorato. Mantenuto per retrocompatibilità coi caller.
+     */
     public function withBrand(?Brand $brand): static
     {
-        if ($brand) {
-            $key = app(BrandApiKeyService::class)->getWithSuperAdminFallback(
-                $brand,
-                BrandApiKeyService::OPENAI_API_KEY,
-                'services.openai.api_key'
-            );
-            $clone         = clone $this;
-            $clone->apiKey = $key;
-            return $clone;
-        }
         return $this;
     }
 

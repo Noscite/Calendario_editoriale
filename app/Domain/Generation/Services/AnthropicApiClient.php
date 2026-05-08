@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Generation\Services;
 
 use App\Domain\Brand\Models\Brand;
-use App\Domain\Brand\Services\BrandApiKeyService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -41,18 +40,12 @@ TXT;
         $this->requestsPerMinute = (int) config('services.anthropic.requests_per_minute', 50);
     }
 
+    /**
+     * No-op: le chiavi AI sono sempre lette da .env (config/services.anthropic.api_key).
+     * Il parametro $brand è ignorato. Mantenuto per retrocompatibilità coi caller.
+     */
     public function withBrand(?Brand $brand): static
     {
-        if ($brand) {
-            $key = app(BrandApiKeyService::class)->getWithSuperAdminFallback(
-                $brand,
-                BrandApiKeyService::ANTHROPIC_API_KEY,
-                'services.anthropic.api_key'
-            );
-            $clone         = clone $this;
-            $clone->apiKey = $key;
-            return $clone;
-        }
         return $this;
     }
 

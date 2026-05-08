@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Generation\Services;
 
 use App\Domain\Brand\Models\Brand;
-use App\Domain\Brand\Services\BrandApiKeyService;
 use App\Domain\Generation\Contracts\TrendResearcherInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -36,22 +35,11 @@ final class PerplexityTrendResearcher implements TrendResearcherInterface
     }
 
     /**
-     * Ritorna un clone con la chiave del brand.
-     * SuperAdmin: fallback alle chiavi di sistema.
-     * Utente normale: MissingBrandApiKeyException se chiave assente.
+     * No-op: le chiavi AI sono sempre lette da .env (config/services.perplexity.api_key).
+     * Il parametro $brand è ignorato. Mantenuto per retrocompatibilità coi caller.
      */
     public function withBrand(?Brand $brand): static
     {
-        if ($brand) {
-            $key = app(BrandApiKeyService::class)->getWithSuperAdminFallback(
-                $brand,
-                BrandApiKeyService::PERPLEXITY_API_KEY,
-                'services.perplexity.api_key'
-            );
-            $clone         = clone $this;
-            $clone->apiKey = $key;
-            return $clone;
-        }
         return $this;
     }
 

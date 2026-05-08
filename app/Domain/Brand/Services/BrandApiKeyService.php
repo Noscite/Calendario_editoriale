@@ -7,9 +7,6 @@ namespace App\Domain\Brand\Services;
 use App\Domain\Brand\Exceptions\MissingBrandApiKeyException;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Models\BrandApiKey;
-use App\Domain\Organization\Models\Organization;
-use App\Domain\Subscription\Models\Plan;
-use Illuminate\Support\Facades\Auth;
 
 class BrandApiKeyService
 {
@@ -33,13 +30,22 @@ class BrandApiKeyService
     public const GOOGLE_REFRESH_TOKEN = 'google_refresh_token';
     public const GOOGLE_LOCATION_ID   = 'google_location_id';
 
-    // ── AI ────────────────────────────────────────────────────────────────────
+    // ── AI keys @deprecated ───────────────────────────────────────────────────
+    // Le chiavi AI sono ora servite SEMPRE da .env (config/services.php).
+    // Le costanti restano solo per identificare/pulire eventuali record DB legacy.
     public const ANTHROPIC_API_KEY  = 'anthropic_api_key';
     public const OPENAI_API_KEY     = 'openai_api_key';
     public const PERPLEXITY_API_KEY = 'perplexity_api_key';
 
-    // ── Gruppi per la UI ──────────────────────────────────────────────────────
+    private const AI_KEYS = [
+        self::ANTHROPIC_API_KEY,
+        self::OPENAI_API_KEY,
+        self::PERPLEXITY_API_KEY,
+    ];
 
+    // ── Gruppi per la UI ──────────────────────────────────────────────────────
+    // Solo chiavi social: identificano l'account del cliente, non possono
+    // arrivare da .env Noscite. Le chiavi AI sono fuori da questo elenco.
     public static function groups(): array
     {
         return [
@@ -63,11 +69,6 @@ class BrandApiKeyService
                 self::GOOGLE_REFRESH_TOKEN => 'Refresh Token',
                 self::GOOGLE_LOCATION_ID   => 'Location ID',
             ],
-            'AI' => [
-                self::ANTHROPIC_API_KEY  => 'Anthropic API Key',
-                self::OPENAI_API_KEY     => 'OpenAI API Key',
-                self::PERPLEXITY_API_KEY => 'Perplexity API Key',
-            ],
         ];
     }
 
@@ -83,9 +84,9 @@ class BrandApiKeyService
     }
 
     /**
-     * Restituisce la chiave del brand.
-     * Lancia MissingBrandApiKeyException se non configurata.
-     * NON fa mai fallback alle chiavi di sistema — quelle appartengono a Noscite.
+     * Restituisce la chiave del brand. Usata solo per chiavi social
+     * (Meta/LinkedIn/Google). Lancia MissingBrandApiKeyException se non
+     * configurata.
      */
     public function getRequired(Brand $brand, string $keyName): string
     {
@@ -99,77 +100,22 @@ class BrandApiKeyService
     }
 
     /**
-     * Fallback alle chiavi di sistema consentito quando:
-     *   1. L'utente loggato è superuser (UI/web context), oppure
-     *   2. Il brand appartiene a un'organization marcata is_system_tenant
-     *      (CLI/queue context, dove Auth::user() è null).
-     * Negli altri casi lancia MissingBrandApiKeyException.
-     */
-    public function getWithSuperAdminFallback(
-        Brand $brand,
-        string $keyName,
-        string $configFallback
-    ): string {
-        $value = $this->get($brand, $keyName);
-
-        if ($value !== null && $value !== '') {
-            return $value;
-        }
-
-        if ($this->currentUserIsSuperAdmin() || $this->brandBelongsToSystemTenant($brand)) {
-            return config($configFallback)
-                ?? throw new \RuntimeException("Chiave di sistema non configurata: {$configFallback}");
-        }
-
-        throw new MissingBrandApiKeyException($keyName, $brand->name);
-    }
-
-    private function currentUserIsSuperAdmin(): bool
-    {
-        return Auth::user()?->role === 'superuser';
-    }
-
-    private function brandBelongsToSystemTenant(Brand $brand): bool
-    {
-        return Organization::query()
-            ->whereKey($brand->organization_id)
-            ->where('is_system_tenant', true)
-            ->exists();
-    }
-
-    /**
-     * Ritorna le chiavi obbligatorie non configurate per un brand.
-     * Usato per validazione pre-generazione nell'UI.
+     * @deprecated Le chiavi AI vengono sempre da .env. Ritorna sempre [].
+     *             Mantenuto per retrocompatibilità con i call site esistenti
+     *             (GenerationController preflight). Eliminabile in futuro
+     *             insieme ai call site.
      */
     public function getMissingRequiredKeys(Brand $brand): array
     {
-        $required = [
-            self::ANTHROPIC_API_KEY  => 'Anthropic (generazione testi)',
-            self::PERPLEXITY_API_KEY => 'Perplexity (ricerca trend)',
-        ];
-
-        $existing = $this->getAll($brand);
-        $missing  = [];
-
-        foreach ($required as $keyName => $label) {
-            if (empty($existing[$keyName])) {
-                $missing[$keyName] = $label;
-            }
-        }
-
-        return $missing;
+        return [];
     }
 
     public function set(Brand $brand, string $keyName, string $value): void
     {
-        $org  = Organization::find($brand->organization_id);
-        $plan = $org?->plan_id ? Plan::find($org->plan_id) : null;
-
-        if (! $plan?->has_own_api_keys && ! $this->currentUserIsSuperAdmin()) {
-            throw new \DomainException(
-                'Il piano attuale non include la gestione di chiavi API proprie. ' .
-                'Passa al piano Unlimited per abilitare questa funzionalità.'
-            );
+        // Le chiavi AI provengono da .env: ignora silenziosamente eventuali
+        // tentativi di salvarle (legacy UI, API client esterni, etc).
+        if (in_array($keyName, self::AI_KEYS, true)) {
+            return;
         }
 
         BrandApiKey::updateOrCreate(
@@ -195,6 +141,7 @@ class BrandApiKeyService
 
     /**
      * Salva un array [key_name => value]. Valori null o '' eliminano la chiave.
+     * Le chiavi AI vengono filtrate da set() (gestite via .env).
      */
     public function saveMany(Brand $brand, array $data): void
     {
