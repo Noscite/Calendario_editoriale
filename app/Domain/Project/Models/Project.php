@@ -112,4 +112,38 @@ class Project extends Model
 
         return max($maxChild, $own) + 1;
     }
+
+    /**
+     * Normalizza content_pillars a list<string>, accettando entrambi gli shape:
+     *  - array di stringhe (legacy / shape canonica per Project)
+     *  - array di {name, description?} objects (shape erronea introdotta dal
+     *    primo rollout di EditProjectWizardV2; vedi hotfix d6afb82+)
+     *
+     * Usato da ProjectController::toDict (response GET) e da GenerateCalendarJob
+     * (input PromptBuilder/matchPillar) come single source of truth per
+     * defensive auto-healing dei record DB sporchi.
+     *
+     * @return list<string>
+     */
+    public static function normalizeContentPillarsList(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $p) {
+            if (is_string($p)) {
+                $trimmed = trim($p);
+                if ($trimmed !== '') $out[] = $trimmed;
+            } elseif (is_array($p)) {
+                $name = trim((string) ($p['name'] ?? ''));
+                if ($name !== '') $out[] = $name;
+            } elseif (is_object($p)) {
+                $name = trim((string) ($p->name ?? ''));
+                if ($name !== '') $out[] = $name;
+            }
+        }
+        return $out;
+    }
 }

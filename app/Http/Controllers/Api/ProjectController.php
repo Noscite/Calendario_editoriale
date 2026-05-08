@@ -50,7 +50,7 @@ final class ProjectController extends Controller
             'reference_urls'    => $p->reference_urls ?? [],
             'target_audience'   => $p->target_audience ?? '',
             'objectives'        => $p->objectives ?? [],
-            'content_pillars'   => $p->content_pillars ?? [],
+            'content_pillars'   => Project::normalizeContentPillarsList($p->content_pillars),
             'competitors'       => $p->competitors ?? [],
             'special_dates'     => $p->special_dates ?? [],
             'buyer_personas'    => $p->buyer_personas,

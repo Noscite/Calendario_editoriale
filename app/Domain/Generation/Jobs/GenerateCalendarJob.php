@@ -181,7 +181,14 @@ final class GenerateCalendarJob implements ShouldQueue
             'competitors'     => $project->competitors ?? [],
         ];
 
-        $themes = $project->content_pillars ?? $project->themes ?? [];
+        // Defensive normalization: il primo rollout di EditProjectWizardV2 (PR-WIZARD-2)
+        // ha temporaneamente salvato content_pillars come array di {name, description}
+        // objects invece di strings. Questo helper auto-cura entrambi gli shape, così
+        // matchPillar e PromptBuilder ricevono sempre list<string>.
+        $themes = Project::normalizeContentPillarsList($project->content_pillars);
+        if (empty($themes)) {
+            $themes = $project->themes ?? [];
+        }
 
         // ── 5. Genera con Claude (batch + rate-limit + sleep) ──
         [$posts, $updatedPersonas, $totalTokensUsed] = $generator->generateCalendarPosts(

@@ -268,14 +268,16 @@ export default function EditProjectWizardV2() {
       return { target_audience: formData.target_audience.trim() };
     }
     if (step === 3) {
-      // Persistiamo content_pillars come array di {name, description}
-      // (drop di "source" che è solo UI hint per la sezione brand vs project)
-      const cleanPillars = (formData.content_pillars || []).map((p) => ({
-        name: (p.name || '').trim(),
-        description: (p.description || '').trim(),
-      }));
+      // Persistiamo content_pillars come array di STRINGHE (solo i name).
+      // Il sistema legacy (ProjectDetail render, PromptBuilder, matchPillar)
+      // si aspetta strings — gli objects {name, description} sono shape di
+      // Brand.default_content_pillars, non di Project.content_pillars.
+      // La description vive a livello brand (vedi promote-to-brand opt-in).
+      const cleanPillarNames = (formData.content_pillars || [])
+        .map((p) => (typeof p === 'string' ? p : (p?.name || '')).trim())
+        .filter(Boolean);
       return {
-        content_pillars: cleanPillars,
+        content_pillars: cleanPillarNames,
         competitors: Array.isArray(formData.competitors) ? formData.competitors : [],
       };
     }
