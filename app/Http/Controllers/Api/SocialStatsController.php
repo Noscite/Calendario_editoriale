@@ -36,26 +36,49 @@ final class SocialStatsController extends Controller
             ->where('is_active', true)
             ->get();
 
-        $platforms = $connections->map(function ($conn) use ($periodStart) {
-            // Ultima metrica account-level (post_publication_id IS NULL)
-            $metric = SocialMetric::where('social_connection_id', $conn->id)
+        $platforms = $connections->map(function ($conn) use ($periodStart, $periodEnd) {
+            // Aggrega le metriche per-post nel periodo (CollectSocialMetricsJob
+            // scrive sempre con post_publication_id valorizzato — non esistono
+            // metriche account-level nel writer attuale, quindi sommare le
+            // per-post è la sola strategia che usa i dati realmente raccolti).
+            // Il filtro è su metric_date (= published_at del post) perché
+            // l'utente vuole "post pubblicati negli ultimi N giorni", non
+            // "metriche fetchate negli ultimi N giorni".
+            $aggregate = SocialMetric::where('social_connection_id', $conn->id)
+                ->whereNotNull('post_publication_id')
+                ->whereBetween('metric_date', [$periodStart, $periodEnd])
+                ->selectRaw('
+                    COALESCE(SUM(impressions), 0) AS impressions,
+                    COALESCE(SUM(reach), 0)        AS reach,
+                    COALESCE(SUM(engagement), 0)   AS engagement,
+                    COALESCE(SUM(likes), 0)        AS likes,
+                    COALESCE(SUM(comments), 0)     AS comments,
+                    COALESCE(SUM(shares), 0)       AS shares,
+                    COALESCE(SUM(clicks), 0)       AS clicks,
+                    MAX(fetched_at)                AS last_fetched_at
+                ')
+                ->first();
+
+            // followers_count: campo account-level, non popolato dal job
+            // CollectSocialMetricsJob attuale. Tentiamo l'ultima metric
+            // account-level se per caso esiste (forward-compat). Altrimenti null.
+            $accountMetric = SocialMetric::where('social_connection_id', $conn->id)
                 ->whereNull('post_publication_id')
-                ->where('fetched_at', '>=', $periodStart)
                 ->orderByDesc('fetched_at')
                 ->first();
 
             return [
-                'platform'       => $conn->platform->value ?? $conn->platform,
-                'account_name'   => $conn->external_account_name ?? '',
-                'impressions'    => $metric?->impressions ?? 0,
-                'reach'          => $metric?->reach ?? 0,
-                'engagement'     => $metric?->engagement ?? 0,
-                'likes'          => $metric?->likes ?? 0,
-                'comments'       => $metric?->comments ?? 0,
-                'shares'         => $metric?->shares ?? 0,
-                'clicks'         => $metric?->clicks ?? 0,
-                'followers_count'=> $metric?->followers_count,
-                'fetched_at'     => $metric?->fetched_at?->toIso8601String(),
+                'platform'        => $conn->platform->value ?? $conn->platform,
+                'account_name'    => $conn->external_account_name ?? '',
+                'impressions'     => (int) ($aggregate->impressions ?? 0),
+                'reach'           => (int) ($aggregate->reach ?? 0),
+                'engagement'      => (int) ($aggregate->engagement ?? 0),
+                'likes'           => (int) ($aggregate->likes ?? 0),
+                'comments'        => (int) ($aggregate->comments ?? 0),
+                'shares'          => (int) ($aggregate->shares ?? 0),
+                'clicks'          => (int) ($aggregate->clicks ?? 0),
+                'followers_count' => $accountMetric?->followers_count,
+                'fetched_at'      => $aggregate?->last_fetched_at,
             ];
         })->values();
 
