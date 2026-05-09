@@ -144,7 +144,7 @@ final class PostService implements PostServiceInterface
                     // Propaga il metadata del Post AI-generato sorgente: il post
                     // ricreato qui condivide la stessa generazione, solo con
                     // date/orari/piattaforma forzati a quelli del post originale.
-                    'generation_metadata' => $generated->generation_metadata,
+                    'generation_metadata' => $generated->generation_metadata ?? null,
                 ];
 
                 $newPosts->push($this->postRepository->create($newData));

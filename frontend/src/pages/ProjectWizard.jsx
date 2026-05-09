@@ -221,18 +221,6 @@ export default function ProjectWizard() {
       try {
         await generation.generateCalendar(createdProjectId);
       } catch (genErr) {
-        // Preflight 422: chiavi API mancanti sul brand
-        if (genErr?.response?.status === 422 && genErr.response.data?.status === 'missing_api_keys') {
-          const data = genErr.response.data;
-          const labels = Object.values(data.missing_keys || {}).join(', ');
-          alert(
-            `Progetto creato, ma la generazione non è partita.\n\n` +
-            `${data.message}\nMancano: ${labels}.\n\n` +
-            `Configura le chiavi API sulla pagina del brand, poi torna al progetto e clicca "Rigenera Calendario".`
-          );
-          navigate(`/brand/${data.brand_id}`);
-          return;
-        }
         throw genErr;
       }
 

@@ -127,9 +127,10 @@ final class SocialStatsController extends Controller
             ], 404);
         }
 
-        foreach ($connections as $connection) {
-            CollectSocialMetricsJob::dispatch($connection->id);
-        }
+        // Il job processa autonomamente tutte le publications recenti:
+        // un solo dispatch è sufficiente, l'argomento connection_id veniva
+        // comunque ignorato (il job non ha costruttore che lo accetti).
+        CollectSocialMetricsJob::dispatch();
 
         return response()->json([
             'success'    => true,
