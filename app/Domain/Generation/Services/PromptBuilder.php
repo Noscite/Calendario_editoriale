@@ -738,6 +738,10 @@ PROMPT;
         if (preg_match('/(psicolog|medic|odontoiatr|dentist|fisioterap|farmacist|sanit|clinic|avvocat|legal|notai|commercialist|finanz|banc|consulent|assicurat)/iu', $s)) {
             return 'editorial professional photography, sober and dignified, no client faces, no before/after, no medical procedures';
         }
+        // Turismo / territoriale / Pro Loco — registro caldo e autentico
+        if (preg_match('/(turism|tourism|proloco|pro\s?loco|territor|borgo|sagra|patrimonio|cultural)/iu', $s)) {
+            return 'warm authentic travel photography, golden hour light, candid italian village charm, real people in real places, no posed models, no glossy retouch, slight grain ok';
+        }
         return 'editorial professional photography, modern but not flashy, sober';
     }
 
@@ -763,6 +767,10 @@ PROMPT;
         }
         if (preg_match('/(lifestyle|inspirat|aspirat)/iu', $p)) {
             return 'environmental, aspirational, atmospheric';
+        }
+        // Turismo / territoriale / Pro Loco — registro caldo e autentico
+        if (preg_match('/(turism|tourism|proloco|pro\s?loco|territor|borgo|sagra|patrimonio|cultural)/iu', $p)) {
+            return 'warm, nostalgic, communal, slow-living, rooted in tradition, sense of place';
         }
         return 'professional, clean, contemporary';
     }
