@@ -11,6 +11,7 @@ enum PostType: string
     case UserGenerated = 'user_generated';
     case Promotional = 'promotional';
     case ThoughtLeadership = 'thought_leadership';
+    case TerritorialEvent = 'territorial_event';
 
     public function label(): string
     {
@@ -22,6 +23,7 @@ enum PostType: string
             self::UserGenerated => 'User Generated',
             self::Promotional => 'Promozionale',
             self::ThoughtLeadership => 'Thought Leadership',
+            self::TerritorialEvent => 'Evento Territoriale',
         };
     }
 }

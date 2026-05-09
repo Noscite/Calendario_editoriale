@@ -6,4 +6,5 @@ return [
     App\Providers\Filament\AdminPanelProvider::class,
     App\Providers\Filament\TenantPanelProvider::class,
     App\Providers\HorizonServiceProvider::class,
+    App\Providers\TerritorialServiceProvider::class,
 ];

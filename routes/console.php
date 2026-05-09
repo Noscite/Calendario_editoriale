@@ -4,6 +4,7 @@ use App\Domain\Review\Jobs\FetchGoogleReviewsJob;
 use App\Domain\Social\Jobs\CollectSocialMetricsJob;
 use App\Domain\Social\Jobs\PublishScheduledPostsJob;
 use App\Domain\Social\Models\SocialConnection;
+use App\Domain\Territorial\Jobs\SyncTerritorialEventsJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -56,3 +57,10 @@ Schedule::command('reviews:watchdog-replies')
     ->everyFiveMinutes()
     ->withoutOverlapping()
     ->name('watchdog-review-replies');
+
+// ── Territorial Events Sync ──────────────────────────────────────
+// Sync notturno dei feed territoriali (E015 Lombardia, in futuro altri).
+Schedule::job(new SyncTerritorialEventsJob)
+    ->dailyAt('03:00')
+    ->onOneServer()
+    ->name('territorial-events-sync');

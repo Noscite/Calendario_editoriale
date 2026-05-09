@@ -140,4 +140,15 @@ return [
         'redirect_uri'  => env('AZURE_REDIRECT_URI'),
     ],
 
+    'territorial' => [
+        'providers' => [
+            \App\Domain\Territorial\Services\E015DataProvider::class,
+        ],
+        'e015' => [
+            'mcp_url'   => env('E015_MCP_URL'),
+            'mcp_token' => env('E015_MCP_TOKEN'),
+            'tenant_id' => env('E015_TENANT_ID', '1'),
+        ],
+    ],
+
 ];
