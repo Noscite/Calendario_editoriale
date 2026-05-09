@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\SocialStatsController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\HelpController;
 use App\Http\Controllers\Api\SupportAgentController;
+use App\Http\Controllers\Api\TerritorialController;
 use App\Http\Controllers\Api\VoiceProfilingController;
 use App\Http\Controllers\PublicApi\BrandApiController;
 use App\Http\Controllers\PublicApi\ContextController;
@@ -497,6 +498,11 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::post('/{id}/replies/{replyId}/cancel', [ReviewController::class, 'cancelDraft']);
         Route::post('/{id}/ignore', [ReviewController::class, 'ignore']);
     });
+
+    // ─── TERRITORIAL EVENTS — /api/territorial + /api/projects/{id}/territorial ───
+    Route::post('/projects/{project}/territorial/generate', [TerritorialController::class, 'generateForProject']);
+    Route::post('/territorial/sync', [TerritorialController::class, 'syncNow']);
+    Route::get('/territorial/events', [TerritorialController::class, 'listEvents']);
 });
 
 // ═══════════════════════════════════════════════════════════════

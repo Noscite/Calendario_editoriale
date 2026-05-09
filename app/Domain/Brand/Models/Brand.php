@@ -49,6 +49,8 @@ class Brand extends Model
         'narrative_assets',
         'default_content_pillars',
         'forbidden_topics',
+        // ── Territorial vertical (UNPLI / Pro Loco) ────────
+        'vertical',
     ];
 
     protected function casts(): array
