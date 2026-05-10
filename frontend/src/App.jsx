@@ -20,6 +20,9 @@ import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
 import SaasAdmin from './pages/SaasAdmin';
 import BrandsPage from './pages/BrandsPage';
+import CampaignsPage from './pages/CampaignsPage';
+import CreateCampaignPage from './pages/CreateCampaignPage';
+import EditCampaignPage from './pages/EditCampaignPage';
 import CreateBrandWizard from './pages/CreateBrandWizard';
 import EditBrandWizard from './pages/EditBrandWizard';
 import SocialPage from './pages/SocialPage';
@@ -106,6 +109,11 @@ function App() {
           <Route path="/brand/new-wizard" element={<CreateBrandWizard />} />
           <Route path="/brand/:id" element={<BrandDetail />} />
           <Route path="/brand/:id/wizard" element={<EditBrandWizard />} />
+
+          {/* Campaigns */}
+          <Route path="/campaigns" element={<CampaignsPage />} />
+          <Route path="/campaign/new" element={<CreateCampaignPage />} />
+          <Route path="/campaign/:id/edit" element={<EditCampaignPage />} />
 
           {/* Projects/Calendars */}
           <Route path="/calendars" element={<Navigate to="/brands" replace />} />

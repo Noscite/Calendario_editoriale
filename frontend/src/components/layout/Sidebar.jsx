@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Building2,
+  Megaphone,
   Share2,
   Star,
   BarChart3,
@@ -50,6 +51,7 @@ export default function Sidebar() {
   const navItems = [
     { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/brands',     icon: Building2,       label: 'I miei Brand' },
+    { to: '/campaigns',  icon: Megaphone,       label: 'Campagne' },
     { to: '/audit',      icon: TrendingUp,      label: 'Audit' },
     { to: '/social',     icon: Share2,           label: 'Social' },
     { to: '/reviews',    icon: Star,             label: 'Recensioni' },

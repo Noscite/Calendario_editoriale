@@ -98,6 +98,14 @@ export const brands = {
   completeness: (id) => api.get(`/brands/${id}/completeness`),
 };
 
+export const campaigns = {
+  list: () => api.get('/campaigns'),
+  get: (id) => api.get(`/campaigns/${id}`),
+  create: (data) => api.post('/campaigns', data),
+  update: (id, data) => api.put(`/campaigns/${id}`, data),
+  delete: (id) => api.delete(`/campaigns/${id}`),
+};
+
 export const projects = {
   list: (brandId) => api.get('/projects/', { params: { brand_id: brandId } }),
   get: (id) => api.get(`/projects/${id}`),
