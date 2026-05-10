@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\BrandResource\Pages;
 
+use App\Filament\Admin\Concerns\RepackTerritoryMeta;
 use App\Filament\Admin\Resources\BrandResource;
-use App\Filament\Admin\Resources\BrandResource\Concerns\RepackTerritoryMeta;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
@@ -31,6 +31,6 @@ class EditBrand extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        return $this->repackTerritoryMetaForBrand($data);
+        return $this->repackTerritoryMeta($data);
     }
 }

@@ -41,6 +41,9 @@ class Organization extends Model
         'api_key_hash',
         'is_active',
         'is_system_tenant',
+        // Vertical defaults (inherited at brand creation)
+        'default_vertical',
+        'default_territory_meta',
     ];
 
     protected function casts(): array
@@ -53,6 +56,7 @@ class Organization extends Model
             'custom_limits' => 'json',
             'is_active'        => 'boolean',
             'is_system_tenant' => 'boolean',
+            'default_territory_meta' => 'array',
         ];
     }
 

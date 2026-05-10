@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\BrandResource\Pages;
 
+use App\Filament\Admin\Concerns\RepackTerritoryMeta;
 use App\Filament\Admin\Resources\BrandResource;
-use App\Filament\Admin\Resources\BrandResource\Concerns\RepackTerritoryMeta;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateBrand extends CreateRecord
@@ -16,6 +16,6 @@ class CreateBrand extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return $this->repackTerritoryMetaForBrand($data);
+        return $this->repackTerritoryMeta($data);
     }
 }

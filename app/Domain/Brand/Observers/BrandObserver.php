@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Brand\Observers;
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Organization\Models\Organization;
 use App\Domain\Review\Jobs\BootstrapBrandOntologyJob;
 
 /**
@@ -20,6 +21,31 @@ use App\Domain\Review\Jobs\BootstrapBrandOntologyJob;
 final class BrandObserver
 {
     private const MIN_DESCRIPTION_LENGTH = 50;
+
+    /**
+     * Eredita vertical/territory_meta dall'Organization se non già impostati sul Brand.
+     * One-shot: applica solo alla creazione, non re-applica su update.
+     */
+    public function creating(Brand $brand): void
+    {
+        if (! empty($brand->vertical)) {
+            return;
+        }
+        if (empty($brand->organization_id)) {
+            return;
+        }
+
+        $org = Organization::find($brand->organization_id);
+        if (! $org || empty($org->default_vertical)) {
+            return;
+        }
+
+        $brand->vertical = $org->default_vertical;
+
+        if (empty($brand->territory_meta) && ! empty($org->default_territory_meta)) {
+            $brand->territory_meta = $org->default_territory_meta;
+        }
+    }
 
     public function created(Brand $brand): void
     {
