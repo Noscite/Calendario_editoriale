@@ -81,7 +81,7 @@ final class BrandCompletenessService
         $assetsComplete = count($validAssets) >= 1;
         $assetsEarned   = $assetsComplete ? self::WEIGHTS['narrative_assets'] : 0;
         if (! $assetsComplete) {
-            $missing[] = ['section' => 'narrative_assets', 'label' => 'Asset narrativi: serve min 1 voce valida (corso/libro/prodotto/evento/partner/servizio)'];
+            $missing[] = ['section' => 'narrative_assets', 'label' => 'Asset narrativi: serve min 1 voce valida (corso/libro/prodotto/evento/partner/servizio/luogo/tradizione)'];
         }
 
         // ── usp_pillars (25 = 10 USP+values  +  15 pillars) ──────────

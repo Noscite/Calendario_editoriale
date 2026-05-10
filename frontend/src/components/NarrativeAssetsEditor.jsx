@@ -14,12 +14,14 @@ import { Plus, Trash2, Library } from 'lucide-react';
  */
 
 const TYPE_OPTIONS = [
-  { value: 'course',  label: 'Corso',    emoji: '🎓' },
-  { value: 'book',    label: 'Libro',    emoji: '📘' },
-  { value: 'product', label: 'Prodotto', emoji: '🛠️' },
-  { value: 'event',   label: 'Evento',   emoji: '📅' },
-  { value: 'partner', label: 'Partner',  emoji: '🤝' },
-  { value: 'service', label: 'Servizio', emoji: '⚙️' },
+  { value: 'course',    label: 'Corso',      emoji: '🎓' },
+  { value: 'book',      label: 'Libro',      emoji: '📘' },
+  { value: 'product',   label: 'Prodotto',   emoji: '🛠️' },
+  { value: 'event',     label: 'Evento',     emoji: '📅' },
+  { value: 'partner',   label: 'Partner',    emoji: '🤝' },
+  { value: 'service',   label: 'Servizio',   emoji: '⚙️' },
+  { value: 'place',     label: 'Luogo',      emoji: '📍' },
+  { value: 'tradition', label: 'Tradizione', emoji: '🎭' },
 ];
 
 const DETAILS_MAX = 240;
@@ -52,7 +54,7 @@ export default function NarrativeAssetsEditor({ value = [], onChange, error = nu
             <Library size={18} className="text-[#3DAFA8]" /> Asset narrativi del brand
           </h4>
           <p className="text-sm text-gray-500 mt-1">
-            Elenca i tuoi <strong>corsi, libri, prodotti, eventi, partner, servizi reali</strong>.
+            Elenca i tuoi <strong>corsi, libri, prodotti, eventi, partner, servizi, luoghi e tradizioni reali</strong>.
             L'AI userà SOLO questa lista per nominarli — niente nomi inventati.
           </p>
         </div>
