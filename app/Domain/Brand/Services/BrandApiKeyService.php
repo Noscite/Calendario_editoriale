@@ -156,8 +156,22 @@ class BrandApiKeyService
     }
 
     /**
-     * Ritorna le chiavi obbligatorie non configurate per un brand.
-     * Usato per validazione pre-generazione nell'UI.
+     * Mappa keyName → config path del fallback di sistema. Una chiave è considerata
+     * "usabile" se il brand ce l'ha brand-level OPPURE se è presente nel config
+     * (la chiave di sistema viene poi usata in queue context via
+     * getWithSuperAdminFallback → isQueueContext).
+     */
+    private const REQUIRED_KEYS_CONFIG_FALLBACK = [
+        self::ANTHROPIC_API_KEY  => 'services.anthropic.api_key',
+        self::PERPLEXITY_API_KEY => 'services.perplexity.api_key',
+    ];
+
+    /**
+     * Ritorna le chiavi obbligatorie non utilizzabili per un brand.
+     * Una chiave è "missing" SOLO se manca sia brand-level sia nel config di
+     * sistema (fallback). In presenza del config la generazione in queue
+     * funziona via getWithSuperAdminFallback, quindi il preflight HTTP non
+     * deve bloccare.
      */
     public function getMissingRequiredKeys(Brand $brand): array
     {
@@ -170,9 +184,16 @@ class BrandApiKeyService
         $missing  = [];
 
         foreach ($required as $keyName => $label) {
-            if (empty($existing[$keyName])) {
-                $missing[$keyName] = $label;
+            if (! empty($existing[$keyName])) {
+                continue; // brand-level disponibile
             }
+
+            $configPath = self::REQUIRED_KEYS_CONFIG_FALLBACK[$keyName] ?? null;
+            if ($configPath !== null && ! empty(config($configPath))) {
+                continue; // fallback config disponibile
+            }
+
+            $missing[$keyName] = $label;
         }
 
         return $missing;

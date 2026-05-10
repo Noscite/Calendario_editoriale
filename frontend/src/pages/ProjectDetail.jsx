@@ -535,7 +535,17 @@ export default function ProjectDetail() {
       // Avvia la generazione (non aspettiamo il completamento)
       generation.generateCalendar(id).catch(err => {
         console.error('Generation error:', err);
-        setSettingsMessage({ type: 'error', text: 'Errore nella rigenerazione' });
+        const data = err?.response?.data;
+        let text = 'Errore nella rigenerazione';
+        if (data?.status === 'missing_api_keys' && data?.missing_keys) {
+          const labels = Object.values(data.missing_keys).join(', ');
+          text = `Mancano chiavi API: ${labels}. Inseriscile in Brand → API Keys.`;
+        } else if (data?.status === 'already_generating') {
+          text = data?.message || 'Generazione già in corso, attendi.';
+        } else if (data?.message) {
+          text = data.message;
+        }
+        setSettingsMessage({ type: 'error', text });
         setIsRegenerating(false);
       });
       // Il progress bar gestirà il resto

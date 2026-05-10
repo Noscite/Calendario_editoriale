@@ -115,8 +115,12 @@ describe('POST /api/generate/calendar/{project_id}', function () {
         Bus::assertDispatched(GenerateCalendarJob::class);
     });
 
-    it('blocks generation with 422 when brand api keys are missing', function () {
+    it('blocks generation with 422 when brand keys missing AND no config fallback', function () {
         Bus::fake([GenerateCalendarJob::class]);
+
+        // Fallback di sistema vuoto → niente da scuotere
+        config()->set('services.anthropic.api_key', '');
+        config()->set('services.perplexity.api_key', '');
 
         [$user, $org] = createAuthenticatedUser();
         $brand = createBrand($org); // no api keys set
@@ -132,9 +136,30 @@ describe('POST /api/generate/calendar/{project_id}', function () {
             ->assertJsonStructure(['missing_keys', 'brand_id', 'brand_name', 'message']);
 
         $project->refresh();
-        expect($project->status->value)->toBe('draft'); // non passa a generating
+        expect($project->status->value)->toBe('draft');
 
         Bus::assertNotDispatched(GenerateCalendarJob::class);
+    });
+
+    it('allows generation when brand keys missing but config fallback present', function () {
+        Bus::fake([GenerateCalendarJob::class]);
+
+        config()->set('services.anthropic.api_key', 'sk-system-fallback');
+        config()->set('services.perplexity.api_key', 'pplx-system-fallback');
+
+        [$user, $org] = createAuthenticatedUser();
+        $brand = createBrand($org); // no brand-level keys
+        $project = createProject($brand, [
+            'buyer_personas' => ['personas' => [['name' => 'P1']], 'confirmed' => true],
+        ]);
+
+        $response = $this->actingAs($user)
+            ->postJson("/api/generate/calendar/{$project->id}");
+
+        $response->assertOk()
+            ->assertJsonFragment(['status' => 'generating']);
+
+        Bus::assertDispatched(GenerateCalendarJob::class);
     });
 });
 
@@ -154,7 +179,10 @@ describe('GET /api/generate/preflight/{project_id}', function () {
         expect($response->json('missing_keys'))->toBe([]);
     });
 
-    it('returns can_generate=false with missing keys list', function () {
+    it('returns can_generate=false with missing keys list when no config fallback', function () {
+        config()->set('services.anthropic.api_key', '');
+        config()->set('services.perplexity.api_key', '');
+
         [$user, $org] = createAuthenticatedUser();
         $brand = createBrand($org); // no keys
         $project = createProject($brand);
