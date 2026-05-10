@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Observers\BrandObserver;
 use App\Domain\Brand\Services\BrandApiKeyService;
+use App\Domain\Campaign\Models\Campaign;
+use App\Domain\Campaign\Observers\CampaignObserver;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Observers\OrganizationObserver;
 use App\Domain\Review\Models\Review;
@@ -56,5 +58,6 @@ class AppServiceProvider extends ServiceProvider
         Review::observe(ReviewObserver::class);
         Brand::observe(BrandObserver::class);
         Organization::observe(OrganizationObserver::class);
+        Campaign::observe(CampaignObserver::class);
     }
 }

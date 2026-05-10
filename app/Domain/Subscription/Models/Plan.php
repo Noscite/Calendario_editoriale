@@ -40,6 +40,8 @@ class Plan extends Model
         'overage_price_per_1k_tokens',
         'overage_price_per_image',
         'is_active',
+        // Campaigns
+        'max_active_campaigns',
     ];
 
     protected $attributes = [
