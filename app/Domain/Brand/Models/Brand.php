@@ -51,6 +51,7 @@ class Brand extends Model
         'forbidden_topics',
         // ── Territorial vertical (UNPLI / Pro Loco) ────────
         'vertical',
+        'territory_meta',
     ];
 
     protected function casts(): array
@@ -71,6 +72,8 @@ class Brand extends Model
             'narrative_assets'                   => 'array',
             'default_content_pillars'            => 'array',
             'forbidden_topics'                   => 'array',
+            // ── Territorial vertical ──────────────────────
+            'territory_meta'                     => 'array',
         ];
     }
 

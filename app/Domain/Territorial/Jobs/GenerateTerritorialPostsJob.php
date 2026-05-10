@@ -13,6 +13,7 @@ use App\Domain\Social\Models\SocialConnection;
 use App\Domain\Territorial\Generators\EventPostGenerator;
 use App\Domain\Territorial\Models\TerritorialEvent;
 use App\Domain\Territorial\Models\TerritorialEventPost;
+use App\Domain\Territorial\Services\TerritoryMatcher;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -63,12 +64,14 @@ class GenerateTerritorialPostsJob implements ShouldQueue
         $periodStart = $project->start_date?->copy() ?? now()->startOfDay();
         $periodEnd   = $project->end_date?->copy() ?? now()->addDays(30)->endOfDay();
 
-        // Eventi candidati: attivi, con start_at nella finestra (con buffer di 14gg
-        // a sinistra perché un evento al limite richiede T-14 di annuncio già nel periodo).
-        $events = TerritorialEvent::where('status', 'active')
-            ->whereBetween('start_at', [$periodStart->copy()->subDays(14), $periodEnd])
-            ->orderBy('start_at')
-            ->get();
+        // Eventi candidati: filtrati dal TerritoryMatcher in base a brand.vertical
+        // + brand.territory_meta. Buffer di 14gg a sinistra perché un evento al
+        // limite richiede T-14 di annuncio già nel periodo.
+        $events = app(TerritoryMatcher::class)->eligibleEvents(
+            $brand,
+            $periodStart->copy()->subDays(14),
+            $periodEnd,
+        );
 
         $platformValues = array_map(fn (Platform $p) => $p->value, $platforms);
         Log::info("[TERRITORIAL] Project {$project->id}: {$events->count()} events in window, platforms=" . implode(',', $platformValues));
