@@ -221,6 +221,23 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::post('/{brandId}/audit-detect-sector', [AuditController::class, 'detectSectorForBrand']);
     });
 
+    // ─── CAMPAIGNS — /api/campaigns ────────────────────────────
+    //
+    // Frontend:
+    //   api.get('/campaigns')
+    //   api.get('/campaigns/{id}')
+    //   api.post('/campaigns', data)
+    //   api.put('/campaigns/{id}', data)
+    //   api.delete('/campaigns/{id}')
+
+    Route::prefix('campaigns')->group(function () {
+        Route::get('/',         [\App\Http\Controllers\Api\CampaignController::class, 'index']);
+        Route::get('/{id}',     [\App\Http\Controllers\Api\CampaignController::class, 'show'])->whereNumber('id');
+        Route::post('/',        [\App\Http\Controllers\Api\CampaignController::class, 'store']);
+        Route::put('/{id}',     [\App\Http\Controllers\Api\CampaignController::class, 'update'])->whereNumber('id');
+        Route::delete('/{id}',  [\App\Http\Controllers\Api\CampaignController::class, 'destroy'])->whereNumber('id');
+    });
+
     // ─── AUDITS — /api/audits  (singolo audit per id) ───────────
 
     Route::prefix('audits')->group(function () {
