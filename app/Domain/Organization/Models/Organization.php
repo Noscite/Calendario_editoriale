@@ -3,6 +3,7 @@
 namespace App\Domain\Organization\Models;
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Organization\Enums\OrganizationStatus;
 use App\Domain\Subscription\Models\Plan;
 use App\Domain\Subscription\Models\Subscription;
@@ -85,5 +86,10 @@ class Organization extends Model
     public function subscription(): HasOne
     {
         return $this->hasOne(Subscription::class);
+    }
+
+    public function campaigns(): HasMany
+    {
+        return $this->hasMany(Campaign::class);
     }
 }

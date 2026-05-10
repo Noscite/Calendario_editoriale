@@ -2,11 +2,12 @@
 
 namespace App\Domain\Brand\Models;
 
+use App\Domain\Brand\Models\BrandApiKey;
+use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Document\Models\BrandDocument;
 use App\Domain\Project\Models\Project;
 use App\Domain\Shared\Traits\BelongsToOrganization;
 use App\Domain\Social\Models\SocialConnection;
-use App\Domain\Brand\Models\BrandApiKey;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -97,6 +98,11 @@ class Brand extends Model
     public function apiKeys(): HasMany
     {
         return $this->hasMany(BrandApiKey::class);
+    }
+
+    public function campaigns(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Campaign::class, 'brand_campaign')->withTimestamps();
     }
 
     public function getApiKey(string $keyName): ?string

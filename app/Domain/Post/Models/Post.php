@@ -2,6 +2,7 @@
 
 namespace App\Domain\Post\Models;
 
+use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Post\Enums\ContentType;
 use App\Domain\Post\Enums\Platform;
 use App\Domain\Post\Enums\PostStatus;
@@ -24,6 +25,7 @@ class Post extends Model
     protected $fillable = [
         'organization_id',
         'project_id',
+        'campaign_id',
         'platform',
         'scheduled_date',
         'scheduled_time',
@@ -80,6 +82,11 @@ class Post extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function campaign(): BelongsTo
+    {
+        return $this->belongsTo(Campaign::class);
     }
 
     public function publications(): HasMany
