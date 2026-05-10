@@ -75,12 +75,14 @@ function createAuthenticatedUser(array $userOverrides = [], array $orgOverrides 
     $orgEmail  = $orgOverrides['email']  ?? 'org-'  . \Illuminate\Support\Str::random(8) . '@test.com';
     $userEmail = $userOverrides['email'] ?? 'user-' . \Illuminate\Support\Str::random(8) . '@test.com';
 
+    // NB: nessun subscription_status di default — altrimenti OrganizationObserver
+    // auto-creerebbe una Subscription in conflitto con le factory dei test.
+    // I test che hanno bisogno di status su Org devono passarlo via $orgOverrides.
     $org = Organization::create(array_merge([
         'name' => 'Test Org',
         'slug' => 'test-org-' . \Illuminate\Support\Str::random(8),
         'email' => $orgEmail,
         'plan_id' => $plan->id,
-        'subscription_status' => 'active',
         'is_active' => true,
     ], $orgOverrides));
 

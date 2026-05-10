@@ -18,12 +18,14 @@ class SubscriptionFactory extends Factory
 
     public function definition(): array
     {
+        // NB: Organization creata senza subscription_status: con quello settato,
+        // OrganizationObserver auto-creerebbe una Subscription e la factory
+        // andrebbe in unique violation quando crea la sua.
         $org = Organization::create([
-            'name'                => 'Org ' . Str::random(8),
-            'slug'                => 'org-' . Str::random(12),
-            'email'               => $this->faker->unique()->safeEmail(),
-            'subscription_status' => 'trial',
-            'is_active'           => true,
+            'name'      => 'Org ' . Str::random(8),
+            'slug'      => 'org-' . Str::random(12),
+            'email'     => $this->faker->unique()->safeEmail(),
+            'is_active' => true,
         ]);
 
         return [
