@@ -60,7 +60,10 @@ class OrganizationResource extends Resource
                     Forms\Components\TextInput::make('slug')
                         ->label('Slug')
                         ->required()
-                        ->unique(ignoreRecord: true)
+                        ->unique(
+                            ignoreRecord: true,
+                            modifyRuleUsing: fn ($rule) => $rule->whereNull('deleted_at'),
+                        )
                         ->maxLength(255)
                         ->helperText('Auto-generato dal nome al primo focus-out, modificabile.'),
 
