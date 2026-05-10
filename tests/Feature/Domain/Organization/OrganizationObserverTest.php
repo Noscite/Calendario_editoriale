@@ -27,6 +27,25 @@ it('creates a Subscription when Organization is created with status active', fun
 
     expect($sub)->not->toBeNull();
     expect($sub->status)->toBe(Subscription::STATUS_ACTIVE);
+    // Senza dates inline, l'observer applica default sensati per non far
+    // tornare false isActive() (che richiede paid_period_ends_at futuro)
+    expect($sub->paid_period_ends_at)->not->toBeNull();
+    expect($sub->paid_period_ends_at->isFuture())->toBeTrue();
+    expect($sub->isActive())->toBeTrue();
+    expect($sub->canAccessApp())->toBeTrue();
+});
+
+it('creates a Subscription with trial defaults when Organization status is trial without dates', function () {
+    $org = makeOrgForObserver([
+        'subscription_status' => OrganizationStatus::Trial,
+    ]);
+
+    $sub = $org->subscription;
+
+    expect($sub->trial_ends_at)->not->toBeNull();
+    expect($sub->trial_ends_at->isFuture())->toBeTrue();
+    expect($sub->isInTrial())->toBeTrue();
+    expect($sub->canAccessApp())->toBeTrue();
 });
 
 it('creates a Subscription with trial status mapped correctly', function () {
