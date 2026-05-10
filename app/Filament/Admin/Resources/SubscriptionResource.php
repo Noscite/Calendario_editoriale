@@ -16,6 +16,7 @@ use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\ViewAction;
 use Illuminate\Database\Eloquent\Builder;
 
 class SubscriptionResource extends Resource
@@ -231,7 +232,7 @@ class SubscriptionResource extends Resource
                             ->send();
                     }),
 
-                Tables\Actions\ViewAction::make(),
+                ViewAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
