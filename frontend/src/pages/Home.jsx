@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Calendar, Sparkles, Share2, Clock } from 'lucide-react';
+import { Calendar, BrainCircuit, Users, FileText } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -21,38 +21,54 @@ export default function Home() {
       {/* Hero */}
       <main className="max-w-6xl mx-auto px-6 py-16">
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-white mb-6">
-            Piano Editoriale AI per PMI
+          <h1 className="text-5xl font-bold text-white mb-6 leading-tight">
+            Il tuo brand,<br />tradotto in voce digitale
           </h1>
-          <p className="text-xl text-white/80 max-w-2xl mx-auto mb-8">
-            Crea, pianifica e pubblica automaticamente i tuoi contenuti social 
-            con l'intelligenza artificiale. Risparmia tempo, aumenta l'engagement.
+          <p className="text-xl text-white/80 max-w-3xl mx-auto mb-10">
+            Kalendarium analizza in profondità i tuoi materiali aziendali — brand book,
+            documenti, tono di voce — e genera buyer personas su misura e piani editoriali
+            costruiti sui tuoi contenuti reali. Non sui template di tutti.
           </p>
-          <Link 
-            to="/register" 
+          <Link
+            to="/register"
             className="inline-block bg-white text-[#2C3E50] px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition-colors"
           >
             Inizia Gratis
           </Link>
         </div>
 
-        {/* Features */}
+        {/* Differenziatori */}
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           <div className="bg-white/10 backdrop-blur rounded-xl p-6 text-white">
-            <Sparkles className="w-10 h-10 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Generazione AI</h3>
-            <p className="text-white/70">Contenuti personalizzati per il tuo brand generati automaticamente</p>
+            <BrainCircuit className="w-10 h-10 mb-4" />
+            <h3 className="text-xl font-semibold mb-2">Analisi profonda del brand</h3>
+            <p className="text-white/70">
+              Non solo nome e logo. Leggiamo i tuoi documenti aziendali, riconosciamo il
+              tono di voce, capiamo i valori. È così che il sistema impara davvero chi sei.
+            </p>
           </div>
           <div className="bg-white/10 backdrop-blur rounded-xl p-6 text-white">
-            <Calendar className="w-10 h-10 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Calendario Visuale</h3>
-            <p className="text-white/70">Pianifica e visualizza tutti i tuoi post in un calendario intuitivo</p>
+            <Users className="w-10 h-10 mb-4" />
+            <h3 className="text-xl font-semibold mb-2">Buyer personas su misura</h3>
+            <p className="text-white/70">
+              Niente template generici. Le personas nascono dai tuoi materiali reali
+              e si raffinano col tuo feedback. Sono le tue, non quelle del manuale di marketing.
+            </p>
           </div>
           <div className="bg-white/10 backdrop-blur rounded-xl p-6 text-white">
-            <Share2 className="w-10 h-10 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Multi-Piattaforma</h3>
-            <p className="text-white/70">Pubblica su LinkedIn, Facebook, Instagram e Google Business</p>
+            <FileText className="w-10 h-10 mb-4" />
+            <h3 className="text-xl font-semibold mb-2">Calendari sui tuoi contenuti</h3>
+            <p className="text-white/70">
+              I post nascono dai tuoi documenti aziendali, non da ricerche online generiche.
+              Ogni contenuto suona come te, perché viene da te.
+            </p>
           </div>
+        </div>
+
+        {/* Commodity features in secondo piano */}
+        <div className="text-center text-white/60 text-sm">
+          E poi, ovviamente: calendario visuale, pubblicazione automatica su LinkedIn,
+          Facebook, Instagram e Google Business, gestione recensioni e analytics.
         </div>
       </main>
 
