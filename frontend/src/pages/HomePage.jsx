@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Sparkles, MessageSquare, BarChart3, ChevronDown, ArrowRight,
+  Sparkles, BrainCircuit, Users, FileText, ChevronDown, ArrowRight,
   Utensils, Scissors, Briefcase, HeartPulse, Store, GraduationCap,
   Check, Star, Mail,
 } from 'lucide-react';
@@ -147,11 +147,12 @@ export default function HomePage() {
               className="text-4xl sm:text-5xl lg:text-6xl text-[#2C3E50] leading-tight"
               style={{ fontFamily: '"Playfair Display", serif', fontWeight: 600 }}
             >
-              La tua presenza digitale, gestita dall&apos;AI
+              Il tuo brand, tradotto in voce digitale
             </h1>
             <p className="mt-6 text-lg text-gray-600 leading-relaxed max-w-xl">
-              Calendario editoriale, social media, recensioni Google. Tutto in un&apos;unica
-              piattaforma. Per le PMI italiane che vogliono crescere senza perdere la propria voce.
+              Kalendarium analizza in profondità i tuoi materiali aziendali — brand book,
+              documenti, tono di voce — e genera buyer personas su misura e piani editoriali
+              costruiti sui tuoi contenuti reali. Non sui template di tutti.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
@@ -184,24 +185,24 @@ export default function HomePage() {
             className="text-3xl sm:text-4xl text-center text-[#2C3E50] mb-12"
             style={{ fontFamily: '"Playfair Display", serif', fontWeight: 600 }}
           >
-            Cosa fa Kalendarium
+            Come traduciamo il tuo brand
           </h2>
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                Icon: Sparkles,
-                title: 'Calendario editoriale AI',
-                desc: 'Genera post on-brand per Facebook, Instagram, LinkedIn, Google Business Profile. Pianifica un mese in pochi minuti.',
+                Icon: BrainCircuit,
+                title: 'Analisi profonda del brand',
+                desc: 'Non solo nome e logo. Leggiamo i tuoi documenti aziendali, riconosciamo il tono di voce, capiamo i valori. È così che il sistema impara davvero chi sei.',
               },
               {
-                Icon: MessageSquare,
-                title: 'Risposte automatiche alle recensioni',
-                desc: 'Le recensioni Google del tuo brand vengono analizzate e ricevono risposte personalizzate, on-brand, sotto controllo umano.',
+                Icon: Users,
+                title: 'Buyer personas su misura',
+                desc: 'Niente template generici. Le personas nascono dai tuoi materiali reali e si raffinano col tuo feedback. Sono le tue, non quelle del manuale di marketing.',
               },
               {
-                Icon: BarChart3,
-                title: 'Analytics che capisce il tuo settore',
-                desc: 'Sentiment, topic, urgency. Capisci cosa funziona e cosa preoccupa i tuoi clienti.',
+                Icon: FileText,
+                title: 'Calendari sui tuoi contenuti',
+                desc: 'I post nascono dai tuoi documenti aziendali, non da ricerche online generiche. Ogni contenuto suona come te, perché viene da te.',
               },
             ].map(({ Icon, title, desc }) => (
               <div key={title} className="bg-white rounded-2xl p-7 shadow-sm border border-gray-100">
