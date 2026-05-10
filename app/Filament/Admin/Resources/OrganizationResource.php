@@ -18,6 +18,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Str;
 
 /**
  * Admin Resource: Organizzazioni.
@@ -48,11 +49,20 @@ class OrganizationResource extends Resource
                     Forms\Components\TextInput::make('name')
                         ->label('Nome')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(function (?string $state, Get $get, Set $set) {
+                            if (! empty($state) && empty($get('slug'))) {
+                                $set('slug', Str::slug($state));
+                            }
+                        }),
 
                     Forms\Components\TextInput::make('slug')
                         ->label('Slug')
-                        ->maxLength(255),
+                        ->required()
+                        ->unique(ignoreRecord: true)
+                        ->maxLength(255)
+                        ->helperText('Auto-generato dal nome al primo focus-out, modificabile.'),
 
                     Forms\Components\TextInput::make('email')
                         ->label('Email')
