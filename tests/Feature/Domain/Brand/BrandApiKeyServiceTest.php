@@ -61,17 +61,24 @@ it('returns config fallback for system tenant brand in cli', function () {
     expect($value)->toBe('sk-ant-system-key');
 });
 
-it('throws for regular brand without key in cli', function () {
+it('falls back to config for regular brand in cli/queue context', function () {
+    // Aggiornato dopo fix queue-context: i job in coda (Horizon) non hanno
+    // Auth user e non possono usare brand-level keys senza esplicita config
+    // — il fallback al config è ora consentito anche per brand
+    // non-system-tenant in CLI/queue. Vedi BrandApiKeyQueueContextTest per
+    // copertura più dettagliata.
     [, $org] = createAuthenticatedUser();
     expect((bool) $org->is_system_tenant)->toBeFalse();
     $brand = createBrand($org);
     Config::set(FALLBACK_CONFIG_PATH, 'sk-ant-system-key');
 
-    expect(fn () => app(BrandApiKeyService::class)->getWithSuperAdminFallback(
+    $value = app(BrandApiKeyService::class)->getWithSuperAdminFallback(
         $brand,
         BrandApiKeyService::ANTHROPIC_API_KEY,
         FALLBACK_CONFIG_PATH,
-    ))->toThrow(MissingBrandApiKeyException::class);
+    );
+
+    expect($value)->toBe('sk-ant-system-key');
 });
 
 it('throws when system config missing', function () {

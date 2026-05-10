@@ -101,8 +101,11 @@ class BrandApiKeyService
     /**
      * Fallback alle chiavi di sistema consentito quando:
      *   1. L'utente loggato è superuser (UI/web context), oppure
-     *   2. Il brand appartiene a un'organization marcata is_system_tenant
-     *      (CLI/queue context, dove Auth::user() è null).
+     *   2. Il brand appartiene a un'organization marcata is_system_tenant, oppure
+     *   3. Siamo in queue/CLI context (no Auth user + running in console):
+     *      job di sistema legittimi che non hanno chiave brand-level
+     *      ricadono sulla chiave di config. Il dispatch del job era già
+     *      stato autorizzato a monte da un'azione utente.
      * Negli altri casi lancia MissingBrandApiKeyException.
      */
     public function getWithSuperAdminFallback(
@@ -116,7 +119,11 @@ class BrandApiKeyService
             return $value;
         }
 
-        if ($this->currentUserIsSuperAdmin() || $this->brandBelongsToSystemTenant($brand)) {
+        if (
+            $this->currentUserIsSuperAdmin()
+            || $this->brandBelongsToSystemTenant($brand)
+            || $this->isQueueContext()
+        ) {
             return config($configFallback)
                 ?? throw new \RuntimeException("Chiave di sistema non configurata: {$configFallback}");
         }
@@ -135,6 +142,17 @@ class BrandApiKeyService
             ->whereKey($brand->organization_id)
             ->where('is_system_tenant', true)
             ->exists();
+    }
+
+    /**
+     * Vero solo in CLI/queue context (Horizon worker, artisan command, scheduler).
+     * In HTTP request normale `runningInConsole()` è false anche senza Auth user.
+     * Doppio predicato (no Auth + console) per evitare bypass su endpoint HTTP
+     * non autenticati edge-case.
+     */
+    private function isQueueContext(): bool
+    {
+        return Auth::user() === null && app()->runningInConsole();
     }
 
     /**
