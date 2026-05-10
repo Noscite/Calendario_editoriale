@@ -4,10 +4,13 @@ namespace App\Filament\Admin\Resources;
 
 use App\Domain\Organization\Enums\OrganizationStatus;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Territorial\Models\Municipality;
 use App\Filament\Admin\Resources\OrganizationResource\Pages;
 use Filament\Forms;
-use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Actions\EditAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\BulkActionGroup;
@@ -111,6 +114,51 @@ class OrganizationResource extends Resource
                         ->maxLength(255),
                 ]),
 
+            Section::make('Verticalizzazione')
+                ->description('Default ereditato dai brand creati sotto questa organizzazione. Lasciare vuoto per organizzazioni senza verticale specifico.')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\Select::make('default_vertical')
+                        ->label('Vertical default')
+                        ->options([
+                            'unpli_regional' => 'UNPLI Regionale (federazione regionale)',
+                            'pro_loco'       => 'Pro Loco (singolo comune)',
+                        ])
+                        ->placeholder('— Nessuna verticalizzazione —')
+                        ->live()
+                        ->afterStateUpdated(function ($state, Set $set): void {
+                            $set('default_territory_region', null);
+                            $set('default_territory_municipality_istat', null);
+                        })
+                        ->helperText('Ereditato dai brand al momento della creazione (one-shot, override sempre possibile per-brand).'),
+
+                    Forms\Components\Select::make('default_territory_region')
+                        ->label('Regione default')
+                        ->options(self::regionOptions())
+                        ->required(fn (Get $get) => $get('default_vertical') === 'unpli_regional')
+                        ->visible(fn (Get $get) => $get('default_vertical') === 'unpli_regional'),
+
+                    Forms\Components\Select::make('default_territory_municipality_istat')
+                        ->label('Comune default')
+                        ->searchable()
+                        ->getSearchResultsUsing(function (string $search): array {
+                            $normalized = Municipality::normalize($search);
+                            return Municipality::query()
+                                ->where('nome_normalized', 'ILIKE', $normalized . '%')
+                                ->orderBy('nome')
+                                ->limit(50)
+                                ->get()
+                                ->mapWithKeys(fn (Municipality $m) => [$m->codice_istat => "{$m->nome} ({$m->provincia})"])
+                                ->toArray();
+                        })
+                        ->getOptionLabelUsing(function ($value): ?string {
+                            $m = Municipality::find($value);
+                            return $m ? "{$m->nome} ({$m->provincia})" : null;
+                        })
+                        ->required(fn (Get $get) => $get('default_vertical') === 'pro_loco')
+                        ->visible(fn (Get $get) => $get('default_vertical') === 'pro_loco'),
+                ]),
+
             Section::make('Note')
                 ->collapsed()
                 ->schema([
@@ -169,6 +217,16 @@ class OrganizationResource extends Resource
                     ->counts('brands')
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('default_vertical')
+                    ->label('Vertical')
+                    ->badge()
+                    ->color(fn (?string $state) => match ($state) {
+                        'unpli_regional' => 'info',
+                        'pro_loco'       => 'success',
+                        default          => 'gray',
+                    })
+                    ->formatStateUsing(fn (?string $state) => $state ?? '—'),
+
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Attiva')
                     ->boolean(),
@@ -211,5 +269,19 @@ class OrganizationResource extends Resource
             'create' => Pages\CreateOrganization::route('/create'),
             'edit'   => Pages\EditOrganization::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * Le 20 regioni italiane.
+     */
+    private static function regionOptions(): array
+    {
+        $regions = [
+            'Abruzzo', 'Basilicata', 'Calabria', 'Campania', 'Emilia-Romagna',
+            'Friuli-Venezia Giulia', 'Lazio', 'Liguria', 'Lombardia', 'Marche',
+            'Molise', 'Piemonte', 'Puglia', 'Sardegna', 'Sicilia',
+            'Toscana', 'Trentino-Alto Adige', 'Umbria', "Valle d'Aosta", 'Veneto',
+        ];
+        return array_combine($regions, $regions);
     }
 }
