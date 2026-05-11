@@ -238,7 +238,17 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::post('/',        [\App\Http\Controllers\Api\CampaignController::class, 'store']);
         Route::put('/{id}',     [\App\Http\Controllers\Api\CampaignController::class, 'update'])->whereNumber('id');
         Route::delete('/{id}',  [\App\Http\Controllers\Api\CampaignController::class, 'destroy'])->whereNumber('id');
+
+        // Attachments KB
+        Route::get('/{campaign}/attachments',                  [\App\Http\Controllers\Api\CampaignAttachmentController::class, 'index'])->whereNumber('campaign');
+        Route::post('/{campaign}/attachments',                 [\App\Http\Controllers\Api\CampaignAttachmentController::class, 'store'])->whereNumber('campaign');
+        Route::delete('/{campaign}/attachments/{attachment}',  [\App\Http\Controllers\Api\CampaignAttachmentController::class, 'destroy'])->whereNumber('campaign')->whereNumber('attachment');
     });
+
+    // Download attachment (named route, riferito da CampaignAttachment::getDownloadUrl)
+    Route::get('/campaign-attachments/{attachment}/download', [\App\Http\Controllers\Api\CampaignAttachmentController::class, 'download'])
+        ->whereNumber('attachment')
+        ->name('campaign-attachments.download');
 
     // ─── AUDITS — /api/audits  (singolo audit per id) ───────────
 
