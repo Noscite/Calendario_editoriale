@@ -81,7 +81,7 @@ export default function ApiKeys() {
       }
       
       const data = await res.json();
-      setNewKeyRevealed(data.raw_key);
+      setNewKeyRevealed(data.key ?? data.raw_key);
       setMessage({ type: 'success', text: 'API Key creata! Copiala ora, non sarà più visibile.' });
       setShowForm(false);
       setForm({ name: '', scopes: ['read', 'write'], expires_in_days: null });
