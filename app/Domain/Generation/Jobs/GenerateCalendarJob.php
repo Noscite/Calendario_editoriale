@@ -13,12 +13,15 @@ use App\Domain\Subscription\Models\UsageLog;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Enums\ProjectStatus;
 use App\Domain\Project\Models\Project;
+use App\Domain\Territorial\Jobs\GenerateTerritorialPostsJob;
+use App\Domain\Territorial\Jobs\SyncTerritorialEventsJob;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -81,6 +84,27 @@ final class GenerateCalendarJob implements ShouldQueue
 
         try {
             $this->runGeneration($generator, $project, $brand);
+
+            // ─── Hook automatico pipeline territoriale ────────────────
+            // Per brand con vertical IN ('unpli_regional', 'pro_loco'),
+            // al termine successful del calendario base dispatchiamo la chain:
+            //   1) SyncTerritorialEventsJob — refresh eventi E015
+            //   2) GenerateTerritorialPostsJob(projectId) — T-14/T-2/T+1
+            // I job territoriali sono additivi: se la chain fallisce, il
+            // calendario base resta valido. Per brand senza vertical
+            // territoriale il comportamento è invariato.
+            if (in_array($brand->vertical, ['unpli_regional', 'pro_loco'], true)) {
+                Bus::chain([
+                    new SyncTerritorialEventsJob(),
+                    new GenerateTerritorialPostsJob($project->id),
+                ])->dispatch();
+
+                Log::info('[GEN] Territorial pipeline auto-dispatched', [
+                    'project_id' => $project->id,
+                    'brand_id'   => $brand->id,
+                    'vertical'   => $brand->vertical,
+                ]);
+            }
         } catch (MissingBrandApiKeyException $e) {
             Log::warning('[GEN] Generazione bloccata: chiave API mancante', [
                 'project_id' => $this->projectId,
