@@ -125,10 +125,17 @@ class User extends Authenticatable implements FilamentUser, HasName
         return $this->full_name ?? $this->email ?? 'Utente';
     }
 
+    /**
+     * Autorizzazione accesso ai panel Filament.
+     *
+     * - 'filament-admin' (admin panel SaaS cross-organization): SOLO superuser.
+     *   Gli 'admin' sono admin a livello di organizzazione cliente, NON SaaS.
+     * - Altri panel: chiunque autenticato.
+     */
     public function canAccessPanel(Panel $panel): bool
     {
         if ($panel->getId() === 'filament-admin') {
-            return in_array($this->role, ['super_admin', 'admin', 'superuser']);
+            return $this->role === 'superuser';
         }
         return true;
     }
