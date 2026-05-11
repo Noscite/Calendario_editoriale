@@ -62,7 +62,7 @@ it('creates campaign in draft status with brand pivot', function () {
     expect($response->json('status'))->toBe('draft');
     expect($response->json('brands'))->toHaveCount(1);
     expect($response->json('brands.0.id'))->toBe($brand->id);
-});
+})->skip('Refactor unify-campaign: POST /api/campaigns rimosso. Creazione ora SOLO via POST /api/projects/{id}/campaigns (vedi ProjectCampaignApiTest).');
 
 it('rejects creating campaign over plan limit', function () {
     // Crea piano Small (max=1) e org con quel piano
@@ -98,7 +98,7 @@ it('rejects creating campaign over plan limit', function () {
 
     $response2->assertStatus(422);
     expect($response2->json('error.code'))->toBe('CAMPAIGN_LIMIT_REACHED');
-});
+})->skip('Refactor unify-campaign: POST /api/campaigns rimosso. Plan limit ora gestito via CampaignObserver alla creazione tramite /api/projects/{id}/campaigns.');
 
 it('rejects status transition draft to completed', function () {
     [$user, $org] = createAuthenticatedUser();
@@ -157,4 +157,4 @@ it('filters out brand_ids that belong to another organization', function () {
     $brands = $response->json('brands');
     expect($brands)->toHaveCount(1);
     expect($brands[0]['id'])->toBe($myBrand->id);
-});
+})->skip('Refactor unify-campaign: POST /api/campaigns rimosso. La creazione usa project.brand_id (single brand) invece di brand_ids[] array.');

@@ -120,8 +120,14 @@ TXT;
 
     /**
      * Genera N post per una Campaign dentro un Project esistente.
-     * Implementazione completa nel COMMIT 7 successivo: per ora throw esplicito
-     * (il job verrà refactorizzato a chiamare questo metodo).
+     *
+     * - Distribuisce \$postsCount sulle \$platforms in modo bilanciato
+     * - Passa la Campaign al PromptBuilder → inietta KB attachments
+     *   tramite buildCampaignKnowledgeBase()
+     * - I post creati hanno campaign_id valorizzato (tracciabilità) e si
+     *   SOMMANO ai post esistenti del project (no delete, no replace)
+     * - Range temporale: usa start/end della campaign se settati,
+     *   altrimenti quelli del project
      *
      * @param  array<int, string>  $platforms
      */
@@ -131,11 +137,65 @@ TXT;
         array $platforms,
         int $postsCount,
     ): \Illuminate\Database\Eloquent\Collection {
-        throw new \RuntimeException(
-            'generateForCampaign: implementazione pending (COMMIT 7 della refactor unify-campaign). '
-            . "Campaign #{$campaign->id} project #{$project->id} platforms=" . implode(',', $platforms)
-            . " count={$postsCount}"
+        $brand     = $project->brand;
+        $startDate = Carbon::parse($campaign->start_date ?? $project->start_date);
+        $endDate   = Carbon::parse($campaign->end_date ?? $project->end_date);
+        $weeks     = max(1, (int) ceil(max(1, $startDate->diffInDays($endDate) + 1) / 7));
+
+        // Distribuzione ~equa dei post tra le platforms.
+        $perPlatform   = max(1, (int) ceil($postsCount / max(1, count($platforms))));
+        $postsPerWeek  = [];
+        foreach ($platforms as $platform) {
+            $postsPerWeek[$platform] = max(1, (int) ceil($perPlatform / $weeks));
+        }
+
+        $themes = $campaign->pillar ? [$campaign->pillar] : ($project->themes ?? []);
+
+        [$posts, , $tokens] = $this->generateCalendarPosts(
+            brandName:     $brand->name,
+            brandInfo:     $this->brandInfoArray($brand),
+            projectInfo:   array_merge($this->projectInfoArray($project), [
+                // Iniettiamo il brief della campagna come additional context: il
+                // PromptBuilder usa projectInfo['brief'] nella sezione PROGETTO.
+                'brief' => trim(($project->brief ?? '') . "\n\nCampagna: " . $campaign->name . "\n" . $campaign->brief),
+            ]),
+            startDate:     $startDate,
+            endDate:       $endDate,
+            platforms:     $platforms,
+            postsPerWeek:  $postsPerWeek,
+            themes:        $themes,
+            urlContext:    null,
+            styleGuide:    $brand->style_guide,
+            buyerPersonas: $project->buyer_personas,
+            brandId:       $brand->id,
+            projectId:     $project->id,
+            brand:         $brand,
+            campaign:      $campaign,  // ← KB attachments + MCP iniettati dentro il prompt
         );
+
+        $created        = new \Illuminate\Database\Eloquent\Collection();
+        $gitCommit      = $this->getCurrentGitCommit();
+        $contentPillars = $campaign->pillar
+            ? [$campaign->pillar]
+            : ($project->content_pillars ?? $project->themes ?? []);
+        $organizationId = $project->organization_id;
+
+        foreach ($posts as $raw) {
+            $row                = $this->buildPostRow(
+                $raw,
+                $project->id,
+                $organizationId,
+                $contentPillars,
+                $gitCommit,
+                forBulkInsert: false,
+            );
+            $row['campaign_id'] = $campaign->id;  // chiave del nuovo design
+            $created->push(Post::create($row));
+        }
+
+        $this->logTokenUsage($project->organization_id, $tokens, "campaign_{$campaign->id}");
+
+        return $created;
     }
 
     public function regeneratePost(int $postId, ?string $userPrompt = null): Post
