@@ -47,10 +47,12 @@ class BrandResource extends Resource
 
                     Forms\Components\Select::make('sector')
                         ->label('Settore')
-                        ->options(Sector::options())
+                        ->options(fn () => collect(Sector::cases())->mapWithKeys(fn (Sector $s) => [
+                            $s->value => $s->label() . ($s->isRegulated() ? ' ⚖️' : ''),
+                        ])->toArray())
                         ->searchable()
                         ->required()
-                        ->helperText('Determina tono di voce, vincoli deontologici, stile visual.'),
+                        ->helperText('I settori marcati ⚖️ attivano vincoli deontologici automatici nella generazione AI dei post (Psicologia, Salute, Legale, Finanza, Consulenza Finanziaria Indipendente).'),
 
                     Forms\Components\Textarea::make('tone_of_voice')
                         ->label('Tono di voce (descrizione)')
