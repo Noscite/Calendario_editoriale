@@ -6,6 +6,7 @@ namespace App\Domain\Generation\Services;
 
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Services\SocialDeontologicalConstraints;
+use App\Domain\Campaign\Models\Campaign;
 use Carbon\Carbon;
 
 /**
@@ -1243,6 +1244,44 @@ TXT;
     }
 
     /**
+     * Sezione "KNOWLEDGE BASE DELLA CAMPAGNA" iniettata nel system prompt
+     * quando il project è collegato a una Campaign con allegati pronti
+     * (extraction_status='completed'). Stringa vuota se campaign è null
+     * o se non ha allegati pronti.
+     */
+    private function buildCampaignKnowledgeBase(?Campaign $campaign): string
+    {
+        if ($campaign === null) {
+            return '';
+        }
+
+        $attachments = $campaign->attachmentsReadyForAI()->get();
+        if ($attachments->isEmpty()) {
+            return '';
+        }
+
+        $sections = $attachments
+            ->map(fn ($a) => sprintf(
+                "### Documento: %s\n```\n%s\n```",
+                $a->original_filename,
+                $a->extracted_text,
+            ))
+            ->implode("\n\n");
+
+        return <<<KB
+
+## KNOWLEDGE BASE — Documenti allegati alla campagna
+
+Usa queste informazioni come fonte autoritativa per generare i post.
+Cita fatti e dati specifici quando rilevanti. Se un dato cliente è
+presente qui, usalo letteralmente invece di inventarne uno plausibile.
+
+{$sections}
+
+KB;
+    }
+
+    /**
      * Sezione "VINCOLI DEONTOLOGICI" iniettata nel system prompt per brand con
      * uno o più vincoli deontologici attivi (multi-select sulla pivot table
      * brand_deontological_constraints). Stringa vuota se brand è null o senza vincoli.
@@ -1329,19 +1368,20 @@ DEON;
      * Output atteso: JSON con editorial_narrative + pillar_distribution + posts[].
      */
     public function buildStrategyPrompt(
-        string  $brandName,
-        array   $brandInfo,
-        array   $projectInfo,
-        Carbon  $startDate,
-        Carbon  $endDate,
-        array   $platforms,
-        array   $postsPerWeek,
-        array   $themes,
-        ?string $urlContext,
-        string  $ragContext,
-        array   $buyerPersonas,
-        array   $contentMixData,
-        ?Brand  $brand = null,
+        string    $brandName,
+        array     $brandInfo,
+        array     $projectInfo,
+        Carbon    $startDate,
+        Carbon    $endDate,
+        array     $platforms,
+        array     $postsPerWeek,
+        array     $themes,
+        ?string   $urlContext,
+        string    $ragContext,
+        array     $buyerPersonas,
+        array     $contentMixData,
+        ?Brand    $brand = null,
+        ?Campaign $campaign = null,
     ): string {
         $totalDays        = $startDate->diffInDays($endDate) + 1;
         $platformsList    = implode(', ', $platforms);
@@ -1372,9 +1412,10 @@ DEON;
         // esistente). Vengono iniettati DOPO ## PROGETTO e PRIMA di
         // ## IL TUO COMPITO, in modo da essere freschi quando il modello
         // inizia a comporre il piano.
-        $brandAssetsSection    = $this->buildBrandAssetsSection($brandInfo, $projectInfo);
-        $antiInventionSection  = $this->buildAntiInventionSection();
-        $deontologicalSection  = $this->buildDeontologicalSection($brand);
+        $brandAssetsSection      = $this->buildBrandAssetsSection($brandInfo, $projectInfo);
+        $antiInventionSection    = $this->buildAntiInventionSection();
+        $deontologicalSection    = $this->buildDeontologicalSection($brand);
+        $campaignKbSection       = $this->buildCampaignKnowledgeBase($campaign);
 
         return <<<PROMPT
 Pianifica il calendario editoriale per questo periodo. NON scrivere ancora il copy dei post — quello è uno step successivo. Ora devi solo definire la STRATEGIA.
@@ -1410,6 +1451,7 @@ Brief: {$this->arr($projectInfo, 'brief', 'N/A')}
 Obiettivi: {$objectivesList}
 
 {$brandAssetsSection}
+{$campaignKbSection}
 {$antiInventionSection}
 {$deontologicalSection}
 

@@ -19,6 +19,7 @@ class Project extends Model
     protected $fillable = [
         'organization_id',
         'brand_id',
+        'campaign_id',
         'parent_project_id',
         'edition_number',
         'name',
@@ -71,6 +72,16 @@ class Project extends Model
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);
+    }
+
+    /**
+     * Campagna eventualmente associata al project. Quando settata, gli allegati
+     * della campagna (CampaignAttachment con extraction_status='completed')
+     * vengono iniettati nel prompt di generazione AI come Knowledge Base.
+     */
+    public function campaign(): BelongsTo
+    {
+        return $this->belongsTo(\App\Domain\Campaign\Models\Campaign::class);
     }
 
     public function posts(): HasMany

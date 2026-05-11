@@ -6,6 +6,7 @@ namespace App\Domain\Generation\Services;
 
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Support\PillarNameNormalizer;
+use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Generation\Contracts\ContentGeneratorInterface;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
@@ -72,8 +73,9 @@ TXT;
 
     public function generateAiPosts(int $projectId, array $params): Collection
     {
-        $project = Project::with('brand')->findOrFail($projectId);
-        $brand   = $project->brand;
+        $project  = Project::with(['brand', 'campaign'])->findOrFail($projectId);
+        $brand    = $project->brand;
+        $campaign = $project->campaign;
 
         [$posts, , $tokens] = $this->generateCalendarPosts(
             brandName:    $brand->name,
@@ -90,6 +92,7 @@ TXT;
             brandId:      $brand->id,
             projectId:    $project->id,
             brand:        $brand,
+            campaign:     $campaign,
         );
 
         $created          = new Collection();
@@ -399,27 +402,28 @@ TXT;
      * @return array{0: list, 1: array, 2: int} [posts, personas, tokens]
      */
     public function generateCalendarPosts(
-        string  $brandName,
-        array   $brandInfo,
-        array   $projectInfo,
-        Carbon  $startDate,
-        Carbon  $endDate,
-        array   $platforms,
-        array   $postsPerWeek,
-        array   $themes = [],
-        ?string $urlContext = null,
-        ?string $styleGuide = null,
-        ?array  $buyerPersonas = null,
-        ?int    $brandId = null,
-        ?int    $projectId = null,
-        ?Brand  $brand = null,
+        string    $brandName,
+        array     $brandInfo,
+        array     $projectInfo,
+        Carbon    $startDate,
+        Carbon    $endDate,
+        array     $platforms,
+        array     $postsPerWeek,
+        array     $themes = [],
+        ?string   $urlContext = null,
+        ?string   $styleGuide = null,
+        ?array    $buyerPersonas = null,
+        ?int      $brandId = null,
+        ?int      $projectId = null,
+        ?Brand    $brand = null,
+        ?Campaign $campaign = null,
     ): array {
         if ((bool) config('services.anthropic.strategy_split', false)) {
             try {
                 return $this->generateCalendarPostsWithStrategySplit(
                     $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
                     $platforms, $postsPerWeek, $themes, $urlContext, $styleGuide,
-                    $buyerPersonas, $brandId, $projectId, $brand,
+                    $buyerPersonas, $brandId, $projectId, $brand, $campaign,
                 );
             } catch (\Throwable $e) {
                 Log::error('[STRATEGY] Split flow failed, fallback to legacy', ['error' => $e->getMessage()]);
@@ -574,20 +578,21 @@ TXT;
      * @return array{0: list, 1: array, 2: int}
      */
     private function generateCalendarPostsWithStrategySplit(
-        string  $brandName,
-        array   $brandInfo,
-        array   $projectInfo,
-        Carbon  $startDate,
-        Carbon  $endDate,
-        array   $platforms,
-        array   $postsPerWeek,
-        array   $themes = [],
-        ?string $urlContext = null,
-        ?string $styleGuide = null,
-        ?array  $buyerPersonas = null,
-        ?int    $brandId = null,
-        ?int    $projectId = null,
-        ?Brand  $brand = null,
+        string    $brandName,
+        array     $brandInfo,
+        array     $projectInfo,
+        Carbon    $startDate,
+        Carbon    $endDate,
+        array     $platforms,
+        array     $postsPerWeek,
+        array     $themes = [],
+        ?string   $urlContext = null,
+        ?string   $styleGuide = null,
+        ?array    $buyerPersonas = null,
+        ?int      $brandId = null,
+        ?int      $projectId = null,
+        ?Brand    $brand = null,
+        ?Campaign $campaign = null,
     ): array {
         $ragContext = $brandId ? $this->getRagContext($brandId, "{$brandName} " . implode(' ', $themes)) : '';
 
@@ -602,7 +607,7 @@ TXT;
         [$strategyPlan, $strategyTokens] = $this->generateStrategy(
             $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
             $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
-            $buyerPersonas, $contentMixData, $brand,
+            $buyerPersonas, $contentMixData, $brand, $campaign,
         );
 
         if (empty($strategyPlan['posts'] ?? [])) {
@@ -682,24 +687,25 @@ TXT;
      * @return array{0: array, 1: int} [strategyPlan, tokens]
      */
     private function generateStrategy(
-        string  $brandName,
-        array   $brandInfo,
-        array   $projectInfo,
-        Carbon  $startDate,
-        Carbon  $endDate,
-        array   $platforms,
-        array   $postsPerWeek,
-        array   $themes,
-        ?string $urlContext,
-        string  $ragContext,
-        array   $buyerPersonas,
-        array   $contentMixData,
-        ?Brand  $brand = null,
+        string    $brandName,
+        array     $brandInfo,
+        array     $projectInfo,
+        Carbon    $startDate,
+        Carbon    $endDate,
+        array     $platforms,
+        array     $postsPerWeek,
+        array     $themes,
+        ?string   $urlContext,
+        string    $ragContext,
+        array     $buyerPersonas,
+        array     $contentMixData,
+        ?Brand    $brand = null,
+        ?Campaign $campaign = null,
     ): array {
         $prompt = $this->promptBuilder->buildStrategyPrompt(
             $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
             $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
-            $buyerPersonas, $contentMixData, $brand,
+            $buyerPersonas, $contentMixData, $brand, $campaign,
         );
 
         $opusModel = (string) config('services.anthropic.opus_model', self::MODEL_OPUS);
