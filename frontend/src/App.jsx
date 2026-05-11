@@ -21,7 +21,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import SaasAdmin from './pages/SaasAdmin';
 import BrandsPage from './pages/BrandsPage';
 import CampaignsPage from './pages/CampaignsPage';
-import CreateCampaignPage from './pages/CreateCampaignPage';
 import EditCampaignPage from './pages/EditCampaignPage';
 import CreateBrandWizard from './pages/CreateBrandWizard';
 import EditBrandWizard from './pages/EditBrandWizard';
@@ -110,9 +109,10 @@ function App() {
           <Route path="/brand/:id" element={<BrandDetail />} />
           <Route path="/brand/:id/wizard" element={<EditBrandWizard />} />
 
-          {/* Campaigns */}
+          {/* Campaigns — refactor unify: creazione standalone rimossa.
+              Le campagne si lanciano dal modal "Aggiungi Post → Campagna AI"
+              nel calendario di un project. La sidebar resta read-only (storico). */}
           <Route path="/campaigns" element={<CampaignsPage />} />
-          <Route path="/campaign/new" element={<CreateCampaignPage />} />
           <Route path="/campaign/:id/edit" element={<EditCampaignPage />} />
 
           {/* Projects/Calendars */}
