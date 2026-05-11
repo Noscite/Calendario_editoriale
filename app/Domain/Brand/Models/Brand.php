@@ -2,6 +2,7 @@
 
 namespace App\Domain\Brand\Models;
 
+use App\Domain\Brand\Enums\Sector;
 use App\Domain\Brand\Models\BrandApiKey;
 use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Document\Models\BrandDocument;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 
 class Brand extends Model
 {
@@ -110,5 +112,74 @@ class Brand extends Model
         return $this->apiKeys
             ->firstWhere('key_name', $keyName)
             ?->encrypted_value;
+    }
+
+    // ── Deontological constraints ──────────────────────────────
+
+    /**
+     * Vincoli deontologici applicati a questo brand.
+     * Possono essere multipli (es. psicologo + consulente finanziario indipendente).
+     */
+    public function deontologicalConstraints(): HasMany
+    {
+        return $this->hasMany(BrandDeontologicalConstraint::class);
+    }
+
+    /**
+     * Lista degli slug dei vincoli deontologici attivi.
+     *
+     * @return Collection<int, string>
+     */
+    public function deontologicalConstraintSlugs(): Collection
+    {
+        return $this->deontologicalConstraints()->pluck('constraint_slug');
+    }
+
+    /**
+     * Versione tipizzata: ritorna gli enum Sector dei vincoli (filtra slug invalidi).
+     *
+     * @return Collection<int, Sector>
+     */
+    public function deontologicalConstraintSectors(): Collection
+    {
+        return $this->deontologicalConstraintSlugs()
+            ->map(fn (string $slug) => Sector::tryFrom($slug))
+            ->filter()
+            ->values();
+    }
+
+    public function hasDeontologicalConstraints(): bool
+    {
+        return $this->deontologicalConstraints()->exists();
+    }
+
+    /**
+     * Sync atomico dei vincoli (replace strategy). Defensive su slug invalidi/duplicati.
+     *
+     * @param  array<int, string>  $slugs
+     */
+    public function syncDeontologicalConstraints(array $slugs): void
+    {
+        $validSlugs = collect($slugs)
+            ->unique()
+            ->filter(fn ($slug) => is_string($slug) && in_array($slug, Sector::regulatedValues(), true))
+            ->values()
+            ->all();
+
+        $this->deontologicalConstraints()->delete();
+
+        if (empty($validSlugs)) {
+            return;
+        }
+
+        $now  = now();
+        $rows = array_map(fn (string $slug) => [
+            'brand_id'        => $this->id,
+            'constraint_slug' => $slug,
+            'created_at'      => $now,
+            'updated_at'      => $now,
+        ], $validSlugs);
+
+        BrandDeontologicalConstraint::insert($rows);
     }
 }

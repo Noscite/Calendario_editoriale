@@ -67,4 +67,33 @@ enum Sector: string
             ->mapWithKeys(fn (self $s) => [$s->value => $s->label()])
             ->toArray();
     }
+
+    /**
+     * Slug dei settori regolamentati. Usato dalla validazione FormRequest
+     * sul campo `deontological_constraints[]` e dall'API options endpoint.
+     *
+     * @return list<string>
+     */
+    public static function regulatedValues(): array
+    {
+        return collect(self::cases())
+            ->filter(fn (self $s) => $s->isRegulated())
+            ->map(fn (self $s) => $s->value)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Opzioni regolamentate per dropdown UI multi-select.
+     *
+     * @return list<array{value: string, label: string}>
+     */
+    public static function regulatedOptions(): array
+    {
+        return collect(self::cases())
+            ->filter(fn (self $s) => $s->isRegulated())
+            ->map(fn (self $s) => ['value' => $s->value, 'label' => $s->label()])
+            ->values()
+            ->all();
+    }
 }
