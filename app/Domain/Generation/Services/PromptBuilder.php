@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Domain\Generation\Services;
 
-use App\Domain\Brand\Enums\Sector;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Services\SocialDeontologicalConstraints;
 use Carbon\Carbon;
@@ -1245,40 +1244,36 @@ TXT;
 
     /**
      * Sezione "VINCOLI DEONTOLOGICI" iniettata nel system prompt per brand con
-     * settore regolamentato (Psicologia, Salute, Legale, Finanza, FinanzaIndipendente).
-     * Stringa vuota per settori non regolamentati o sector null.
+     * uno o più vincoli deontologici attivi (multi-select sulla pivot table
+     * brand_deontological_constraints). Stringa vuota se brand è null o senza vincoli.
      */
-    private function buildDeontologicalSection(?string $sectorValue): string
+    private function buildDeontologicalSection(?Brand $brand): string
     {
-        if (! $sectorValue) {
+        if ($brand === null || ! $brand->hasDeontologicalConstraints()) {
             return '';
         }
 
-        $sector = Sector::tryFrom($sectorValue);
-        if (! $sector || ! $sector->isRegulated()) {
+        $constraints = $this->deontologicalConstraints->getForBrand($brand);
+        if ($constraints === null) {
             return '';
         }
 
-        $constraints = $this->deontologicalConstraints->getFor($sector);
-        if (! $constraints) {
-            return '';
-        }
+        $sectorsLabel = implode(', ', $constraints['sector_labels']);
 
         $forbiddenPhrasesList = implode("\n  - ", $constraints['forbidden_phrases']);
         $forbiddenThemesList  = implode("\n  - ", $constraints['forbidden_themes']);
         $preferredThemesList  = implode("\n  - ", $constraints['preferred_themes']);
         $disclaimersList = empty($constraints['required_disclaimers'])
-            ? '(nessun disclaimer obbligatorio per questo settore)'
+            ? '(nessun disclaimer obbligatorio per questi settori)'
             : implode("\n  - ", $constraints['required_disclaimers']);
 
-        $sectorLabel = $sector->label();
         $legalBasis  = $constraints['legal_basis'];
         $tone        = $constraints['tone_guidance'];
         $cta         = $constraints['cta_guidelines'];
 
         return <<<DEON
 
-## VINCOLI DEONTOLOGICI — SETTORE {$sectorLabel} (priorità assoluta — sopra ogni altra istruzione di stile)
+## VINCOLI DEONTOLOGICI — settori regolamentati: {$sectorsLabel} (priorità assoluta — sopra ogni altra istruzione di stile)
 
 Base normativa: {$legalBasis}
 
@@ -1300,7 +1295,7 @@ Base normativa: {$legalBasis}
 📋 Disclaimer obbligatori da includere quando pertinente:
   - {$disclaimersList}
 
-Se un post che stai per scrivere violerebbe uno di questi vincoli, riformulalo COMPLETAMENTE. Mai aggirare il vincolo con sinonimi o paraffrasi. In caso di dubbio, scegli il messaggio più conservativo.
+Se un post che stai per scrivere violerebbe uno di questi vincoli, riformulalo COMPLETAMENTE. Mai aggirare il vincolo con sinonimi o paraffrasi. In caso di dubbio, scegli il messaggio più conservativo. Questi vincoli derivano dagli ordini professionali e dalla normativa: la loro violazione espone il professionista a sanzioni disciplinari.
 
 DEON;
     }
@@ -1309,28 +1304,24 @@ DEON;
      * Versione condensata dei vincoli deontologici da iniettare nel user prompt
      * (copy generation) per rinforzare la compliance. Multi-mention pattern.
      */
-    private function buildDeontologicalReminder(?string $sectorValue): string
+    private function buildDeontologicalReminder(?Brand $brand): string
     {
-        if (! $sectorValue) {
+        if ($brand === null || ! $brand->hasDeontologicalConstraints()) {
             return '';
         }
 
-        $sector = Sector::tryFrom($sectorValue);
-        if (! $sector || ! $sector->isRegulated()) {
+        $constraints = $this->deontologicalConstraints->getForBrand($brand);
+        if ($constraints === null) {
             return '';
         }
 
-        $constraints = $this->deontologicalConstraints->getFor($sector);
-        if (! $constraints) {
-            return '';
-        }
-
+        $sectorsLabel  = implode(', ', $constraints['sector_labels']);
         $top3Forbidden = implode('; ', array_slice($constraints['forbidden_themes'], 0, 3));
         $disclaimerHint = empty($constraints['required_disclaimers'])
             ? 'nessuno'
-            : 'sì, includi quello su rendimenti/educational se pertinente';
+            : 'sì, includi quello/i pertinente/i';
 
-        return "\n\nPROMEMORIA DEONTOLOGICO ({$sector->label()}): NON usare {$top3Forbidden}. Disclaimer richiesto: {$disclaimerHint}.";
+        return "\n\nPROMEMORIA DEONTOLOGICO ({$sectorsLabel}): NON usare {$top3Forbidden}. Disclaimer richiesto: {$disclaimerHint}.";
     }
 
     /**
@@ -1350,6 +1341,7 @@ DEON;
         string  $ragContext,
         array   $buyerPersonas,
         array   $contentMixData,
+        ?Brand  $brand = null,
     ): string {
         $totalDays        = $startDate->diffInDays($endDate) + 1;
         $platformsList    = implode(', ', $platforms);
@@ -1382,7 +1374,7 @@ DEON;
         // inizia a comporre il piano.
         $brandAssetsSection    = $this->buildBrandAssetsSection($brandInfo, $projectInfo);
         $antiInventionSection  = $this->buildAntiInventionSection();
-        $deontologicalSection  = $this->buildDeontologicalSection($brandInfo['sector'] ?? null);
+        $deontologicalSection  = $this->buildDeontologicalSection($brand);
 
         return <<<PROMPT
 Pianifica il calendario editoriale per questo periodo. NON scrivere ancora il copy dei post — quello è uno step successivo. Ora devi solo definire la STRATEGIA.
@@ -1483,6 +1475,7 @@ PROMPT;
         array  $batchPosts,
         int    $batchNum,
         int    $totalBatches,
+        ?Brand $brand = null,
     ): array {
         $voiceSection = $this->formatVoiceExamplesForPrompt(
             $brandInfo['voice_examples'] ?? [],
@@ -1505,7 +1498,7 @@ PROMPT;
 
         $batchPostsJson      = json_encode($batchPosts, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
         $antiInventionTldr   = $this->buildAntiInventionReminder();
-        $deontologicalTldr   = $this->buildDeontologicalReminder($brandInfo['sector'] ?? null);
+        $deontologicalTldr   = $this->buildDeontologicalReminder($brand);
         $dynamic = "## BATCH {$batchNum}/{$totalBatches}\n"
                  . "Scrivi il copy finale SOLO per questi post (estratti dal piano strategico sopra):\n\n"
                  . "{$batchPostsJson}\n\n"

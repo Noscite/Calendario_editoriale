@@ -89,6 +89,7 @@ TXT;
             buyerPersonas: $project->buyer_personas,
             brandId:      $brand->id,
             projectId:    $project->id,
+            brand:        $brand,
         );
 
         $created          = new Collection();
@@ -411,13 +412,14 @@ TXT;
         ?array  $buyerPersonas = null,
         ?int    $brandId = null,
         ?int    $projectId = null,
+        ?Brand  $brand = null,
     ): array {
         if ((bool) config('services.anthropic.strategy_split', false)) {
             try {
                 return $this->generateCalendarPostsWithStrategySplit(
                     $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
                     $platforms, $postsPerWeek, $themes, $urlContext, $styleGuide,
-                    $buyerPersonas, $brandId, $projectId,
+                    $buyerPersonas, $brandId, $projectId, $brand,
                 );
             } catch (\Throwable $e) {
                 Log::error('[STRATEGY] Split flow failed, fallback to legacy', ['error' => $e->getMessage()]);
@@ -585,6 +587,7 @@ TXT;
         ?array  $buyerPersonas = null,
         ?int    $brandId = null,
         ?int    $projectId = null,
+        ?Brand  $brand = null,
     ): array {
         $ragContext = $brandId ? $this->getRagContext($brandId, "{$brandName} " . implode(' ', $themes)) : '';
 
@@ -599,7 +602,7 @@ TXT;
         [$strategyPlan, $strategyTokens] = $this->generateStrategy(
             $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
             $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
-            $buyerPersonas, $contentMixData,
+            $buyerPersonas, $contentMixData, $brand,
         );
 
         if (empty($strategyPlan['posts'] ?? [])) {
@@ -646,7 +649,7 @@ TXT;
 
             [$posts, $batchTokens] = $this->generateCopyBatch(
                 $brandName, $brandInfo, $ragContext,
-                $strategyPlan, $batchPosts, $batchNum + 1, $batches,
+                $strategyPlan, $batchPosts, $batchNum + 1, $batches, $brand,
             );
 
             // Inietta metadata di provenienza per ciascun post:
@@ -691,11 +694,12 @@ TXT;
         string  $ragContext,
         array   $buyerPersonas,
         array   $contentMixData,
+        ?Brand  $brand = null,
     ): array {
         $prompt = $this->promptBuilder->buildStrategyPrompt(
             $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
             $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
-            $buyerPersonas, $contentMixData,
+            $buyerPersonas, $contentMixData, $brand,
         );
 
         $opusModel = (string) config('services.anthropic.opus_model', self::MODEL_OPUS);
@@ -730,10 +734,11 @@ TXT;
         array  $batchPosts,
         int    $batchNum,
         int    $totalBatches,
+        ?Brand $brand = null,
     ): array {
         $parts = $this->promptBuilder->buildCopyPromptParts(
             $brandName, $brandInfo, $ragContext,
-            $strategyPlan, $batchPosts, $batchNum, $totalBatches,
+            $strategyPlan, $batchPosts, $batchNum, $totalBatches, $brand,
         );
 
         try {
