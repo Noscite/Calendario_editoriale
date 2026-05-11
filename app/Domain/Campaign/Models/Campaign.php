@@ -61,6 +61,22 @@ class Campaign extends Model
         return $this->hasMany(Post::class);
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(CampaignAttachment::class);
+    }
+
+    /**
+     * Allegati pronti per essere usati come KB nella generazione AI
+     * (extraction_status='completed' con extracted_text non nullo).
+     */
+    public function attachmentsReadyForAI(): HasMany
+    {
+        return $this->hasMany(CampaignAttachment::class)
+            ->where('extraction_status', CampaignAttachment::STATUS_COMPLETED)
+            ->whereNotNull('extracted_text');
+    }
+
     /**
      * Helper per verificare se la campagna è in uno stato che la fa contare per il plan limit.
      */
