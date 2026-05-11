@@ -15,6 +15,9 @@ class EditBrand extends EditRecord
 
     protected static string $resource = BrandResource::class;
 
+    /** @var list<string>|null */
+    private ?array $pendingDeontologicalConstraints = null;
+
     protected function getHeaderActions(): array
     {
         return [Actions\DeleteAction::make()];
@@ -22,7 +25,6 @@ class EditBrand extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // Estrai territory_meta nei campi virtuali del form per pre-popolarli.
         $meta = $data['territory_meta'] ?? [];
         $data['territory_region'] = $meta['region'] ?? null;
         $data['territory_municipality_istat'] = $meta['municipality_istat'] ?? null;
@@ -31,6 +33,20 @@ class EditBrand extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        // deontological_constraints è gestito via pivot table: rimuovi dal payload
+        // del Brand (chiave non corrispondente a colonna) e sincronizza dopo save.
+        $this->pendingDeontologicalConstraints = array_key_exists('deontological_constraints', $data)
+            ? (is_array($data['deontological_constraints']) ? array_values($data['deontological_constraints']) : [])
+            : null;
+        unset($data['deontological_constraints']);
+
         return $this->repackTerritoryMeta($data);
+    }
+
+    protected function afterSave(): void
+    {
+        if ($this->pendingDeontologicalConstraints !== null) {
+            $this->record->syncDeontologicalConstraints($this->pendingDeontologicalConstraints);
+        }
     }
 }

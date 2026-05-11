@@ -45,14 +45,10 @@ class BrandResource extends Resource
                         ->required()
                         ->maxLength(255),
 
-                    Forms\Components\Select::make('sector')
+                    Forms\Components\TextInput::make('sector')
                         ->label('Settore')
-                        ->options(fn () => collect(Sector::cases())->mapWithKeys(fn (Sector $s) => [
-                            $s->value => $s->label() . ($s->isRegulated() ? ' ⚖️' : ''),
-                        ])->toArray())
-                        ->searchable()
-                        ->required()
-                        ->helperText('I settori marcati ⚖️ attivano vincoli deontologici automatici nella generazione AI dei post (Psicologia, Salute, Legale, Finanza, Consulenza Finanziaria Indipendente).'),
+                        ->maxLength(255)
+                        ->helperText('Descrizione libera dell\'attività (es. "Psicologia clinica, formazione, scrittura"). I vincoli deontologici sono gestiti separatamente sotto.'),
 
                     Forms\Components\Textarea::make('tone_of_voice')
                         ->label('Tono di voce (descrizione)')
@@ -60,6 +56,32 @@ class BrandResource extends Resource
                         ->helperText('Es: caldo, autentico, vicino alle comunità locali. Sovrascrive i default del settore.'),
                 ])
                 ->columns(2),
+
+            Section::make('Vincoli deontologici')
+                ->description('Settori regolamentati i cui vincoli professionali devono essere rispettati nei post AI. Si applicano cumulativamente: tutte le regole dei settori selezionati saranno iniettate nel system prompt.')
+                ->schema([
+                    Forms\Components\Toggle::make('has_deontological_constraints_toggle')
+                        ->label('⚖️ Brand soggetto a vincoli deontologici')
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (Forms\Components\Toggle $component, $state, $record) {
+                            if ($record instanceof Brand) {
+                                $component->state($record->hasDeontologicalConstraints());
+                            }
+                        }),
+
+                    Forms\Components\CheckboxList::make('deontological_constraints')
+                        ->label('Vincoli applicabili')
+                        ->options(collect(Sector::regulatedOptions())->pluck('label', 'value')->toArray())
+                        ->columns(1)
+                        ->helperText('Seleziona uno o più. I vincoli si applicano cumulativamente alla generazione dei post.')
+                        ->visible(fn (Get $get): bool => (bool) $get('has_deontological_constraints_toggle'))
+                        ->afterStateHydrated(function (Forms\Components\CheckboxList $component, $state, $record) {
+                            if ($record instanceof Brand) {
+                                $component->state($record->deontologicalConstraintSlugs()->toArray());
+                            }
+                        }),
+                ]),
 
             Section::make('Verticalizzazione (opzionale)')
                 ->description('Attiva pipeline dati esterne per casi specifici. Lasciare vuoto per brand normali.')
@@ -124,6 +146,19 @@ class BrandResource extends Resource
                 Tables\Columns\TextColumn::make('sector')
                     ->label('Settore')
                     ->badge(),
+                Tables\Columns\TextColumn::make('deontological_constraints_summary')
+                    ->label('Vincoli ⚖️')
+                    ->state(function (Brand $record): string {
+                        $count = $record->deontologicalConstraints()->count();
+                        if ($count === 0) {
+                            return '—';
+                        }
+                        $labels = $record->deontologicalConstraintSectors()
+                            ->map(fn (Sector $s) => $s->label())
+                            ->implode(', ');
+                        return "⚖️ {$labels}";
+                    })
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('vertical')
                     ->label('Vertical')
                     ->badge()
@@ -156,8 +191,14 @@ class BrandResource extends Resource
                         'unpli_regional' => 'UNPLI Regionale',
                         'pro_loco'       => 'Pro Loco',
                     ]),
-                Tables\Filters\SelectFilter::make('sector')
-                    ->options(Sector::options()),
+                Tables\Filters\SelectFilter::make('deontological_constraint')
+                    ->label('Vincolo deontologico')
+                    ->options(collect(Sector::regulatedOptions())->pluck('label', 'value')->toArray())
+                    ->query(function ($query, array $data) {
+                        if (! empty($data['value'])) {
+                            $query->whereHas('deontologicalConstraints', fn ($q) => $q->where('constraint_slug', $data['value']));
+                        }
+                    }),
                 Tables\Filters\SelectFilter::make('organization_id')
                     ->relationship('organization', 'name')
                     ->label('Organizzazione'),
