@@ -49,15 +49,25 @@ class GenerateTerritorialPostsJob implements ShouldQueue
         }
 
         // Piattaforme attive del brand (Platform enum cases via cast).
-        /** @var array<int, Platform> $platforms */
-        $platforms = SocialConnection::where('brand_id', $brand->id)
+        /** @var array<int, Platform> $activePlatforms */
+        $activePlatforms = SocialConnection::where('brand_id', $brand->id)
             ->where('is_active', true)
             ->pluck('platform')
             ->all();
 
-        if (empty($platforms)) {
-            Log::warning("[TERRITORIAL] Project {$project->id}: brand {$brand->id} has no active social connections, skip");
-            return;
+        if (empty($activePlatforms)) {
+            // Onboarding-friendly: senza social connessi, generiamo comunque
+            // i post come DRAFT sulle piattaforme default. L'utente collega
+            // i social e ri-programma quando i draft compaiono nel calendario.
+            $defaultPlatformValues = config('territorial.default_platforms', ['linkedin', 'instagram', 'facebook']);
+            $platforms = array_map(fn (string $v) => Platform::from($v), $defaultPlatformValues);
+
+            Log::info("[TERRITORIAL] Project {$project->id}: no active social connections — generating drafts on default platforms", [
+                'brand_id'  => $brand->id,
+                'platforms' => $defaultPlatformValues,
+            ]);
+        } else {
+            $platforms = $activePlatforms;
         }
 
         // Range temporale del progetto. Default: oggi → fra 30gg.
