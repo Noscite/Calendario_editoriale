@@ -64,3 +64,11 @@ Schedule::job(new SyncTerritorialEventsJob)
     ->dailyAt('03:00')
     ->onOneServer()
     ->name('territorial-events-sync');
+
+// ── Campaign Drafts Cleanup ──────────────────────────────────────
+// Elimina Draft campaign abbandonate (utenti che aprono il modal
+// "Campagna AI" → espandono KB/MCP → chiudono senza submit).
+Schedule::command('campaigns:cleanup-stale-drafts')
+    ->dailyAt('03:10')
+    ->onOneServer()
+    ->name('campaigns-cleanup-stale-drafts');
