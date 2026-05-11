@@ -199,6 +199,8 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
     //   api.put('/brands/{id}', data)
     //   api.delete('/brands/{id}')
 
+    Route::get('/deontological-options', [\App\Http\Controllers\Api\DeontologicalOptionsController::class, 'index']);
+
     Route::prefix('brands')->group(function () {
         Route::get('/', [BrandController::class, 'index']);
         Route::get('/{id}', [BrandController::class, 'show']);

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Brand\Contracts\BrandServiceInterface;
 use App\Domain\Brand\Data\CreateBrandData;
 use App\Domain\Brand\Data\UpdateBrandData;
+use App\Domain\Brand\Enums\Sector;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Services\BrandCompletenessService;
 use App\Domain\Organization\Models\Organization;
@@ -14,6 +15,7 @@ use App\Domain\Subscription\Models\Plan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
 
 /**
  * CRUD brand — corrisponde a brands.py (Python).
@@ -37,18 +39,20 @@ final class BrandController extends Controller
 
         $result = $brands->map(function ($b) {
             return [
-                'id'              => $b->id,
-                'name'            => $b->name,
-                'sector'          => $b->sector,
-                'tone_of_voice'   => $b->tone_of_voice,
-                'brand_values'    => $b->brand_values,
-                'description'     => $b->description,
-                'target_audience' => $b->target_audience,
-                'colors'          => $b->colors,
-                'style_guide'     => $b->style_guide,
-                'website'         => $b->website ?? null,
-                'projects_count'  => $b->projects_count ?? $b->projects()->count(),
-                'posts_count'     => $b->posts_count ?? $b->projects()->withCount('posts')->get()->sum('posts_count'),
+                'id'                             => $b->id,
+                'name'                           => $b->name,
+                'sector'                         => $b->sector,
+                'tone_of_voice'                  => $b->tone_of_voice,
+                'brand_values'                   => $b->brand_values,
+                'description'                    => $b->description,
+                'target_audience'                => $b->target_audience,
+                'colors'                         => $b->colors,
+                'style_guide'                    => $b->style_guide,
+                'website'                        => $b->website ?? null,
+                'projects_count'                 => $b->projects_count ?? $b->projects()->count(),
+                'posts_count'                    => $b->posts_count ?? $b->projects()->withCount('posts')->get()->sum('posts_count'),
+                'deontological_constraints'      => $b->deontologicalConstraintSlugs()->toArray(),
+                'has_deontological_constraints'  => $b->hasDeontologicalConstraints(),
             ];
         });
 
@@ -106,6 +110,13 @@ final class BrandController extends Controller
             'auto_reply_delay_minutes'           => $brand->auto_reply_delay_minutes,
             // API keys flag (computato come in legacy)
             'has_own_api_keys'                   => (bool) ($plan?->has_own_api_keys || $request->user()->role === 'superuser'),
+            // ── Deontological constraints ────────────────────────────
+            'deontological_constraints'          => $brand->deontologicalConstraintSlugs()->toArray(),
+            'deontological_constraints_labels'   => $brand->deontologicalConstraintSectors()
+                ->map(fn (Sector $s) => ['value' => $s->value, 'label' => $s->label()])
+                ->values()
+                ->toArray(),
+            'has_deontological_constraints'      => $brand->hasDeontologicalConstraints(),
         ]);
     }
 
@@ -134,7 +145,13 @@ final class BrandController extends Controller
             return response()->json(['detail' => 'User has no organization'], 400);
         }
 
+        $constraintSlugs = $this->validateDeontologicalConstraints($request);
+
         $brand = $this->brandService->create($orgId, $dto->toArray());
+
+        if ($constraintSlugs !== null) {
+            $brand->syncDeontologicalConstraints($constraintSlugs);
+        }
 
         return response()->json([
             'id'   => $brand->id,
@@ -170,12 +187,39 @@ final class BrandController extends Controller
             }
         }
 
+        $constraintSlugs = $this->validateDeontologicalConstraints($request);
+
         $brand = $this->brandService->update($id, $data);
+
+        if ($constraintSlugs !== null) {
+            $brand->syncDeontologicalConstraints($constraintSlugs);
+        }
 
         return response()->json([
             'id'   => $brand->id,
             'name' => $brand->name,
         ]);
+    }
+
+    /**
+     * Valida e ritorna i constraint slug se presenti nella request.
+     * Ritorna null se il client NON ha inviato il campo (no-op semantico,
+     * preserva i vincoli esistenti). Ritorna [] per clearing esplicito.
+     *
+     * @return list<string>|null
+     */
+    private function validateDeontologicalConstraints(Request $request): ?array
+    {
+        if (! $request->has('deontological_constraints')) {
+            return null;
+        }
+
+        $request->validate([
+            'deontological_constraints'   => ['array'],
+            'deontological_constraints.*' => ['string', Rule::in(Sector::regulatedValues())],
+        ]);
+
+        return array_values((array) $request->input('deontological_constraints', []));
     }
 
     // DELETE /api/brands/{id}
