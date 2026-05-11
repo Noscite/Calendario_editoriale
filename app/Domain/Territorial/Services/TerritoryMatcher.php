@@ -31,7 +31,14 @@ class TerritoryMatcher
 
         $query = TerritorialEvent::query()
             ->where('status', 'active')
-            ->whereBetween('start_at', [$start, $end]);
+            // Overlap window: l'evento è "attivo nel periodo" se inizia entro la fine
+            // del range AND finisce dopo l'inizio del range. Recupera anche rassegne
+            // multi-mese iniziate prima del range che sono ancora in corso.
+            ->where('start_at', '<=', $end)
+            ->where(function (Builder $q) use ($start) {
+                $q->where('end_at', '>=', $start)
+                  ->orWhereNull('end_at'); // eventi puntuali senza end_at: match permissivo
+            });
 
         if ($vertical === 'unpli_regional') {
             $region = $meta['region'] ?? null;
@@ -52,11 +59,16 @@ class TerritoryMatcher
 
     /**
      * Scope per regione: matcha eventi via province della regione (sigla 'MI'
-     * o nome esteso 'Milano' — il feed E015 alterna i due formati).
+     * o nome esteso 'Milano') con tolleranza per:
+     * - Case variabile (MI / Mi / mi / Milano / MILANO)
+     * - Province non-standard ("Monza Brianza", "Monza e della Brianza")
+     * - Dati sporchi (province="Italia"): fallback su match per city con
+     *   qualunque comune della regione.
      */
     private function scopeByRegion(Builder $query, string $regionName): void
     {
-        $municipalities = Municipality::where('regione', $regionName)
+        // Sigle province della regione (sempre MAIUSCOLE in DB municipalities)
+        $sigle = Municipality::where('regione', $regionName)
             ->select('provincia')
             ->distinct()
             ->pluck('provincia')
@@ -64,30 +76,62 @@ class TerritoryMatcher
             ->values()
             ->toArray();
 
-        if (empty($municipalities)) {
-            $query->whereRaw('1 = 0'); // nessun match
+        if (empty($sigle)) {
+            $query->whereRaw('1 = 0');
             return;
         }
 
-        // Per il match "nome esteso provincia" (es. 'Milano') prendiamo dalla
-        // tabella province di Italia derivata. Per semplicità e dato che il
-        // feed E015 usa il nome del capoluogo come "province" esteso, mappiamo
-        // sigla -> nome capoluogo via Municipality stesso (cerchiamo i comuni
-        // capoluogo: in pratica accettiamo qualunque comune con quella sigla
-        // come potenziale "province name").
-        $provinceNames = Municipality::whereIn('provincia', $municipalities)
+        // Nomi capoluoghi (es. "milano", "bergamo") per match nome esteso provincia
+        $provinceNames = Municipality::whereIn('provincia', $sigle)
             ->select('nome')
             ->distinct()
             ->pluck('nome')
             ->map(fn (string $n) => mb_strtolower($n, 'UTF-8'))
+            ->values()
             ->toArray();
 
-        $query->where(function (Builder $q) use ($municipalities, $provinceNames) {
-            $q->whereIn('province', $municipalities); // sigla 'MI', 'BG', ...
+        // Tutti i comuni della regione (case-insensitive) per fallback city
+        $cityNames = Municipality::where('regione', $regionName)
+            ->pluck('nome')
+            ->map(fn (string $n) => mb_strtolower($n, 'UTF-8'))
+            ->unique()
+            ->values()
+            ->toArray();
 
-            // OR fallback: feed E015 a volte scrive il nome esteso "Milano" / "Bergamo"
+        // Alias provincia non-standard noti del feed E015.
+        // Estendibile in futuro: chiave = stringa UPPER come arriva nel feed,
+        // valore = sigla provincia ufficiale.
+        $provinceAliases = [
+            'MONZA BRIANZA'              => 'MB',
+            'MONZA E DELLA BRIANZA'      => 'MB',
+            'MONZA E BRIANZA'            => 'MB',
+            'PROVINCIA DI MONZA'         => 'MB',
+            'PROVINCIA DI MONZA BRIANZA' => 'MB',
+        ];
+        // Tieni solo gli alias le cui sigle sono effettivamente nella regione
+        $applicableAliases = array_keys(array_filter(
+            $provinceAliases,
+            fn (string $sigla) => in_array($sigla, $sigle, true)
+        ));
+
+        $query->where(function (Builder $q) use ($sigle, $provinceNames, $cityNames, $applicableAliases) {
+            // 1) Match sigla provincia case-insensitive
+            $q->whereIn(\DB::raw('UPPER(province)'), $sigle);
+
+            // 2) OR match nome esteso provincia case-insensitive (es. "Milano", "MILANO", "milano")
             if (! empty($provinceNames)) {
                 $q->orWhereIn(\DB::raw('LOWER(province)'), $provinceNames);
+            }
+
+            // 3) OR match alias provincia non-standard ("Monza Brianza" -> MB)
+            if (! empty($applicableAliases)) {
+                $q->orWhereIn(\DB::raw('UPPER(province)'), $applicableAliases);
+            }
+
+            // 4) OR fallback: city corrisponde a un comune della regione
+            //    (recupera eventi con province sporca tipo "Italia" o NULL)
+            if (! empty($cityNames)) {
+                $q->orWhereIn(\DB::raw('LOWER(city)'), $cityNames);
             }
         });
     }
