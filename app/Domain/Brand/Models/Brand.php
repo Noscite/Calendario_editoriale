@@ -107,6 +107,16 @@ class Brand extends Model
         return $this->belongsToMany(Campaign::class, 'brand_campaign')->withTimestamps();
     }
 
+    /**
+     * MCP servers attivi configurati sul brand (default ereditato dalle
+     * campagne, salvo override esplicito sulla singola campagna).
+     */
+    public function mcpServers(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Mcp\Models\BrandMcpServer::class)
+            ->where('is_active', true);
+    }
+
     public function getApiKey(string $keyName): ?string
     {
         return $this->apiKeys

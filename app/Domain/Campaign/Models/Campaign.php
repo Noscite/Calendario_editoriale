@@ -78,6 +78,63 @@ class Campaign extends Model
     }
 
     /**
+     * MCP servers attivi configurati direttamente sulla campagna.
+     */
+    public function mcpServers(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Mcp\Models\CampaignMcpServer::class)
+            ->where('is_active', true);
+    }
+
+    /**
+     * true se almeno un campaign MCP ha override_brand_mcp=true → esclude
+     * gli MCP del brand dalla effective list.
+     */
+    public function hasMcpOverride(): bool
+    {
+        return $this->mcpServers()->where('override_brand_mcp', true)->exists();
+    }
+
+    /**
+     * Lista degli MCP server effettivi da passare ad Anthropic.
+     *
+     * - Default: union dei campaign MCP attivi + brand MCP attivi.
+     * - Se hasMcpOverride(): solo i campaign MCP attivi.
+     *
+     * Se $brandId è specificato (es. quando si genera per un singolo
+     * Project linkato a Campaign): usa SOLO gli MCP di quel brand.
+     * Altrimenti usa l'union degli MCP di tutti i brand della campaign.
+     *
+     * @return array<int, array{name: string, url: string, api_key: ?string}>
+     */
+    public function effectiveMcpServers(?int $brandId = null): array
+    {
+        $toRow = fn ($m): array => [
+            'name'    => $m->name,
+            'url'     => $m->url,
+            'api_key' => $m->getApiKey(),
+        ];
+
+        // toBase() perché dopo map() a array gli elementi non sono più modelli:
+        // merge() su EloquentCollection assume getKey() sui modelli.
+        $campaignMcps = $this->mcpServers->toBase()->map($toRow);
+
+        if ($this->hasMcpOverride()) {
+            return $campaignMcps->values()->all();
+        }
+
+        $brands = $brandId === null
+            ? $this->brands
+            : $this->brands->where('id', $brandId);
+
+        $brandMcps = $brands->toBase()
+            ->flatMap(fn ($brand) => $brand->mcpServers)
+            ->map($toRow);
+
+        return $campaignMcps->merge($brandMcps)->values()->all();
+    }
+
+    /**
      * Helper per verificare se la campagna è in uno stato che la fa contare per il plan limit.
      */
     public function isActiveStatus(): bool
