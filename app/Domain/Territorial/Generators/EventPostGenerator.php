@@ -19,7 +19,7 @@ class EventPostGenerator
 
     /**
      * Genera contenuto post per un evento e una fase specifica.
-     * Phase: 'announcement' | 'reminder' | 'recap'
+     * Phase: 'announcement' (T-3) | 'recap' (T+1)
      *
      * @return array{title:string, content:string, hashtags:string, cta:string}
      */
@@ -55,9 +55,8 @@ class EventPostGenerator
         }
 
         $phaseInstr = match ($phase) {
-            'announcement' => 'Genera un post di ANNUNCIO da pubblicare ~14 giorni prima dell\'evento. Crea attesa, racconta cosa lo rende speciale, invita a salvare la data. Includi data e luogo.',
-            'reminder'     => 'Genera un post di REMINDER da pubblicare ~2 giorni prima dell\'evento. Tono urgenza positiva, ricorda dettagli pratici (orario, luogo). Spinta finale a partecipare.',
-            'recap'        => 'Genera un post di RECAP da pubblicare ~1 giorno dopo l\'evento. Ringrazia partecipanti, racconta un momento o un\'emozione, invita a tornare e a seguire i prossimi eventi.',
+            'announcement' => 'Genera un post di ANTICIPAZIONE da pubblicare 3 giorni prima dell\'evento. Tono di richiamo concreto: la data è vicina, è il momento di prenotarsi / partecipare. Includi data, orario, luogo. Spinge all\'azione senza essere insistente.',
+            'recap'        => 'Genera un post di RECAP da pubblicare il giorno dopo l\'evento. Ringrazia partecipanti, racconta un momento o un\'emozione, invita a tornare e a seguire i prossimi eventi della Pro Loco.',
             default        => throw new \InvalidArgumentException("Phase non valida: {$phase}"),
         };
 

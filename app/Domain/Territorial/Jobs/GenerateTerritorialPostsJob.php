@@ -31,9 +31,8 @@ class GenerateTerritorialPostsJob implements ShouldQueue
     private const ALLOWED_VERTICALS = ['pro_loco', 'unpli_regional'];
 
     private const PHASES = [
-        'announcement' => -14,  // T-14 giorni
-        'reminder'     => -2,   // T-2 giorni
-        'recap'        => +1,   // T+1 giorno
+        'announcement' => -3,   // T-3 giorni: anticipo concreto, vicino all'evento
+        'recap'        => +1,   // T+1 giorno: ringraziamento + invito ai prossimi
     ];
 
     public function __construct(public readonly int $projectId) {}
@@ -75,12 +74,13 @@ class GenerateTerritorialPostsJob implements ShouldQueue
         $periodEnd   = $project->end_date?->copy() ?? now()->addDays(30)->endOfDay();
 
         // Eventi candidati: filtrati dal TerritoryMatcher in base a brand.vertical
-        // + brand.territory_meta. Buffer di 14gg a sinistra perché un evento al
-        // limite richiede T-14 di annuncio già nel periodo.
+        // + brand.territory_meta. Buffer di 3gg a sinistra per coprire eventi al
+        // limite con T-3 anticipo, +1gg a destra per coprire eventi che finiscono
+        // l'ultimo giorno del project con T+1 nel giorno successivo.
         $events = app(TerritoryMatcher::class)->eligibleEvents(
             $brand,
-            $periodStart->copy()->subDays(14),
-            $periodEnd,
+            $periodStart->copy()->subDays(3),
+            $periodEnd->copy()->addDays(1),
         );
 
         $platformValues = array_map(fn (Platform $p) => $p->value, $platforms);
