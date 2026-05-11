@@ -20,6 +20,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class GenerateTerritorialPostsJob implements ShouldQueue
 {
@@ -135,6 +136,14 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                 continue;
             }
 
+            // Copertina del digest: prima locandina disponibile fra gli eventi
+            // del mese (ordinati per data inizio). Null se nessuno ha image_path.
+            $coverImagePath = $monthEvents
+                ->filter(fn (TerritorialEvent $e) => ! empty($e->image_path))
+                ->sortBy('start_at')
+                ->first()
+                ?->image_path;
+
             foreach ($platforms as $platform) {
                 // Idempotency: 1 digest per (project, month, platform)
                 $exists = Post::where('project_id', $project->id)
@@ -154,7 +163,7 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                         preg_split('/\s+/', trim($content['hashtags'] ?? '')) ?: []
                     ));
 
-                    Post::create([
+                    $digestPayload = [
                         'project_id'          => $project->id,
                         'organization_id'     => $project->organization_id,
                         'platform'            => $platform,
@@ -174,7 +183,13 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                             'event_ids'    => $monthEvents->pluck('id')->values()->all(),
                             'generated_at' => now()->toIso8601String(),
                         ],
-                    ]);
+                    ];
+                    if ($coverImagePath) {
+                        $digestPayload['image_url']  = Storage::disk('public')->url($coverImagePath);
+                        $digestPayload['media_type'] = 'image';
+                    }
+
+                    Post::create($digestPayload);
 
                     Log::info('[TERRITORIAL] Monthly digest generated', [
                         'project_id'  => $project->id,
@@ -236,7 +251,7 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                         preg_split('/\s+/', trim($content['hashtags'] ?? '')) ?: []
                     ));
 
-                    $post = Post::create([
+                    $postPayload = [
                         'project_id'          => $project->id,
                         'organization_id'     => $project->organization_id,
                         'platform'            => $platform,
@@ -247,7 +262,9 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                         'hashtags'            => $hashtagsArray,
                         'cta'                 => $content['cta'],
                         'call_to_action'      => $content['cta'],
-                        'visual_suggestion'   => $event->image_path,
+                        // Niente AI image gen: usiamo la locandina ufficiale dell'evento
+                        // se disponibile, altrimenti immagine assente (l'editor può aggiungerla).
+                        'visual_suggestion'   => null,
                         'scheduled_date'      => $scheduledDate,
                         'status'              => 'draft',
                         'generation_metadata' => [
@@ -256,7 +273,16 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                             'phase'    => $phase,
                             'platform' => $platform->value,
                         ],
-                    ]);
+                    ];
+                    if ($event->image_path) {
+                        $postPayload['image_url']  = Storage::disk('public')->url($event->image_path);
+                        $postPayload['media_type'] = 'image';
+                    }
+                    // Quando manca image_path lasciamo invariati i default Post
+                    // (media_type='image' come attribute default). image_url
+                    // resta null (è già nullable).
+
+                    $post = Post::create($postPayload);
 
                     TerritorialEventPost::create([
                         'territorial_event_id' => $event->id,

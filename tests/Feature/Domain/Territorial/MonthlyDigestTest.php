@@ -8,8 +8,9 @@ use App\Domain\Territorial\Generators\EventPostGenerator;
 use App\Domain\Territorial\Jobs\GenerateTerritorialPostsJob;
 use App\Domain\Territorial\Models\TerritorialEvent;
 use App\Domain\Territorial\Services\TerritoryMatcher;
+use Illuminate\Support\Facades\Storage;
 
-function makeTerritorialEvent(string $extId, string $title, string $startAt, string $endAt): TerritorialEvent
+function makeTerritorialEvent(string $extId, string $title, string $startAt, string $endAt, ?string $imagePath = null): TerritorialEvent
 {
     return TerritorialEvent::create([
         'source'        => 'e015',
@@ -21,6 +22,7 @@ function makeTerritorialEvent(string $extId, string $title, string $startAt, str
         'city'          => 'Masate',
         'province'      => 'Milano',
         'status'        => 'active',
+        'image_path'    => $imagePath,
         'first_seen_at' => now(),
         'last_seen_at'  => now(),
     ]);
@@ -159,4 +161,67 @@ it('does not duplicate digest on rerun (idempotency)', function () {
 
     expect($countAfterFirst)->toBe($countAfterSecond);
     expect($countAfterFirst)->toBeGreaterThan(0);
+});
+
+it('uses first available event image_path as monthly digest cover', function () {
+    [, $org] = createAuthenticatedUser();
+    $brand = createBrand($org, ['vertical' => 'unpli_regional']);
+    $project = createProject($brand, [
+        'start_date' => '2026-05-01',
+        'end_date'   => '2026-05-31',
+        'status'     => 'generating',
+    ]);
+
+    // Primo evento del mese senza immagine, secondo (più tardi) con locandina
+    $e1 = makeTerritorialEvent('a', 'Evento senza locandina', '2026-05-10 10:00', '2026-05-10 18:00', null);
+    $e2 = makeTerritorialEvent('b', 'Evento con locandina', '2026-05-15 10:00', '2026-05-15 18:00', 'territorial/events/poster-b.jpg');
+    $e3 = makeTerritorialEvent('c', 'Altro evento con locandina', '2026-05-25 10:00', '2026-05-25 18:00', 'territorial/events/poster-c.jpg');
+
+    bindDigestMocks($e1, $e2, $e3);
+
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+
+    $expectedUrl = Storage::disk('public')->url('territorial/events/poster-b.jpg');
+
+    $digests = Post::withoutGlobalScope('organization')
+        ->where('project_id', $project->id)
+        ->where('post_type', PostType::TerritorialMonthlyDigest->value)
+        ->get();
+
+    expect($digests->count())->toBeGreaterThan(0);
+
+    foreach ($digests as $digest) {
+        // La cover è la prima image_path ordinata per start_at: $e2 viene
+        // prima di $e3 e $e1 non ha locandina, quindi vince $e2.
+        expect($digest->image_url)->toBe($expectedUrl);
+        expect($digest->media_type)->toBe('image');
+    }
+});
+
+it('leaves digest image_url null when no event in the month has image_path', function () {
+    [, $org] = createAuthenticatedUser();
+    $brand = createBrand($org, ['vertical' => 'unpli_regional']);
+    $project = createProject($brand, [
+        'start_date' => '2026-05-01',
+        'end_date'   => '2026-05-31',
+        'status'     => 'generating',
+    ]);
+
+    $e1 = makeTerritorialEvent('a', 'Evento 1 senza locandina', '2026-05-10 10:00', '2026-05-10 18:00', null);
+    $e2 = makeTerritorialEvent('b', 'Evento 2 senza locandina', '2026-05-20 10:00', '2026-05-20 18:00', null);
+
+    bindDigestMocks($e1, $e2);
+
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+
+    $digests = Post::withoutGlobalScope('organization')
+        ->where('project_id', $project->id)
+        ->where('post_type', PostType::TerritorialMonthlyDigest->value)
+        ->get();
+
+    expect($digests->count())->toBeGreaterThan(0);
+
+    foreach ($digests as $digest) {
+        expect($digest->image_url)->toBeNull();
+    }
 });
