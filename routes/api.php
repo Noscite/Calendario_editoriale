@@ -208,6 +208,11 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::put('/{id}', [BrandController::class, 'update']);
         Route::delete('/{id}', [BrandController::class, 'destroy']);
 
+        // MCP servers per brand (default ereditato dalle campagne)
+        Route::get('/{brand}/mcp-servers',         [\App\Http\Controllers\Api\BrandMcpServerController::class, 'index'])->whereNumber('brand');
+        Route::post('/{brand}/mcp-servers',        [\App\Http\Controllers\Api\BrandMcpServerController::class, 'store'])->whereNumber('brand');
+        Route::delete('/{brand}/mcp-servers/{mcp}', [\App\Http\Controllers\Api\BrandMcpServerController::class, 'destroy'])->whereNumber('brand')->whereNumber('mcp');
+
         // Wizard PR-1: completeness score (route model binding + scope org)
         Route::get('/{brand}/completeness', [BrandController::class, 'completeness'])
             ->scopeBindings();
@@ -243,6 +248,11 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::get('/{campaign}/attachments',                  [\App\Http\Controllers\Api\CampaignAttachmentController::class, 'index'])->whereNumber('campaign');
         Route::post('/{campaign}/attachments',                 [\App\Http\Controllers\Api\CampaignAttachmentController::class, 'store'])->whereNumber('campaign');
         Route::delete('/{campaign}/attachments/{attachment}',  [\App\Http\Controllers\Api\CampaignAttachmentController::class, 'destroy'])->whereNumber('campaign')->whereNumber('attachment');
+
+        // MCP servers per campagna (override / aggiunta vs brand MCP)
+        Route::get('/{campaign}/mcp-servers',          [\App\Http\Controllers\Api\CampaignMcpServerController::class, 'index'])->whereNumber('campaign');
+        Route::post('/{campaign}/mcp-servers',         [\App\Http\Controllers\Api\CampaignMcpServerController::class, 'store'])->whereNumber('campaign');
+        Route::delete('/{campaign}/mcp-servers/{mcp}', [\App\Http\Controllers\Api\CampaignMcpServerController::class, 'destroy'])->whereNumber('campaign')->whereNumber('mcp');
     });
 
     // Download attachment (named route, riferito da CampaignAttachment::getDownloadUrl)

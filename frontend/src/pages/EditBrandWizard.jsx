@@ -11,6 +11,7 @@ import DefaultPillarsEditor from '../components/DefaultPillarsEditor';
 import BrandDocuments from '../components/BrandDocuments';
 import TagsInput from '../components/TagsInput';
 import { brands as brandsApi, deontological as deontologicalApi } from '../services/api';
+import McpServersManager from '../components/McpServersManager';
 
 const STEPS = [
   { id: 1, title: 'Identità',         icon: Sparkles },
@@ -716,6 +717,14 @@ export default function EditBrandWizard() {
           </div>
 
           <BrandDocuments brandId={brandId} />
+
+          <McpServersManager
+            scope="brand"
+            listFn={() => brandsApi.mcpServers.list(brandId)}
+            createFn={(payload) => brandsApi.mcpServers.create(brandId, payload)}
+            deleteFn={(mcpId) => brandsApi.mcpServers.delete(brandId, mcpId)}
+            showOverrideToggle={false}
+          />
 
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-[#2C3E50]">
             <p className="font-medium mb-1">Hai finito qui?</p>

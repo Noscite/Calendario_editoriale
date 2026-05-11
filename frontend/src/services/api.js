@@ -96,6 +96,11 @@ export const brands = {
   update: (id, data) => api.put(`/brands/${id}`, data),
   delete: (id) => api.delete(`/brands/${id}`),
   completeness: (id) => api.get(`/brands/${id}/completeness`),
+  mcpServers: {
+    list:   (brandId)              => api.get(`/brands/${brandId}/mcp-servers`),
+    create: (brandId, data)        => api.post(`/brands/${brandId}/mcp-servers`, data),
+    delete: (brandId, mcpId)       => api.delete(`/brands/${brandId}/mcp-servers/${mcpId}`),
+  },
 };
 
 export const deontological = {
@@ -114,6 +119,11 @@ export const campaigns = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
     delete: (campaignId, attachmentId) => api.delete(`/campaigns/${campaignId}/attachments/${attachmentId}`),
+  },
+  mcpServers: {
+    list:   (campaignId)         => api.get(`/campaigns/${campaignId}/mcp-servers`),
+    create: (campaignId, data)   => api.post(`/campaigns/${campaignId}/mcp-servers`, data),
+    delete: (campaignId, mcpId)  => api.delete(`/campaigns/${campaignId}/mcp-servers/${mcpId}`),
   },
 };
 

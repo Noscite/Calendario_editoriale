@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import CampaignForm from '../components/CampaignForm';
 import CampaignAttachmentsManager from '../components/CampaignAttachmentsManager';
+import McpServersManager from '../components/McpServersManager';
 import { campaigns as campaignsApi, brands as brandsApi } from '../services/api';
 
 export default function EditCampaignPage() {
@@ -25,6 +26,13 @@ export default function EditCampaignPage() {
       <CampaignForm initial={campaign} brands={brands} />
       <div className="max-w-4xl mx-auto px-4 pb-8">
         <CampaignAttachmentsManager campaignId={campaign.id} />
+        <McpServersManager
+          scope="campaign"
+          listFn={() => campaignsApi.mcpServers.list(campaign.id)}
+          createFn={(payload) => campaignsApi.mcpServers.create(campaign.id, payload)}
+          deleteFn={(mcpId) => campaignsApi.mcpServers.delete(campaign.id, mcpId)}
+          showOverrideToggle={true}
+        />
       </div>
     </div>
   );
