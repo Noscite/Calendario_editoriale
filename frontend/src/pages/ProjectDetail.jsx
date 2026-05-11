@@ -6,12 +6,14 @@ import {
   ChevronLeft, ChevronRight, Edit3, Trash2, X, RefreshCw,
   Settings, Link, Target, Users, Sparkles, Save, Layers
 } from 'lucide-react';
-import { posts as postsApi, projects as projectsApi, generation } from '../services/api';
+import { posts as postsApi, projects as projectsApi, campaigns as campaignsApi, generation } from '../services/api';
 import PostEditModal from '../components/PostEditModal';
 import QuickAddPostModal from '../components/QuickAddPostModal';
 import BrandDocuments from '../components/BrandDocuments';
 import EditionBadge from '../components/EditionBadge';
 import AddEditionModal from '../components/AddEditionModal';
+import CampaignAttachmentsManager from '../components/CampaignAttachmentsManager';
+import McpServersManager from '../components/McpServersManager';
 
 import GenerationProgress from '../components/GenerationProgress';
 import GenerationProgressBanner from '../components/GenerationProgressBanner';
@@ -87,15 +89,21 @@ export default function ProjectDetail() {
   
   // AI campaign form
   const [aiCampaign, setAiCampaign] = useState({
-    platforms: [],  // Array di piattaforme selezionate
-    ai_decide_platforms: true,  // L'AI decide le piattaforme
+    name: '',           // Nome campagna
+    platforms: [],
+    ai_decide_platforms: true,
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
     num_posts: 10,
-    ai_decide_num_posts: true,  // L'AI decide il numero
+    ai_decide_num_posts: true,
     brief: '',
     pillar: ''
   });
+
+  // Draft campaign per consentire upload KB / config MCP pre-submit
+  const [draftCampaignId, setDraftCampaignId] = useState(null);
+  const [showKb, setShowKb] = useState(false);
+  const [showMcp, setShowMcp] = useState(false);
   
   // Batch replace modal
   const [showReplaceModal, setShowReplaceModal] = useState(false);
@@ -438,23 +446,88 @@ export default function ProjectDetail() {
     setIsAddingPosts(false);
   };
 
-  // Add AI campaign
+  // Crea on-demand una Draft campaign quando l'utente espande KB o MCP
+  // (serve un campaign_id come FK per attachment/MCP upload prima della submit).
+  const ensureDraftCampaign = async () => {
+    if (draftCampaignId) return draftCampaignId;
+    try {
+      const res = await projectsApi.campaigns.createDraft(parseInt(id), {
+        name: aiCampaign.name || aiCampaign.brief?.slice(0, 60) || 'Bozza campagna',
+      });
+      const newId = res.data?.id;
+      if (newId) setDraftCampaignId(newId);
+      return newId;
+    } catch (err) {
+      setAddMessage({ type: 'error', text: 'Errore nella creazione bozza campagna' });
+      return null;
+    }
+  };
+
+  const resetCampaignForm = () => {
+    setAiCampaign({
+      name: '',
+      platforms: [],
+      ai_decide_platforms: true,
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      num_posts: 10,
+      ai_decide_num_posts: true,
+      brief: '',
+      pillar: '',
+    });
+    setDraftCampaignId(null);
+    setShowKb(false);
+    setShowMcp(false);
+  };
+
+  // Add AI campaign — usa il nuovo endpoint /api/projects/{id}/campaigns
   const handleAddAICampaign = async () => {
     setIsAddingPosts(true);
     setAddMessage(null);
     try {
-      const res = await postsApi.generateAI({
-        project_id: parseInt(id),
-        ...aiCampaign
+      const payload = {
+        name: aiCampaign.name?.trim() || (aiCampaign.brief?.slice(0, 60) || 'Campagna'),
+        brief: aiCampaign.brief,
+        pillar: aiCampaign.pillar || null,
+        start_date: aiCampaign.start_date || null,
+        end_date: aiCampaign.end_date || null,
+        platforms: aiCampaign.ai_decide_platforms ? null : aiCampaign.platforms,
+        posts_count: aiCampaign.ai_decide_num_posts ? null : Number(aiCampaign.num_posts),
+      };
+
+      if (draftCampaignId) {
+        // Già caricato KB/MCP nella draft → promote
+        await projectsApi.campaigns.promote(parseInt(id), draftCampaignId, payload);
+      } else {
+        // Flow standard: multipart (qui senza attachments, json normale)
+        const fd = new FormData();
+        Object.entries(payload).forEach(([k, v]) => {
+          if (v === null || v === undefined) return;
+          if (Array.isArray(v)) {
+            v.forEach(item => fd.append(`${k}[]`, item));
+          } else {
+            fd.append(k, v);
+          }
+        });
+        await projectsApi.campaigns.create(parseInt(id), fd);
+      }
+
+      setAddMessage({
+        type: 'success',
+        text: 'Campagna lanciata. I post compariranno nel calendario in 1-3 minuti (refresh manuale).',
       });
-      setPostsList(prev => [...prev, ...(res.data || [])]);
-      setAddMessage({ type: 'success', text: `${res.data?.length || 0} post generati!` });
       setTimeout(() => {
         setShowAddModal(false);
         setAddMessage(null);
-      }, 1500);
+        resetCampaignForm();
+      }, 2000);
     } catch (error) {
-      setAddMessage({ type: 'error', text: 'Errore nella generazione AI' });
+      const apiMessage =
+        error.response?.data?.errors?.[Object.keys(error.response?.data?.errors || {})[0]]?.[0]
+        || error.response?.data?.message
+        || error.response?.data?.detail
+        || 'Errore nella generazione AI';
+      setAddMessage({ type: 'error', text: apiMessage });
     }
     setIsAddingPosts(false);
   };
@@ -1604,6 +1677,17 @@ export default function ProjectDetail() {
                   </div>
                   
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome campagna (opzionale)</label>
+                    <input
+                      type="text"
+                      value={aiCampaign.name}
+                      onChange={(e) => setAiCampaign({...aiCampaign, name: e.target.value})}
+                      placeholder="es. Lancio prodotto Q3 / Black Friday"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pillar/Tema (opzionale)</label>
                     <input
                       type="text"
@@ -1613,7 +1697,7 @@ export default function ProjectDetail() {
                       className="w-full px-3 py-2 border rounded-lg"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Brief Campagna *</label>
                     <textarea
@@ -1624,7 +1708,53 @@ export default function ProjectDetail() {
                       className="w-full px-3 py-2 border rounded-lg"
                     />
                   </div>
-                  
+
+                  {/* Sezione collapsible: Documenti Knowledge Base */}
+                  <details
+                    open={showKb}
+                    onToggle={async (e) => {
+                      const isOpen = e.target.open;
+                      setShowKb(isOpen);
+                      if (isOpen) await ensureDraftCampaign();
+                    }}
+                    className="border border-gray-200 rounded-lg p-3"
+                  >
+                    <summary className="cursor-pointer font-medium text-sm text-[#2C3E50]">
+                      📎 Documenti Knowledge Base <span className="text-gray-400 font-normal">(opzionale)</span>
+                    </summary>
+                    {draftCampaignId && (
+                      <div className="mt-3">
+                        <CampaignAttachmentsManager campaignId={draftCampaignId} />
+                      </div>
+                    )}
+                  </details>
+
+                  {/* Sezione collapsible: Connettori MCP */}
+                  <details
+                    open={showMcp}
+                    onToggle={async (e) => {
+                      const isOpen = e.target.open;
+                      setShowMcp(isOpen);
+                      if (isOpen) await ensureDraftCampaign();
+                    }}
+                    className="border border-gray-200 rounded-lg p-3"
+                  >
+                    <summary className="cursor-pointer font-medium text-sm text-[#2C3E50]">
+                      🔌 Connettori MCP <span className="text-gray-400 font-normal">(opzionale)</span>
+                    </summary>
+                    {draftCampaignId && (
+                      <div className="mt-3">
+                        <McpServersManager
+                          scope="campaign"
+                          listFn={() => campaignsApi.mcpServers.list(draftCampaignId)}
+                          createFn={(payload) => campaignsApi.mcpServers.create(draftCampaignId, payload)}
+                          deleteFn={(mcpId) => campaignsApi.mcpServers.delete(draftCampaignId, mcpId)}
+                          showOverrideToggle={true}
+                        />
+                      </div>
+                    )}
+                  </details>
+
                   <div className="bg-[#3DAFA8]/10 p-4 rounded-lg">
                     <div className="flex items-center gap-2 text-[#3DAFA8] mb-2">
                       <Sparkles size={18} />
