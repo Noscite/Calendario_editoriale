@@ -118,6 +118,26 @@ TXT;
         return $created;
     }
 
+    /**
+     * Genera N post per una Campaign dentro un Project esistente.
+     * Implementazione completa nel COMMIT 7 successivo: per ora throw esplicito
+     * (il job verrà refactorizzato a chiamare questo metodo).
+     *
+     * @param  array<int, string>  $platforms
+     */
+    public function generateForCampaign(
+        \App\Domain\Campaign\Models\Campaign $campaign,
+        Project $project,
+        array $platforms,
+        int $postsCount,
+    ): \Illuminate\Database\Eloquent\Collection {
+        throw new \RuntimeException(
+            'generateForCampaign: implementazione pending (COMMIT 7 della refactor unify-campaign). '
+            . "Campaign #{$campaign->id} project #{$project->id} platforms=" . implode(',', $platforms)
+            . " count={$postsCount}"
+        );
+    }
+
     public function regeneratePost(int $postId, ?string $userPrompt = null): Post
     {
         $post  = Post::with('project.brand')->findOrFail($postId);

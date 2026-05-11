@@ -26,10 +26,12 @@ class Campaign extends Model
         'name',
         'description',
         'brief',
+        'pillar',
         'status',
         'start_date',
         'end_date',
         'created_by_user_id',
+        'generation_error',
     ];
 
     protected function casts(): array
