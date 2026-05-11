@@ -9,7 +9,6 @@ use App\Domain\Post\Enums\Platform;
 use App\Domain\Post\Enums\PostType;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
-use App\Domain\Social\Models\SocialConnection;
 use App\Domain\Generation\Services\GenerationProgressService;
 use App\Domain\Territorial\Generators\EventPostGenerator;
 use App\Domain\Territorial\Models\TerritorialEvent;
@@ -55,27 +54,31 @@ class GenerateTerritorialPostsJob implements ShouldQueue
         // finito (siamo il secondo job della chain quindi è già stato eseguito).
         $progress->updatePhase($this->projectId, 'territorial_sync', ['status' => 'completed']);
 
-        // Piattaforme attive del brand (Platform enum cases via cast).
-        /** @var array<int, Platform> $activePlatforms */
-        $activePlatforms = SocialConnection::where('brand_id', $brand->id)
-            ->where('is_active', true)
-            ->pluck('platform')
-            ->all();
+        // ─── Piattaforme: SOURCE OF TRUTH = $project->platforms ─────────
+        // Le SocialConnections (active/inactive) NON influenzano la generazione.
+        // Riflettono solo lo stato di pubblicazione: i post per piattaforme
+        // non connesse vengono generati come DRAFT, l'utente collega i social
+        // quando li vede in calendario.
+        $projectPlatformValues = $project->platforms ?? [];
 
-        if (empty($activePlatforms)) {
-            // Onboarding-friendly: senza social connessi, generiamo comunque
-            // i post come DRAFT sulle piattaforme default. L'utente collega
-            // i social e ri-programma quando i draft compaiono nel calendario.
-            $defaultPlatformValues = config('territorial.default_platforms', ['linkedin', 'instagram', 'facebook']);
-            $platforms = array_map(fn (string $v) => Platform::from($v), $defaultPlatformValues);
-
-            Log::info("[TERRITORIAL] Project {$project->id}: no active social connections — generating drafts on default platforms", [
+        if (empty($projectPlatformValues)) {
+            // Edge case difensivo: project senza platforms (non dovrebbe mai
+            // succedere — i FormRequest impongono almeno 1 platform). Fallback
+            // al config default per evitare zero post generati.
+            $projectPlatformValues = config('territorial.default_platforms', ['linkedin', 'instagram', 'facebook']);
+            Log::warning("[TERRITORIAL] Project {$project->id}: no platforms set on project — fallback to config default", [
                 'brand_id'  => $brand->id,
-                'platforms' => $defaultPlatformValues,
+                'platforms' => $projectPlatformValues,
             ]);
-        } else {
-            $platforms = $activePlatforms;
         }
+
+        /** @var array<int, Platform> $platforms */
+        $platforms = array_map(fn (string $v) => Platform::from($v), $projectPlatformValues);
+
+        Log::info("[TERRITORIAL] Project {$project->id}: generating posts for project platforms (drafts if not connected)", [
+            'brand_id'  => $brand->id,
+            'platforms' => $projectPlatformValues,
+        ]);
 
         // Range temporale del progetto. Default: oggi → fra 30gg.
         $periodStart = $project->start_date?->copy() ?? now()->startOfDay();

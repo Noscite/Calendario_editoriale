@@ -54,6 +54,7 @@ it('generates 1 monthly digest per first-of-month within project range', functio
     [, $org] = createAuthenticatedUser();
     $brand = createBrand($org, ['vertical' => 'unpli_regional']);
     $project = createProject($brand, [
+        'platforms'  => ['linkedin', 'instagram', 'facebook'],
         'start_date' => '2026-05-01',
         'end_date'   => '2026-07-31',
         'status'     => 'generating',
@@ -72,7 +73,7 @@ it('generates 1 monthly digest per first-of-month within project range', functio
         ->where('post_type', PostType::TerritorialMonthlyDigest->value)
         ->get();
 
-    // 3 mesi (05, 06, 07) × 3 piattaforme default = 9
+    // 3 mesi (05, 06, 07) × 3 platforms del project = 9
     expect($digestPosts->count())->toBe(9);
 
     $months = $digestPosts->pluck('scheduled_date')

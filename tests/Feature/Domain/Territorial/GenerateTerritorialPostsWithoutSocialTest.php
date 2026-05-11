@@ -9,8 +9,16 @@ use App\Domain\Territorial\Generators\EventPostGenerator;
 use App\Domain\Territorial\Jobs\GenerateTerritorialPostsJob;
 use App\Domain\Territorial\Models\TerritorialEvent;
 use App\Domain\Territorial\Services\TerritoryMatcher;
-use Illuminate\Support\Collection;
 
+/**
+ * Helpers riusati anche da TerritorialPlatformSelectionTest.php.
+ *
+ * Nota contratto: la generazione territoriale ignora completamente le
+ * SocialConnection del brand. Le piattaforme dei post derivano SOLO da
+ * $project->platforms (con fallback config 'territorial.default_platforms'
+ * se vuoto). Il vincolo di pubblicazione (connessione social attiva)
+ * applica solo in fase di pubblicazione, non in fase di generazione.
+ */
 function fakeEventGenerator(): EventPostGenerator
 {
     $fakeContent = [
@@ -39,10 +47,11 @@ function fakeMatcherReturning(TerritorialEvent ...$events): void
     app()->instance(TerritoryMatcher::class, $matcher);
 }
 
-it('generates territorial post drafts on default platforms when brand has no active social connections', function () {
+it('generates territorial post drafts using project.platforms when brand has no social connections', function () {
     [, $org] = createAuthenticatedUser();
-    $brand = createBrand($org, ['vertical' => 'unpli_regional']);
+    $brand   = createBrand($org, ['vertical' => 'unpli_regional']);
     $project = createProject($brand, [
+        'platforms'  => ['linkedin', 'instagram', 'facebook'],
         'start_date' => '2026-05-10',
         'end_date'   => '2026-05-29',
         'status'     => 'generating',
@@ -66,7 +75,10 @@ it('generates territorial post drafts on default platforms when brand has no act
 
     expect(SocialConnection::where('brand_id', $brand->id)->where('is_active', true)->count())->toBe(0);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(fakeEventGenerator(), app(\App\Domain\Generation\Services\GenerationProgressService::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(
+        fakeEventGenerator(),
+        app(\App\Domain\Generation\Services\GenerationProgressService::class),
+    );
 
     $generatedPosts = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
@@ -76,27 +88,35 @@ it('generates territorial post drafts on default platforms when brand has no act
     expect($generatedPosts->count())->toBeGreaterThan(0);
 
     $platformValues = $generatedPosts->pluck('platform')->map(fn (Platform $p) => $p->value)->unique()->sort()->values()->all();
-    expect($platformValues)->toContain('linkedin');
-    expect($platformValues)->toContain('instagram');
-    expect($platformValues)->toContain('facebook');
+    expect($platformValues)->toBe(['facebook', 'instagram', 'linkedin']);
 });
 
-it('uses active social connections when brand has any', function () {
+it('respects project.platforms even when brand has unrelated social connections', function () {
     [, $org] = createAuthenticatedUser();
-    $brand = createBrand($org, ['vertical' => 'unpli_regional']);
+    $brand   = createBrand($org, ['vertical' => 'unpli_regional']);
     $project = createProject($brand, [
+        'platforms'  => ['linkedin'],
         'start_date' => '2026-05-10',
         'end_date'   => '2026-05-29',
         'status'     => 'generating',
     ]);
 
+    // SocialConnection su instagram/facebook: deve essere ignorata.
     SocialConnection::create([
         'brand_id'            => $brand->id,
         'organization_id'     => $brand->organization_id,
-        'platform'            => Platform::LinkedIn,
+        'platform'            => Platform::Instagram,
         'is_active'           => true,
-        'access_token'        => 'fake-token',
-        'external_account_id' => 'urn:li:fake',
+        'access_token'        => 'fake-token-instagram',
+        'external_account_id' => 'ig-fake',
+    ]);
+    SocialConnection::create([
+        'brand_id'            => $brand->id,
+        'organization_id'     => $brand->organization_id,
+        'platform'            => Platform::Facebook,
+        'is_active'           => true,
+        'access_token'        => 'fake-token-facebook',
+        'external_account_id' => 'fb-fake',
     ]);
 
     $event = TerritorialEvent::create([
@@ -114,7 +134,10 @@ it('uses active social connections when brand has any', function () {
 
     fakeMatcherReturning($event);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(fakeEventGenerator(), app(\App\Domain\Generation\Services\GenerationProgressService::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(
+        fakeEventGenerator(),
+        app(\App\Domain\Generation\Services\GenerationProgressService::class),
+    );
 
     $platforms = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
