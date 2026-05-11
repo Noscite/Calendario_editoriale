@@ -10,6 +10,7 @@ use App\Domain\Post\Enums\PostType;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
 use App\Domain\Social\Models\SocialConnection;
+use App\Domain\Generation\Services\GenerationProgressService;
 use App\Domain\Territorial\Generators\EventPostGenerator;
 use App\Domain\Territorial\Models\TerritorialEvent;
 use App\Domain\Territorial\Models\TerritorialEventPost;
@@ -38,15 +39,21 @@ class GenerateTerritorialPostsJob implements ShouldQueue
 
     public function __construct(public readonly int $projectId) {}
 
-    public function handle(EventPostGenerator $generator): void
+    public function handle(EventPostGenerator $generator, GenerationProgressService $progress): void
     {
         $project = Project::with('brand')->findOrFail($this->projectId);
         $brand = $project->brand;
 
         if (! $brand || ! in_array($brand->vertical ?? null, self::ALLOWED_VERTICALS, true)) {
             Log::info("[TERRITORIAL] Skip project {$project->id}: brand vertical not eligible");
+            $progress->complete($this->projectId);
             return;
         }
+
+        // territorial_sync è gestita globalmente dal job SyncTerritorialEventsJob
+        // (che non riceve projectId) — qui marca semplicemente che il sync è
+        // finito (siamo il secondo job della chain quindi è già stato eseguito).
+        $progress->updatePhase($this->projectId, 'territorial_sync', ['status' => 'completed']);
 
         // Piattaforme attive del brand (Platform enum cases via cast).
         /** @var array<int, Platform> $activePlatforms */
@@ -87,13 +94,34 @@ class GenerateTerritorialPostsJob implements ShouldQueue
         $platformValues = array_map(fn (Platform $p) => $p->value, $platforms);
         Log::info("[TERRITORIAL] Project {$project->id}: {$events->count()} events in window, platforms=" . implode(',', $platformValues));
 
-        foreach ($events as $event) {
-            $this->generatePostsForEvent($event, $project, $brand, $platforms, $generator);
-        }
+        $phasesCount = count(self::PHASES);
+        $platformsCount = count($platforms);
+        $expectedTotal = $events->count() * $phasesCount * $platformsCount;
 
-        // Monthly digest aggregato: 1 post per ogni primo del mese che cade
-        // nel range del project, per ogni piattaforma. Idempotente.
-        $this->generateMonthlyDigests($events, $project, $brand, $platforms, $generator);
+        $progress->updatePhase($this->projectId, 'territorial_posts', [
+            'status'               => 'running',
+            'events_total'         => $events->count(),
+            'events_completed'     => 0,
+            'posts_done'           => 0,
+            'posts_total_expected' => $expectedTotal,
+        ]);
+
+        try {
+            foreach ($events as $event) {
+                $this->generatePostsForEvent($event, $project, $brand, $platforms, $generator, $progress);
+                $progress->incrementPhaseCounter($this->projectId, 'territorial_posts', 'events_completed');
+            }
+
+            // Monthly digest aggregato: 1 post per ogni primo del mese che cade
+            // nel range del project, per ogni piattaforma. Idempotente.
+            $this->generateMonthlyDigests($events, $project, $brand, $platforms, $generator, $progress);
+
+            $progress->updatePhase($this->projectId, 'territorial_posts', ['status' => 'completed']);
+            $progress->complete($this->projectId);
+        } catch (\Throwable $e) {
+            $progress->fail($this->projectId, "Territorial generation failed: " . $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
@@ -106,6 +134,7 @@ class GenerateTerritorialPostsJob implements ShouldQueue
         Brand $brand,
         array $platforms,
         EventPostGenerator $generator,
+        ?GenerationProgressService $progress = null,
     ): void {
         $periodStart = $project->start_date?->copy() ?? now()->startOfDay();
         $periodEnd   = $project->end_date?->copy() ?? now()->addDays(30)->endOfDay();
@@ -191,6 +220,8 @@ class GenerateTerritorialPostsJob implements ShouldQueue
 
                     Post::create($digestPayload);
 
+                    $progress?->incrementPhaseCounter($this->projectId, 'territorial_posts', 'posts_done');
+
                     Log::info('[TERRITORIAL] Monthly digest generated', [
                         'project_id'  => $project->id,
                         'month'       => $monthStart->format('Y-m'),
@@ -220,6 +251,7 @@ class GenerateTerritorialPostsJob implements ShouldQueue
         Brand $brand,
         array $platforms,
         EventPostGenerator $generator,
+        ?GenerationProgressService $progress = null,
     ): void {
         if (! $event->start_at) {
             Log::warning("[TERRITORIAL] Event {$event->id} has no start_at, skip");
@@ -290,6 +322,8 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                         'phase'                => $phase,
                         'generated_at'         => now(),
                     ]);
+
+                    $progress?->incrementPhaseCounter($this->projectId, 'territorial_posts', 'posts_done');
                 } catch (\Throwable $e) {
                     Log::error("[TERRITORIAL] Generation failed event={$event->id} phase={$phase} platform={$platform->value}: {$e->getMessage()}");
                 }

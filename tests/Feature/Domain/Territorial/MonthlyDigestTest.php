@@ -65,7 +65,7 @@ it('generates 1 monthly digest per first-of-month within project range', functio
 
     bindDigestMocks($e1, $e2, $e3);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $digestPosts = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
@@ -93,7 +93,7 @@ it('skips months without events', function () {
     $e = makeTerritorialEvent('b', 'Solo Giugno', '2026-06-10 10:00', '2026-06-10 18:00');
     bindDigestMocks($e);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $digestMonths = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
@@ -117,7 +117,7 @@ it('includes multi-month events in their overlapping monthly digests', function 
     $multi = makeTerritorialEvent('multi', 'Maggio Masatese', '2026-05-02 10:00', '2026-07-06 23:00');
     bindDigestMocks($multi);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $digests = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
@@ -147,13 +147,13 @@ it('does not duplicate digest on rerun (idempotency)', function () {
 
     $generator = app(EventPostGenerator::class);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle($generator);
+    (new GenerateTerritorialPostsJob($project->id))->handle($generator, app(\App\Domain\Generation\Services\GenerationProgressService::class));
     $countAfterFirst = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
         ->where('post_type', PostType::TerritorialMonthlyDigest->value)
         ->count();
 
-    (new GenerateTerritorialPostsJob($project->id))->handle($generator);
+    (new GenerateTerritorialPostsJob($project->id))->handle($generator, app(\App\Domain\Generation\Services\GenerationProgressService::class));
     $countAfterSecond = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
         ->where('post_type', PostType::TerritorialMonthlyDigest->value)
@@ -179,7 +179,7 @@ it('uses first available event image_path as monthly digest cover', function () 
 
     bindDigestMocks($e1, $e2, $e3);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $expectedUrl = Storage::disk('public')->url('territorial/events/poster-b.jpg');
 
@@ -212,7 +212,7 @@ it('leaves digest image_url null when no event in the month has image_path', fun
 
     bindDigestMocks($e1, $e2);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $digests = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)

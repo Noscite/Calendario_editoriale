@@ -283,6 +283,9 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
         Route::post('/{id}/force-regenerate-personas', [ProjectController::class, 'forceRegeneratePersonas']);
         Route::post('/{id}/confirm-personas',          [ProjectController::class, 'confirmPersonas']);
         Route::post('/{id}/promote-pillars-to-brand',  [ProjectController::class, 'promotePillarsToBrand']);
+
+        // Generation progress polling
+        Route::get('/{id}/generation-status', [ProjectController::class, 'generationStatus']);
     });
 
     // ─── POSTS — /api/posts  (prefix Python: /api/posts) ──────

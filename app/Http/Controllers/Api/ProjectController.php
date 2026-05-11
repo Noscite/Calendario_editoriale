@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Brand\Contracts\BrandServiceInterface;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Services\EditionHistoryService;
+use App\Domain\Generation\Services\GenerationProgressService;
 use App\Domain\Generation\Services\PersonasEvaluationTracker;
 use App\Domain\Project\Contracts\ProjectServiceInterface;
 use App\Domain\Project\Data\CreateProjectData;
@@ -368,6 +369,67 @@ final class ProjectController extends Controller
             'dropped_count'      => $result['dropped_count'],
             'skipped_duplicates' => $result['skipped_duplicates'],
         ]);
+    }
+
+    // ─── Generation status (polling endpoint per frontend banner) ───
+
+    // GET /api/projects/{id}/generation-status
+    public function generationStatus(int $id, Request $request, GenerationProgressService $progress): JsonResponse
+    {
+        $project = $this->findProjectInUserOrgOrFail($id, $request);
+
+        $progressData = $progress->get($id);
+
+        if (! $progressData) {
+            return response()->json([
+                'status'         => $project->status?->value === ProjectStatus::Generating->value
+                    ? 'unknown'
+                    : 'idle',
+                'project_status' => $project->status?->value,
+            ]);
+        }
+
+        $progressData['progress_percent']            = $this->computeOverallPercent($progressData);
+        $progressData['estimated_remaining_seconds'] = $this->computeEta($progressData);
+        $progressData['project_status']              = $project->status?->value;
+
+        return response()->json($progressData);
+    }
+
+    private function computeOverallPercent(array $progress): int
+    {
+        $cb = $progress['phases']['calendar_base'] ?? [];
+        $ts = $progress['phases']['territorial_sync'] ?? [];
+        $tp = $progress['phases']['territorial_posts'] ?? [];
+
+        $cbPct = ($cb['status'] ?? 'pending') === 'completed' ? 1.0 : 0.0;
+        $tsPct = ($ts['status'] ?? 'pending') === 'completed' ? 1.0 : 0.0;
+
+        $tpExpected = $tp['posts_total_expected'] ?? null;
+        $tpDone     = $tp['posts_done'] ?? 0;
+        $tpPct = ($tpExpected && $tpExpected > 0)
+            ? min(1.0, $tpDone / $tpExpected)
+            : (($tp['status'] ?? 'pending') === 'completed' ? 1.0 : 0.0);
+
+        return (int) round(($cbPct * 0.30 + $tsPct * 0.05 + $tpPct * 0.65) * 100);
+    }
+
+    private function computeEta(array $progress): ?int
+    {
+        if (($progress['status'] ?? null) !== 'generating') {
+            return null;
+        }
+        $startedAt = $progress['started_at'] ?? null;
+        if (! $startedAt) {
+            return null;
+        }
+        $percent = $this->computeOverallPercent($progress);
+        if ($percent <= 0) {
+            return null;
+        }
+        $elapsed = \Carbon\Carbon::parse($startedAt)->diffInSeconds(now());
+        $totalEstimate = $elapsed * (100 / $percent);
+        return max(0, (int) round($totalEstimate - $elapsed));
     }
 
     // ─── helper privato ───────────────────────────────────────

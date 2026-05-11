@@ -7,6 +7,7 @@ namespace App\Domain\Generation\Jobs;
 use App\Domain\Brand\Exceptions\MissingBrandApiKeyException;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Contracts\ContentGeneratorInterface;
+use App\Domain\Generation\Services\GenerationProgressService;
 use App\Domain\Generation\Services\GenerationTracker;
 use App\Domain\Notification\Models\Notification;
 use App\Domain\Subscription\Models\UsageLog;
@@ -68,7 +69,7 @@ final class GenerateCalendarJob implements ShouldQueue
     //  handle() — replica di run_generation()
     // ──────────────────────────────────────────────────────────
 
-    public function handle(ContentGeneratorInterface $generator): void
+    public function handle(ContentGeneratorInterface $generator, GenerationProgressService $progress): void
     {
         $project = Project::find($this->projectId);
         if (! $project) {
@@ -82,8 +83,32 @@ final class GenerateCalendarJob implements ShouldQueue
             return;
         }
 
+        $progress->start($this->projectId);
+        $progress->updatePhase($this->projectId, 'calendar_base', ['status' => 'running']);
+        $startTime = now();
+
         try {
             $this->runGeneration($generator, $project, $brand);
+
+            $createdCount = \App\Domain\Post\Models\Post::withoutGlobalScope('organization')
+                ->where('project_id', $this->projectId)
+                ->where(function ($q) {
+                    $q->where('post_type', '!=', 'territorial_event')
+                      ->where('post_type', '!=', 'territorial_monthly_digest');
+                })
+                ->where('created_at', '>=', $startTime)
+                ->count();
+
+            $progress->updatePhase($this->projectId, 'calendar_base', [
+                'status'      => 'completed',
+                'posts_done'  => $createdCount,
+                'posts_total' => $createdCount,
+            ]);
+
+            // Se il brand NON è territoriale, la chain finisce qui — segnali complete.
+            if (! in_array($brand->vertical, ['unpli_regional', 'pro_loco'], true)) {
+                $progress->complete($this->projectId);
+            }
 
             // ─── Hook automatico pipeline territoriale ────────────────
             // Per brand con vertical IN ('unpli_regional', 'pro_loco'),
@@ -106,6 +131,7 @@ final class GenerateCalendarJob implements ShouldQueue
                 ]);
             }
         } catch (MissingBrandApiKeyException $e) {
+            $progress->fail($this->projectId, $e->getMessage());
             Log::warning('[GEN] Generazione bloccata: chiave API mancante', [
                 'project_id' => $this->projectId,
                 'brand_id'   => $brand->id,

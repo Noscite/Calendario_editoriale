@@ -33,7 +33,7 @@ it('dispatches territorial chain after calendar generation for unpli_regional br
     $brand = createBrand($org, ['vertical' => 'unpli_regional']);
     $project = createProject($brand, ['status' => ProjectStatus::Generating->value]);
 
-    (new GenerateCalendarJob($project->id))->handle(fakeContentGenerator());
+    (new GenerateCalendarJob($project->id))->handle(fakeContentGenerator(), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     Bus::assertChained([
         SyncTerritorialEventsJob::class,
@@ -48,7 +48,7 @@ it('dispatches territorial chain for pro_loco brand', function () {
     $brand = createBrand($org, ['vertical' => 'pro_loco']);
     $project = createProject($brand, ['status' => ProjectStatus::Generating->value]);
 
-    (new GenerateCalendarJob($project->id))->handle(fakeContentGenerator());
+    (new GenerateCalendarJob($project->id))->handle(fakeContentGenerator(), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     Bus::assertChained([
         SyncTerritorialEventsJob::class,
@@ -63,7 +63,7 @@ it('does not dispatch territorial chain for brand without territorial vertical',
     $brand = createBrand($org, ['vertical' => null]);
     $project = createProject($brand, ['status' => ProjectStatus::Generating->value]);
 
-    (new GenerateCalendarJob($project->id))->handle(fakeContentGenerator());
+    (new GenerateCalendarJob($project->id))->handle(fakeContentGenerator(), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     Bus::assertNotDispatched(SyncTerritorialEventsJob::class);
     Bus::assertNotDispatched(GenerateTerritorialPostsJob::class);
@@ -84,7 +84,7 @@ it('does not dispatch territorial chain when calendar generation throws missing 
     // forziamo generateCalendarPosts a lanciarla. Il blocco try/catch del job
     // intercetta, chiama $this->fail(...) e setta status=draft.
     try {
-        (new GenerateCalendarJob($project->id))->handle($generator);
+        (new GenerateCalendarJob($project->id))->handle($generator, app(\App\Domain\Generation\Services\GenerationProgressService::class));
     } catch (\Throwable) {
         // ignorato: il job non rilancia (fa $this->fail)
     }

@@ -58,7 +58,7 @@ it('generates territorial post drafts on default platforms when brand has no act
 
     expect(SocialConnection::where('brand_id', $brand->id)->where('is_active', true)->count())->toBe(0);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(fakeEventGenerator());
+    (new GenerateTerritorialPostsJob($project->id))->handle(fakeEventGenerator(), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $generatedPosts = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
@@ -106,7 +106,7 @@ it('uses active social connections when brand has any', function () {
 
     fakeMatcherReturning($event);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(fakeEventGenerator());
+    (new GenerateTerritorialPostsJob($project->id))->handle(fakeEventGenerator(), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $platforms = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)

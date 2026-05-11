@@ -63,7 +63,7 @@ it('binds event image_path to post image_url as public storage URL', function ()
 
     bindEventBindingMocks($event);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $eventPosts = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
@@ -94,7 +94,7 @@ it('leaves post image_url null when event has no image_path', function () {
 
     bindEventBindingMocks($event);
 
-    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class));
+    (new GenerateTerritorialPostsJob($project->id))->handle(app(EventPostGenerator::class), app(\App\Domain\Generation\Services\GenerationProgressService::class));
 
     $eventPosts = Post::withoutGlobalScope('organization')
         ->where('project_id', $project->id)
