@@ -14,6 +14,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Admin Resource: Usage Log (usage_tracking).
@@ -165,5 +166,15 @@ class UsageLogResource extends Resource
             'create' => Pages\CreateUsageLog::route('/create'),
             'edit'   => Pages\EditUsageLog::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * Admin panel cross-organization: bypass del global scope 'organization'
+     * applicato dal trait BelongsToOrganization. Il super-admin SaaS vede
+     * tutti gli usage log di tutte le org.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->withoutGlobalScope('organization');
     }
 }

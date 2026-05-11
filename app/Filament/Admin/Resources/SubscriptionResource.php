@@ -112,6 +112,11 @@ class SubscriptionResource extends Resource
                         Subscription::STATUS_EXPIRED         => 'Scaduto',
                         Subscription::STATUS_CANCELLED       => 'Cancellato',
                     ]),
+                Tables\Filters\SelectFilter::make('organization_id')
+                    ->label('Organizzazione')
+                    ->relationship('organization', 'name')
+                    ->searchable()
+                    ->preload(),
             ])
             ->actions([
                 // ── Attiva pagamento ───────────────────────────────────────────

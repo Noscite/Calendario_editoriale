@@ -17,6 +17,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class BrandResource extends Resource
 {
@@ -201,7 +202,9 @@ class BrandResource extends Resource
                     }),
                 Tables\Filters\SelectFilter::make('organization_id')
                     ->relationship('organization', 'name')
-                    ->label('Organizzazione'),
+                    ->label('Organizzazione')
+                    ->searchable()
+                    ->preload(),
             ])
             ->actions([
                 EditAction::make(),
@@ -216,6 +219,17 @@ class BrandResource extends Resource
             'create' => Pages\CreateBrand::route('/create'),
             'edit'   => Pages\EditBrand::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * Admin panel cross-organization: bypass del global scope 'organization'
+     * applicato dal trait BelongsToOrganization. Il super-admin SaaS vede
+     * tutti i brand di tutte le org. Il filtro per organizzazione resta
+     * disponibile tramite il SelectFilter su organization_id.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->withoutGlobalScope('organization');
     }
 
     /**
