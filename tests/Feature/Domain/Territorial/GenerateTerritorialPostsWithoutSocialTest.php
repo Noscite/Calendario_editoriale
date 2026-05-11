@@ -13,13 +13,21 @@ use Illuminate\Support\Collection;
 
 function fakeEventGenerator(): EventPostGenerator
 {
-    $mock = Mockery::mock(EventPostGenerator::class);
-    $mock->shouldReceive('generate')->andReturn([
+    $fakeContent = [
         'title'    => 'Fake territorial title',
         'content'  => 'Fake content for test',
         'hashtags' => '#fake #test #event',
         'cta'      => 'Salva la data',
-    ]);
+    ];
+    $fakeUsage = new \App\Domain\AiUsage\Data\UsageRecord(
+        provider: 'anthropic', model: 'claude-sonnet-4-6',
+        inputTokens: 100, outputTokens: 50, costUsd: 0.001, costEur: 0.001,
+    );
+    $mock = Mockery::mock(EventPostGenerator::class);
+    $mock->shouldReceive('generate')->andReturn($fakeContent);
+    $mock->shouldReceive('generateWithUsage')->andReturn(['content' => $fakeContent, 'usage' => $fakeUsage]);
+    $mock->shouldReceive('generateMonthlyDigest')->andReturn($fakeContent);
+    $mock->shouldReceive('generateMonthlyDigestWithUsage')->andReturn(['content' => $fakeContent, 'usage' => $fakeUsage]);
     return $mock;
 }
 

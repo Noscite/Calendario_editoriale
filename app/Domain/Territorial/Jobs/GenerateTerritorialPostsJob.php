@@ -186,7 +186,9 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                 }
 
                 try {
-                    $content = $generator->generateMonthlyDigest($monthEvents, $brand, $monthStart, $platform);
+                    $digestResult = $generator->generateMonthlyDigestWithUsage($monthEvents, $brand, $monthStart, $platform);
+                    $content = $digestResult['content'];
+                    $usage   = $digestResult['usage'];
 
                     $hashtagsArray = array_values(array_filter(
                         preg_split('/\s+/', trim($content['hashtags'] ?? '')) ?: []
@@ -211,6 +213,7 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                             'event_count'  => $monthEvents->count(),
                             'event_ids'    => $monthEvents->pluck('id')->values()->all(),
                             'generated_at' => now()->toIso8601String(),
+                            'usage'        => $usage->toArray(),
                         ],
                     ];
                     if ($coverImagePath) {
@@ -275,7 +278,9 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                 }
 
                 try {
-                    $content = $generator->generate($event, $brand, $phase, $platform);
+                    $result = $generator->generateWithUsage($event, $brand, $phase, $platform);
+                    $content = $result['content'];
+                    $usage   = $result['usage'];
 
                     // Hashtags: il prompt LLM ritorna stringa "#tag1 #tag2 ...".
                     // La colonna posts.hashtags ha cast 'json' → splittiamo in array.
@@ -304,6 +309,7 @@ class GenerateTerritorialPostsJob implements ShouldQueue
                             'event_id' => $event->id,
                             'phase'    => $phase,
                             'platform' => $platform->value,
+                            'usage'    => $usage->toArray(),
                         ],
                     ];
                     if ($event->image_path) {

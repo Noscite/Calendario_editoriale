@@ -11,19 +11,18 @@ use Illuminate\Support\Facades\Storage;
 
 function bindEventBindingMocks(TerritorialEvent ...$events): void
 {
+    $eventContent = ['title' => 'title', 'content' => 'content', 'hashtags' => '#a #b', 'cta' => 'cta'];
+    $digestContent = ['title' => 'digest', 'content' => 'digest content', 'hashtags' => '#m', 'cta' => 'cta'];
+    $usage = new \App\Domain\AiUsage\Data\UsageRecord(
+        provider: 'anthropic', model: 'claude-sonnet-4-6',
+        inputTokens: 100, outputTokens: 50, costUsd: 0.001, costEur: 0.001,
+    );
+
     $generator = Mockery::mock(EventPostGenerator::class);
-    $generator->shouldReceive('generate')->andReturn([
-        'title'    => 'title',
-        'content'  => 'content',
-        'hashtags' => '#a #b',
-        'cta'      => 'cta',
-    ]);
-    $generator->shouldReceive('generateMonthlyDigest')->andReturn([
-        'title'    => 'digest',
-        'content'  => 'digest content',
-        'hashtags' => '#m',
-        'cta'      => 'cta',
-    ]);
+    $generator->shouldReceive('generate')->andReturn($eventContent);
+    $generator->shouldReceive('generateWithUsage')->andReturn(['content' => $eventContent, 'usage' => $usage]);
+    $generator->shouldReceive('generateMonthlyDigest')->andReturn($digestContent);
+    $generator->shouldReceive('generateMonthlyDigestWithUsage')->andReturn(['content' => $digestContent, 'usage' => $usage]);
     app()->instance(EventPostGenerator::class, $generator);
 
     $matcher = Mockery::mock(TerritoryMatcher::class);

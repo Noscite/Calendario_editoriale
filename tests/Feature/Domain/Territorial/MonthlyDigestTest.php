@@ -30,18 +30,18 @@ function makeTerritorialEvent(string $extId, string $title, string $startAt, str
 
 function bindDigestMocks(TerritorialEvent ...$events): void
 {
+    $eventContent = ['title' => 'event title', 'content' => 'event content', 'hashtags' => '#a #b', 'cta' => 'click'];
+    $digestContent = ['title' => 'Eventi del mese', 'content' => 'Panoramica eventi del mese', 'hashtags' => '#mese #eventi', 'cta' => 'Salva il post'];
+    $usage = new \App\Domain\AiUsage\Data\UsageRecord(
+        provider: 'anthropic', model: 'claude-sonnet-4-6',
+        inputTokens: 100, outputTokens: 50, costUsd: 0.001, costEur: 0.001,
+    );
+
     $generator = Mockery::mock(EventPostGenerator::class);
-    // Per gli eventi singoli (T-3/T+1) — accettiamo qualunque
-    $generator->shouldReceive('generate')->andReturn([
-        'title' => 'event title', 'content' => 'event content',
-        'hashtags' => '#a #b', 'cta' => 'click',
-    ]);
-    $generator->shouldReceive('generateMonthlyDigest')->andReturn([
-        'title'    => 'Eventi del mese',
-        'content'  => 'Panoramica eventi del mese',
-        'hashtags' => '#mese #eventi',
-        'cta'      => 'Salva il post',
-    ]);
+    $generator->shouldReceive('generate')->andReturn($eventContent);
+    $generator->shouldReceive('generateWithUsage')->andReturn(['content' => $eventContent, 'usage' => $usage]);
+    $generator->shouldReceive('generateMonthlyDigest')->andReturn($digestContent);
+    $generator->shouldReceive('generateMonthlyDigestWithUsage')->andReturn(['content' => $digestContent, 'usage' => $usage]);
     app()->instance(EventPostGenerator::class, $generator);
 
     $matcher = Mockery::mock(TerritoryMatcher::class);

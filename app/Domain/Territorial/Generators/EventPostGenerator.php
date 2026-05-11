@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Territorial\Generators;
 
+use App\Domain\AiUsage\Data\UsageRecord;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Services\AnthropicApiClient;
 use App\Domain\Post\Enums\Platform;
@@ -34,6 +35,29 @@ class EventPostGenerator
         );
 
         return $this->parseResponse($response);
+    }
+
+    /**
+     * Variante di generate() che ritorna anche UsageRecord per tracking costi.
+     *
+     * @return array{content: array{title:string, content:string, hashtags:string, cta:string}, usage: UsageRecord}
+     */
+    public function generateWithUsage(TerritorialEvent $event, Brand $brand, string $phase, Platform $platform): array
+    {
+        $prompt = $this->buildPrompt($event, $brand, $phase, $platform);
+        $model = config('services.anthropic.opus_model', 'claude-opus-4-7');
+
+        $result = $this->apiClient->callWithUsage(
+            prompt:    $prompt,
+            maxTokens: 1024,
+            model:     $model,
+            purpose:   'territorial_event_post',
+        );
+
+        return [
+            'content' => $this->parseResponse($result['response']),
+            'usage'   => $result['usage'],
+        ];
     }
 
     private function buildPrompt(TerritorialEvent $event, Brand $brand, string $phase, Platform $platform): string
@@ -112,6 +136,34 @@ PROMPT;
         );
 
         return $this->parseResponse($response);
+    }
+
+    /**
+     * Variante di generateMonthlyDigest() che ritorna anche UsageRecord.
+     *
+     * @param  \Illuminate\Support\Collection<int, TerritorialEvent>  $events
+     * @return array{content: array{title:string, content:string, hashtags:string, cta:string}, usage: UsageRecord}
+     */
+    public function generateMonthlyDigestWithUsage(
+        $events,
+        Brand $brand,
+        \Carbon\Carbon $monthStart,
+        Platform $platform,
+    ): array {
+        $prompt = $this->buildMonthlyDigestPrompt($events, $brand, $monthStart, $platform);
+        $model = config('services.anthropic.opus_model', 'claude-opus-4-7');
+
+        $result = $this->apiClient->callWithUsage(
+            prompt:    $prompt,
+            maxTokens: 1536,
+            model:     $model,
+            purpose:   'territorial_monthly_digest',
+        );
+
+        return [
+            'content' => $this->parseResponse($result['response']),
+            'usage'   => $result['usage'],
+        ];
     }
 
     private function buildMonthlyDigestPrompt(

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Generation\Services;
 
+use App\Domain\AiUsage\Data\UsageRecord;
+use App\Domain\AiUsage\Services\UsageCostCalculator;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Services\BrandApiKeyService;
 use Illuminate\Support\Facades\Http;
@@ -215,5 +217,44 @@ TXT;
         }
 
         RateLimiter::hit($key, 60);
+    }
+
+    // ── Usage tracking wrappers ───────────────────────────────────
+    // Mantengono la signature originale di call()/callCached() per
+    // retrocompatibilità. I caller che vogliono trackare i costi usano
+    // questi wrapper che ritornano response + UsageRecord.
+
+    /**
+     * @return array{response: array<string, mixed>, usage: UsageRecord}
+     */
+    public function callWithUsage(
+        string  $prompt,
+        int     $maxTokens,
+        string  $model = 'claude-sonnet-4-6',
+        ?string $systemPrompt = null,
+        ?string $purpose = null,
+    ): array {
+        $response = $this->call($prompt, $maxTokens, $model, $systemPrompt);
+        $usage    = app(UsageCostCalculator::class)->fromAnthropic($response, $model, $purpose);
+        return ['response' => $response, 'usage' => $usage];
+    }
+
+    /**
+     * @return array{response: array<string, mixed>, usage: UsageRecord}
+     */
+    public function callCachedWithUsage(
+        string  $staticContent,
+        string  $dynamicContent,
+        int     $maxTokens,
+        string  $model,
+        ?string $systemPrompt = null,
+        ?string $secondStaticContent = null,
+        ?string $purpose = null,
+    ): array {
+        $response = $this->callCached(
+            $staticContent, $dynamicContent, $maxTokens, $model, $systemPrompt, $secondStaticContent
+        );
+        $usage = app(UsageCostCalculator::class)->fromAnthropic($response, $model, $purpose);
+        return ['response' => $response, 'usage' => $usage];
     }
 }
