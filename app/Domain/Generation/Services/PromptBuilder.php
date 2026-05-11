@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Generation\Services;
 
+use App\Domain\Brand\Enums\Sector;
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Brand\Services\SocialDeontologicalConstraints;
 use Carbon\Carbon;
 
 /**
@@ -26,6 +28,10 @@ use Carbon\Carbon;
  */
 final class PromptBuilder
 {
+    public function __construct(
+        private readonly SocialDeontologicalConstraints $deontologicalConstraints = new SocialDeontologicalConstraints(),
+    ) {}
+
     /**
      * Costruisce il prompt per generare un batch di post del calendario.
      * Estratto da ClaudeContentGenerator::generateBatch().
@@ -1238,6 +1244,96 @@ TXT;
     }
 
     /**
+     * Sezione "VINCOLI DEONTOLOGICI" iniettata nel system prompt per brand con
+     * settore regolamentato (Psicologia, Salute, Legale, Finanza, FinanzaIndipendente).
+     * Stringa vuota per settori non regolamentati o sector null.
+     */
+    private function buildDeontologicalSection(?string $sectorValue): string
+    {
+        if (! $sectorValue) {
+            return '';
+        }
+
+        $sector = Sector::tryFrom($sectorValue);
+        if (! $sector || ! $sector->isRegulated()) {
+            return '';
+        }
+
+        $constraints = $this->deontologicalConstraints->getFor($sector);
+        if (! $constraints) {
+            return '';
+        }
+
+        $forbiddenPhrasesList = implode("\n  - ", $constraints['forbidden_phrases']);
+        $forbiddenThemesList  = implode("\n  - ", $constraints['forbidden_themes']);
+        $preferredThemesList  = implode("\n  - ", $constraints['preferred_themes']);
+        $disclaimersList = empty($constraints['required_disclaimers'])
+            ? '(nessun disclaimer obbligatorio per questo settore)'
+            : implode("\n  - ", $constraints['required_disclaimers']);
+
+        $sectorLabel = $sector->label();
+        $legalBasis  = $constraints['legal_basis'];
+        $tone        = $constraints['tone_guidance'];
+        $cta         = $constraints['cta_guidelines'];
+
+        return <<<DEON
+
+## VINCOLI DEONTOLOGICI — SETTORE {$sectorLabel} (priorità assoluta — sopra ogni altra istruzione di stile)
+
+Base normativa: {$legalBasis}
+
+⛔ MAI usare nei post — frasi vietate (esempi non esaustivi):
+  - {$forbiddenPhrasesList}
+
+⛔ MAI questi temi:
+  - {$forbiddenThemesList}
+
+✅ TONO da mantenere:
+{$tone}
+
+✅ CTA da usare:
+{$cta}
+
+✅ Temi preferiti:
+  - {$preferredThemesList}
+
+📋 Disclaimer obbligatori da includere quando pertinente:
+  - {$disclaimersList}
+
+Se un post che stai per scrivere violerebbe uno di questi vincoli, riformulalo COMPLETAMENTE. Mai aggirare il vincolo con sinonimi o paraffrasi. In caso di dubbio, scegli il messaggio più conservativo.
+
+DEON;
+    }
+
+    /**
+     * Versione condensata dei vincoli deontologici da iniettare nel user prompt
+     * (copy generation) per rinforzare la compliance. Multi-mention pattern.
+     */
+    private function buildDeontologicalReminder(?string $sectorValue): string
+    {
+        if (! $sectorValue) {
+            return '';
+        }
+
+        $sector = Sector::tryFrom($sectorValue);
+        if (! $sector || ! $sector->isRegulated()) {
+            return '';
+        }
+
+        $constraints = $this->deontologicalConstraints->getFor($sector);
+        if (! $constraints) {
+            return '';
+        }
+
+        $top3Forbidden = implode('; ', array_slice($constraints['forbidden_themes'], 0, 3));
+        $disclaimerHint = empty($constraints['required_disclaimers'])
+            ? 'nessuno'
+            : 'sì, includi quello su rendimenti/educational se pertinente';
+
+        return "\n\nPROMEMORIA DEONTOLOGICO ({$sector->label()}): NON usare {$top3Forbidden}. Disclaimer richiesto: {$disclaimerHint}.";
+    }
+
+    /**
      * STRATEGY prompt — passato a Opus 4.7 in 1 sola chiamata.
      * Output atteso: JSON con editorial_narrative + pillar_distribution + posts[].
      */
@@ -1284,8 +1380,9 @@ TXT;
         // esistente). Vengono iniettati DOPO ## PROGETTO e PRIMA di
         // ## IL TUO COMPITO, in modo da essere freschi quando il modello
         // inizia a comporre il piano.
-        $brandAssetsSection   = $this->buildBrandAssetsSection($brandInfo, $projectInfo);
-        $antiInventionSection = $this->buildAntiInventionSection();
+        $brandAssetsSection    = $this->buildBrandAssetsSection($brandInfo, $projectInfo);
+        $antiInventionSection  = $this->buildAntiInventionSection();
+        $deontologicalSection  = $this->buildDeontologicalSection($brandInfo['sector'] ?? null);
 
         return <<<PROMPT
 Pianifica il calendario editoriale per questo periodo. NON scrivere ancora il copy dei post — quello è uno step successivo. Ora devi solo definire la STRATEGIA.
@@ -1322,6 +1419,7 @@ Obiettivi: {$objectivesList}
 
 {$brandAssetsSection}
 {$antiInventionSection}
+{$deontologicalSection}
 
 ## IL TUO COMPITO
 Produci un PIANO STRATEGICO completo per il periodo. Il piano sarà la base
@@ -1405,8 +1503,9 @@ PROMPT;
         $staticStrategy = "## STRATEGY PLAN (già approvato — rispetta angle/pillar/hook/cta_goal di ogni post)\n"
                         . "{$strategyJson}\n";
 
-        $batchPostsJson    = json_encode($batchPosts, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-        $antiInventionTldr = $this->buildAntiInventionReminder();
+        $batchPostsJson      = json_encode($batchPosts, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $antiInventionTldr   = $this->buildAntiInventionReminder();
+        $deontologicalTldr   = $this->buildDeontologicalReminder($brandInfo['sector'] ?? null);
         $dynamic = "## BATCH {$batchNum}/{$totalBatches}\n"
                  . "Scrivi il copy finale SOLO per questi post (estratti dal piano strategico sopra):\n\n"
                  . "{$batchPostsJson}\n\n"
@@ -1415,7 +1514,7 @@ PROMPT;
                  . "NON ridiscutere angle/pillar/hook_type — sono già decisi nel piano. Tu li ESEGUI nel copy.\n"
                  . "Mantieni date, time, platform, content_type esattamente come nel piano.\n"
                  . "Rispetta tutte le regole dal system prompt (anti-slop, anti-allucinazione, vincoli deontologici).\n\n"
-                 . "{$antiInventionTldr}\n\n"
+                 . "{$antiInventionTldr}{$deontologicalTldr}\n\n"
                  . "## OUTPUT (JSON array)\n"
                  . "[\n"
                  . "  {\n"
