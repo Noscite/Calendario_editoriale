@@ -6,37 +6,56 @@ namespace App\Domain\Brand\Enums;
 
 enum Sector: string
 {
-    case Turismo      = 'turismo';
-    case Food         = 'food';
-    case Fashion      = 'fashion';
-    case Tech         = 'tech';
-    case Arte         = 'arte';
-    case Salute       = 'salute';
-    case Legale       = 'legale';
-    case Finanza      = 'finanza';
-    case Retail       = 'retail';
-    case Education    = 'education';
-    case B2BServizi   = 'b2b_servizi';
-    case RealEstate   = 'real_estate';
-    case Automotive   = 'automotive';
+    case Turismo             = 'turismo';
+    case Food                = 'food';
+    case Fashion             = 'fashion';
+    case Tech                = 'tech';
+    case Arte                = 'arte';
+    case Salute              = 'salute';
+    case Psicologia          = 'psicologia';
+    case Legale              = 'legale';
+    case Finanza             = 'finanza';
+    case FinanzaIndipendente = 'finanza_indipendente';
+    case Retail              = 'retail';
+    case Education           = 'education';
+    case B2BServizi          = 'b2b_servizi';
+    case RealEstate          = 'real_estate';
+    case Automotive          = 'automotive';
 
     public function label(): string
     {
         return match ($this) {
-            self::Turismo    => 'Turismo / Pro Loco / Territoriale',
-            self::Food       => 'Food / Ristorazione',
-            self::Fashion    => 'Fashion / Beauty',
-            self::Tech       => 'Tech / SaaS',
-            self::Arte       => 'Arte / Design / Cultura',
-            self::Salute     => 'Salute / Psicologia / Medicina',
-            self::Legale     => 'Legale / Notai',
-            self::Finanza    => 'Finanza / Consulenza / Banche / Assicurazioni',
-            self::Retail     => 'Retail / E-commerce',
-            self::Education  => 'Education / Formazione',
-            self::B2BServizi => 'B2B Servizi',
-            self::RealEstate => 'Real Estate',
-            self::Automotive => 'Automotive',
+            self::Turismo             => 'Turismo / Pro Loco / Territoriale',
+            self::Food                => 'Food / Ristorazione',
+            self::Fashion             => 'Fashion / Beauty',
+            self::Tech                => 'Tech / SaaS',
+            self::Arte                => 'Arte / Design / Cultura',
+            self::Salute              => 'Salute / Medicina / Farmacia',
+            self::Psicologia          => 'Psicologia / Psicoterapia / Counseling',
+            self::Legale              => 'Legale / Notai / Avvocati',
+            self::Finanza             => 'Finanza / Banche / Assicurazioni',
+            self::FinanzaIndipendente => 'Consulenza Finanziaria Indipendente (OCF)',
+            self::Retail              => 'Retail / E-commerce',
+            self::Education           => 'Education / Formazione',
+            self::B2BServizi          => 'B2B Servizi',
+            self::RealEstate          => 'Real Estate',
+            self::Automotive          => 'Automotive',
         };
+    }
+
+    /**
+     * Settori con vincoli deontologici specifici per la generazione post social.
+     * Trigger per SocialDeontologicalConstraints injection nel PromptBuilder.
+     */
+    public function isRegulated(): bool
+    {
+        return in_array($this, [
+            self::Salute,
+            self::Psicologia,
+            self::Legale,
+            self::Finanza,
+            self::FinanzaIndipendente,
+        ], true);
     }
 
     /**
