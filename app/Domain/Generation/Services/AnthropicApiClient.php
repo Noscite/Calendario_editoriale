@@ -58,11 +58,17 @@ TXT;
         return $this;
     }
 
+    /**
+     * @param  array<int, array{name: string, url: string, api_key: ?string}>  $mcpServers
+     *         MCP connectors da iniettare nella request (opzionale). Quando non
+     *         vuoto attiva l'header beta MCP. Vedi formatMcpServers().
+     */
     public function call(
         string  $prompt,
         int     $maxTokens,
         string  $model = 'claude-sonnet-4-6',
         ?string $systemPrompt = null,
+        array   $mcpServers = [],
     ): array {
         $system        = $systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT;
         $lastException = null;
@@ -75,20 +81,30 @@ TXT;
             }
 
             try {
-                $response = Http::withHeaders([
+                $headers = [
                     'x-api-key'         => $this->apiKey,
                     'anthropic-version' => '2023-06-01',
                     'content-type'      => 'application/json',
-                ])
+                ];
+
+                $body = [
+                    'model'      => $model,
+                    'max_tokens' => $maxTokens,
+                    'system'     => $system,
+                    'messages'   => [
+                        ['role' => 'user', 'content' => $prompt],
+                    ],
+                ];
+
+                $formattedMcp = $this->formatMcpServers($mcpServers);
+                if (! empty($formattedMcp)) {
+                    $body['mcp_servers']        = $formattedMcp;
+                    $headers['anthropic-beta']  = 'mcp-client-2025-04-04';
+                }
+
+                $response = Http::withHeaders($headers)
                     ->timeout(600)
-                    ->post(self::API_URL, [
-                        'model'      => $model,
-                        'max_tokens' => $maxTokens,
-                        'system'     => $system,
-                        'messages'   => [
-                            ['role' => 'user', 'content' => $prompt],
-                        ],
-                    ]);
+                    ->post(self::API_URL, $body);
 
                 if ($response->status() === 429) {
                     $retryAfter = (int) ($response->header('Retry-After') ?? 60);
@@ -115,6 +131,9 @@ TXT;
         throw $lastException ?? new RuntimeException('Claude API: tutti i tentativi falliti');
     }
 
+    /**
+     * @param  array<int, array{name: string, url: string, api_key: ?string}>  $mcpServers
+     */
     public function callCached(
         string  $staticContent,
         string  $dynamicContent,
@@ -122,6 +141,7 @@ TXT;
         string  $model,
         ?string $systemPrompt = null,
         ?string $secondStaticContent = null,
+        array   $mcpServers = [],
     ): array {
         $system        = $systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT;
         $lastException = null;
@@ -148,19 +168,30 @@ TXT;
                     $content[] = ['type' => 'text', 'text' => $dynamicContent];
                 }
 
+                // Beta headers: prompt-caching obbligatorio per cache_control,
+                // mcp-client opzionale quando mcpServers non vuoto.
+                $betaHeaders = ['prompt-caching-2024-07-31'];
+                $body = [
+                    'model'      => $model,
+                    'max_tokens' => $maxTokens,
+                    'system'     => $systemBlocks,
+                    'messages'   => [['role' => 'user', 'content' => $content]],
+                ];
+
+                $formattedMcp = $this->formatMcpServers($mcpServers);
+                if (! empty($formattedMcp)) {
+                    $body['mcp_servers']  = $formattedMcp;
+                    $betaHeaders[]        = 'mcp-client-2025-04-04';
+                }
+
                 $response = Http::withHeaders([
                     'x-api-key'         => $this->apiKey,
                     'anthropic-version' => '2023-06-01',
-                    'anthropic-beta'    => 'prompt-caching-2024-07-31',
+                    'anthropic-beta'    => implode(',', $betaHeaders),
                     'content-type'      => 'application/json',
                 ])
                     ->timeout(600)
-                    ->post(self::API_URL, [
-                        'model'      => $model,
-                        'max_tokens' => $maxTokens,
-                        'system'     => $systemBlocks,
-                        'messages'   => [['role' => 'user', 'content' => $content]],
-                    ]);
+                    ->post(self::API_URL, $body);
 
                 if ($response->status() === 429) {
                     $retryAfter = (int) ($response->header('Retry-After') ?? 60);
@@ -233,8 +264,9 @@ TXT;
         string  $model = 'claude-sonnet-4-6',
         ?string $systemPrompt = null,
         ?string $purpose = null,
+        array   $mcpServers = [],
     ): array {
-        $response = $this->call($prompt, $maxTokens, $model, $systemPrompt);
+        $response = $this->call($prompt, $maxTokens, $model, $systemPrompt, $mcpServers);
         $usage    = app(UsageCostCalculator::class)->fromAnthropic($response, $model, $purpose);
         return ['response' => $response, 'usage' => $usage];
     }
@@ -250,11 +282,49 @@ TXT;
         ?string $systemPrompt = null,
         ?string $secondStaticContent = null,
         ?string $purpose = null,
+        array   $mcpServers = [],
     ): array {
         $response = $this->callCached(
-            $staticContent, $dynamicContent, $maxTokens, $model, $systemPrompt, $secondStaticContent
+            $staticContent, $dynamicContent, $maxTokens, $model, $systemPrompt, $secondStaticContent, $mcpServers
         );
         $usage = app(UsageCostCalculator::class)->fromAnthropic($response, $model, $purpose);
         return ['response' => $response, 'usage' => $usage];
+    }
+
+    /**
+     * Trasforma il formato interno (effectiveMcpServers dal Campaign model)
+     * nel formato richiesto da Anthropic Messages API per il campo mcp_servers.
+     *
+     * Input shape:  [{name, url, api_key?}]
+     * Output shape: [{type:'url', url, name, authorization_token?}]
+     *
+     * Item invalidi (manca url o name) sono filtrati silenziosamente.
+     *
+     * @param  array<int, array{name?: string, url?: string, api_key?: ?string}>  $mcpServers
+     * @return list<array{type: string, url: string, name: string, authorization_token?: string}>
+     */
+    private function formatMcpServers(array $mcpServers): array
+    {
+        $out = [];
+        foreach ($mcpServers as $mcp) {
+            $url  = $mcp['url']  ?? null;
+            $name = $mcp['name'] ?? null;
+            if (! is_string($url) || $url === '' || ! is_string($name) || $name === '') {
+                continue;
+            }
+
+            $config = [
+                'type' => 'url',
+                'url'  => $url,
+                'name' => $name,
+            ];
+            $key = $mcp['api_key'] ?? null;
+            if (is_string($key) && $key !== '') {
+                $config['authorization_token'] = $key;
+            }
+            $out[] = $config;
+        }
+
+        return $out;
     }
 }

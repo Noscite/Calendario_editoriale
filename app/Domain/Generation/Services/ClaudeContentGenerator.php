@@ -710,12 +710,27 @@ TXT;
 
         $opusModel = (string) config('services.anthropic.opus_model', self::MODEL_OPUS);
 
+        // MCP servers effettivi: solo se project↔campaign linkato. La campagna
+        // unisce campaign MCP + brand MCP (con eventuale override).
+        $mcpServers = [];
+        if ($campaign !== null) {
+            $campaign->loadMissing(['mcpServers', 'brands.mcpServers']);
+            $mcpServers = $campaign->effectiveMcpServers($brand?->id);
+            if (! empty($mcpServers)) {
+                Log::info('[STRATEGY] MCP servers attivi: ' . count($mcpServers), [
+                    'campaign_id' => $campaign->id,
+                    'names'       => array_column($mcpServers, 'name'),
+                ]);
+            }
+        }
+
         try {
             $response = $this->apiClient->call(
                 $prompt,
                 self::MAX_TOKENS_STRATEGY,
                 $opusModel,
                 $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null),
+                $mcpServers,
             );
             $tokens   = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $plan     = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
