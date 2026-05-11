@@ -98,6 +98,10 @@ export const brands = {
   completeness: (id) => api.get(`/brands/${id}/completeness`),
 };
 
+export const deontological = {
+  options: () => api.get('/deontological-options'),
+};
+
 export const campaigns = {
   list: () => api.get('/campaigns'),
   get: (id) => api.get(`/campaigns/${id}`),

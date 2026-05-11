@@ -162,7 +162,22 @@ export default function BrandsPage() {
                   <Trash2 size={18} />
                 </button>
               </div>
-              <h3 className="font-semibold text-[#2C3E50] text-lg mb-1">{brand.name}</h3>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className="font-semibold text-[#2C3E50] text-lg">{brand.name}</h3>
+                {brand.has_deontological_constraints && (
+                  <span
+                    title={
+                      Array.isArray(brand.deontological_constraints) && brand.deontological_constraints.length > 0
+                        ? `Vincoli deontologici: ${brand.deontological_constraints.join(', ')}`
+                        : 'Vincoli deontologici attivi'
+                    }
+                    className="text-xs font-medium px-2 py-0.5 rounded"
+                    style={{ backgroundColor: 'rgba(212, 114, 74, 0.15)', color: '#D4724A' }}
+                  >
+                    ⚖️ Compliance
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-500 mb-4">{brand.sector || "Nessun settore"}</p>
               <div className="flex items-center justify-between pt-4 border-t">
                 <div className="flex items-center gap-2 text-sm text-gray-500">

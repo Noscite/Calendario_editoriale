@@ -10,7 +10,7 @@ import NarrativeAssetsEditor from '../components/NarrativeAssetsEditor';
 import DefaultPillarsEditor from '../components/DefaultPillarsEditor';
 import BrandDocuments from '../components/BrandDocuments';
 import TagsInput from '../components/TagsInput';
-import { brands as brandsApi } from '../services/api';
+import { brands as brandsApi, deontological as deontologicalApi } from '../services/api';
 
 const STEPS = [
   { id: 1, title: 'Identità',         icon: Sparkles },
@@ -98,7 +98,25 @@ export default function EditBrandWizard() {
     brand_values: [],
     forbidden_topics: [],
     default_content_pillars: [],
+    deontological_constraints: [],
   });
+
+  const [hasDeontological, setHasDeontological] = useState(false);
+  const [deontologicalOptions, setDeontologicalOptions] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    deontologicalApi.options()
+      .then((res) => {
+        if (cancelled) return;
+        setDeontologicalOptions(Array.isArray(res?.data?.data) ? res.data.data : []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDeontologicalOptions([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -158,7 +176,12 @@ export default function EditBrandWizard() {
           default_content_pillars: Array.isArray(b.default_content_pillars)
             ? b.default_content_pillars
             : [],
+          deontological_constraints: Array.isArray(b.deontological_constraints)
+            ? b.deontological_constraints
+            : [],
         });
+
+        setHasDeontological(Array.isArray(b.deontological_constraints) && b.deontological_constraints.length > 0);
 
         const compl = complRes.data || null;
         setCompleteness(compl);
@@ -225,6 +248,9 @@ export default function EditBrandWizard() {
         tagline: (formData.tagline || '').trim() || null,
         description: formData.description.trim(),
         sector: formData.sector.trim(),
+        deontological_constraints: hasDeontological
+          ? (formData.deontological_constraints || [])
+          : [],
       };
     }
     if (step === 2) {
@@ -456,6 +482,53 @@ export default function EditBrandWizard() {
             <p className="text-xs text-gray-500 mt-1">
               Es. Formazione AI, Ristorazione, Studio legale.
             </p>
+          </div>
+
+          <div className="border-t border-gray-200 pt-5">
+            <label className="flex items-start gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={hasDeontological}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setHasDeontological(next);
+                  if (!next) updateField('deontological_constraints', []);
+                }}
+                className="mt-0.5"
+              />
+              <span className="text-sm font-medium text-[#2C3E50]">
+                ⚖️ Questo brand opera in settori regolamentati con vincoli deontologici
+              </span>
+            </label>
+
+            {hasDeontological && (
+              <div className="mt-3 pl-6 space-y-2">
+                <p className="text-xs text-gray-500">
+                  Seleziona uno o più settori regolamentati. I post generati dall'AI
+                  rispetteranno automaticamente le regole deontologiche di tutti
+                  i settori selezionati (frasi vietate, disclaimer, tono).
+                </p>
+                {deontologicalOptions.map((opt) => {
+                  const checked = (formData.deontological_constraints || []).includes(opt.value);
+                  return (
+                    <label key={opt.value} className="flex items-center gap-2 text-sm text-[#2C3E50]">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const current = formData.deontological_constraints || [];
+                          const next = e.target.checked
+                            ? [...current, opt.value]
+                            : current.filter((v) => v !== opt.value);
+                          updateField('deontological_constraints', next);
+                        }}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       );
