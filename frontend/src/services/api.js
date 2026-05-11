@@ -143,6 +143,15 @@ export const projects = {
   forceRegeneratePersonas: (id)         => api.post(`/projects/${id}/force-regenerate-personas`),
   confirmPersonas:         (id)         => api.post(`/projects/${id}/confirm-personas`),
   promotePillarsToBrand:   (id, pillars) => api.post(`/projects/${id}/promote-pillars-to-brand`, { pillars }),
+  // Campagne dentro il calendario (modal "Campagna AI")
+  campaigns: {
+    list:        (projectId) => api.get(`/projects/${projectId}/campaigns`),
+    create:      (projectId, formData) => api.post(`/projects/${projectId}/campaigns`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    createDraft: (projectId, data = {}) => api.post(`/projects/${projectId}/campaigns/draft`, data),
+    promote:     (projectId, campaignId, data) => api.post(`/projects/${projectId}/campaigns/${campaignId}/promote`, data),
+  },
 };
 
 export const posts = {
