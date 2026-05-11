@@ -92,6 +92,89 @@ PROMPT;
     }
 
     /**
+     * Genera il post "Eventi di [mese]" — digest mensile aggregato.
+     *
+     * @param  \Illuminate\Support\Collection<int, TerritorialEvent>  $events
+     * @return array{title:string, content:string, hashtags:string, cta:string}
+     */
+    public function generateMonthlyDigest(
+        $events,
+        Brand $brand,
+        \Carbon\Carbon $monthStart,
+        Platform $platform,
+    ): array {
+        $prompt = $this->buildMonthlyDigestPrompt($events, $brand, $monthStart, $platform);
+
+        $response = $this->apiClient->call(
+            prompt:    $prompt,
+            maxTokens: 1536,
+            model:     config('services.anthropic.opus_model', 'claude-opus-4-7'),
+        );
+
+        return $this->parseResponse($response);
+    }
+
+    private function buildMonthlyDigestPrompt(
+        $events,
+        Brand $brand,
+        \Carbon\Carbon $monthStart,
+        Platform $platform,
+    ): string {
+        $monthName = $monthStart->locale('it')->isoFormat('MMMM YYYY');
+
+        $eventsBlock = $events->map(function (TerritorialEvent $e) {
+            $when = $e->start_at->format('d/m');
+            if ($e->end_at && ! $e->start_at->isSameDay($e->end_at)) {
+                $when .= '–' . $e->end_at->format('d/m');
+            }
+            $where = $e->city ? " a {$e->city}" : '';
+            $abstract = $e->description ? ' — ' . mb_substr($e->description, 0, 120) : '';
+            return "- {$e->title}{$where} ({$when}){$abstract}";
+        })->join("\n");
+
+        $platformLimits = match ($platform) {
+            Platform::Instagram      => 'Instagram (max 2200 caratteri, hashtag importanti, emoji ok ma non eccessive)',
+            Platform::Facebook       => 'Facebook (max ~800 caratteri ottimali, hashtag minimi, tono conversazionale)',
+            Platform::LinkedIn       => 'LinkedIn (max ~1500 caratteri, tono professionale ma caldo, poche hashtag)',
+            Platform::GoogleBusiness => 'Google Business Profile (max ~1500 caratteri, focus su info pratiche, niente hashtag)',
+        };
+
+        $brandSection = "Brand: {$brand->name}\nSettore: {$brand->sector}";
+        if ($brand->tone_of_voice) {
+            $brandSection .= "\nTono di voce: {$brand->tone_of_voice}";
+        }
+
+        return <<<PROMPT
+Sei un copywriter specializzato in promozione turistico-territoriale italiana per Pro Loco e UNPLI.
+Genera un post di DIGEST MENSILE per {$monthName}.
+
+OBIETTIVO: panoramica degli eventi del mese che il pubblico locale dovrebbe segnare in calendario. Tono caldo, di paese, da chi conosce e ama il territorio.
+
+{$brandSection}
+
+EVENTI DEL MESE ({$events->count()} eventi):
+{$eventsBlock}
+
+Piattaforma di destinazione: {$platformLimits}.
+
+ISTRUZIONI:
+- Apertura accattivante che presenta il mese (es. "{$monthName} porta a {$brand->name}…").
+- Elenca gli eventi in modo discorsivo (no bullet point freddi). Per ognuno dai: nome, data, luogo, mezza riga di sapore.
+- Chiusura con invito a salvare il post / mettere in calendario / seguirci per gli aggiornamenti.
+- Se ci sono rassegne lunghe (multi-mese), nominale ma chiarisci "in corso" / "fino a [data]".
+- Includi 5-7 hashtag locali e tematici.
+
+Rispondi SOLO con un oggetto JSON valido, senza alcun testo prima o dopo, in questo formato esatto:
+{
+  "title": "titolo breve interno per il calendario, max 80 caratteri",
+  "content": "testo del post completo, già formattato per la piattaforma",
+  "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5",
+  "cta": "call to action breve (es. 'Salva il post', 'Segnati le date', 'Seguici per gli aggiornamenti')"
+}
+PROMPT;
+    }
+
+    /**
      * @return array{title:string, content:string, hashtags:string, cta:string}
      */
     private function parseResponse(array $response): array

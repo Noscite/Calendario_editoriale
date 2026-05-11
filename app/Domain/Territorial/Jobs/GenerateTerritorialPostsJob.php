@@ -89,6 +89,111 @@ class GenerateTerritorialPostsJob implements ShouldQueue
         foreach ($events as $event) {
             $this->generatePostsForEvent($event, $project, $brand, $platforms, $generator);
         }
+
+        // Monthly digest aggregato: 1 post per ogni primo del mese che cade
+        // nel range del project, per ogni piattaforma. Idempotente.
+        $this->generateMonthlyDigests($events, $project, $brand, $platforms, $generator);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, TerritorialEvent>  $events
+     * @param  array<int, Platform>  $platforms
+     */
+    private function generateMonthlyDigests(
+        $events,
+        Project $project,
+        Brand $brand,
+        array $platforms,
+        EventPostGenerator $generator,
+    ): void {
+        $periodStart = $project->start_date?->copy() ?? now()->startOfDay();
+        $periodEnd   = $project->end_date?->copy() ?? now()->addDays(30)->endOfDay();
+
+        // Cursor sul primo del mese. Se la data di inizio è già il 1° del mese
+        // lo usiamo; altrimenti saltiamo al 1° del mese successivo (non si
+        // pubblica un digest retroattivo).
+        $cursor = $periodStart->copy()->startOfMonth();
+        if ($cursor->lt($periodStart)) {
+            $cursor->addMonth();
+        }
+
+        while ($cursor->lte($periodEnd)) {
+            $monthStart = $cursor->copy();
+            $monthEnd   = $cursor->copy()->endOfMonth();
+
+            // Eventi che intersectano il mese (compresi multi-mese in corso)
+            $monthEvents = $events->filter(function (TerritorialEvent $e) use ($monthStart, $monthEnd) {
+                if (! $e->start_at) {
+                    return false;
+                }
+                $eventEnd = $e->end_at ?: $e->start_at;
+                return $e->start_at->lte($monthEnd) && $eventEnd->gte($monthStart);
+            });
+
+            if ($monthEvents->isEmpty()) {
+                $cursor->addMonth();
+                continue;
+            }
+
+            foreach ($platforms as $platform) {
+                // Idempotency: 1 digest per (project, month, platform)
+                $exists = Post::where('project_id', $project->id)
+                    ->where('platform', $platform->value)
+                    ->where('post_type', PostType::TerritorialMonthlyDigest->value)
+                    ->whereDate('scheduled_date', $monthStart->toDateString())
+                    ->exists();
+
+                if ($exists) {
+                    continue;
+                }
+
+                try {
+                    $content = $generator->generateMonthlyDigest($monthEvents, $brand, $monthStart, $platform);
+
+                    $hashtagsArray = array_values(array_filter(
+                        preg_split('/\s+/', trim($content['hashtags'] ?? '')) ?: []
+                    ));
+
+                    Post::create([
+                        'project_id'          => $project->id,
+                        'organization_id'     => $project->organization_id,
+                        'platform'            => $platform,
+                        'post_type'           => PostType::TerritorialMonthlyDigest->value,
+                        'pillar'              => 'Eventi del territorio',
+                        'title'               => $content['title'],
+                        'content'             => $content['content'],
+                        'hashtags'            => $hashtagsArray,
+                        'cta'                 => $content['cta'] ?? null,
+                        'call_to_action'      => $content['cta'] ?? null,
+                        'scheduled_date'      => $monthStart,
+                        'status'              => 'draft',
+                        'generation_metadata' => [
+                            'source'       => 'territorial_monthly_digest',
+                            'month'        => $monthStart->format('Y-m'),
+                            'event_count'  => $monthEvents->count(),
+                            'event_ids'    => $monthEvents->pluck('id')->values()->all(),
+                            'generated_at' => now()->toIso8601String(),
+                        ],
+                    ]);
+
+                    Log::info('[TERRITORIAL] Monthly digest generated', [
+                        'project_id'  => $project->id,
+                        'month'       => $monthStart->format('Y-m'),
+                        'platform'    => $platform->value,
+                        'event_count' => $monthEvents->count(),
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::error('[TERRITORIAL] Monthly digest generation failed', [
+                        'project_id' => $project->id,
+                        'month'      => $monthStart->format('Y-m'),
+                        'platform'   => $platform->value,
+                        'error'      => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $cursor->addMonth();
+        }
     }
 
     /**

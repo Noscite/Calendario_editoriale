@@ -12,6 +12,7 @@ enum PostType: string
     case Promotional = 'promotional';
     case ThoughtLeadership = 'thought_leadership';
     case TerritorialEvent = 'territorial_event';
+    case TerritorialMonthlyDigest = 'territorial_monthly_digest';
 
     public function label(): string
     {
@@ -24,6 +25,7 @@ enum PostType: string
             self::Promotional => 'Promozionale',
             self::ThoughtLeadership => 'Thought Leadership',
             self::TerritorialEvent => 'Evento Territoriale',
+            self::TerritorialMonthlyDigest => 'Digest Mensile Eventi',
         };
     }
 }
