@@ -240,7 +240,8 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
     Route::prefix('campaigns')->group(function () {
         Route::get('/',         [\App\Http\Controllers\Api\CampaignController::class, 'index']);
         Route::get('/{id}',     [\App\Http\Controllers\Api\CampaignController::class, 'show'])->whereNumber('id');
-        Route::post('/',        [\App\Http\Controllers\Api\CampaignController::class, 'store']);
+        // POST/PUT/DELETE standalone rimossi (refactor unify): le campagne si creano
+        // ora SOLO via POST /api/projects/{project}/campaigns dentro un calendario.
         Route::put('/{id}',     [\App\Http\Controllers\Api\CampaignController::class, 'update'])->whereNumber('id');
         Route::delete('/{id}',  [\App\Http\Controllers\Api\CampaignController::class, 'destroy'])->whereNumber('id');
 
@@ -308,6 +309,12 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
 
         // Generation progress polling
         Route::get('/{id}/generation-status', [ProjectController::class, 'generationStatus']);
+
+        // Campagne dentro il calendario (modal "Campagna AI")
+        Route::get('/{project}/campaigns',                              [\App\Http\Controllers\Api\ProjectCampaignController::class, 'index'])->whereNumber('project');
+        Route::post('/{project}/campaigns',                             [\App\Http\Controllers\Api\ProjectCampaignController::class, 'store'])->whereNumber('project');
+        Route::post('/{project}/campaigns/draft',                       [\App\Http\Controllers\Api\ProjectCampaignController::class, 'storeDraft'])->whereNumber('project');
+        Route::post('/{project}/campaigns/{campaign}/promote',          [\App\Http\Controllers\Api\ProjectCampaignController::class, 'promote'])->whereNumber('project')->whereNumber('campaign');
     });
 
     // ─── POSTS — /api/posts  (prefix Python: /api/posts) ──────
