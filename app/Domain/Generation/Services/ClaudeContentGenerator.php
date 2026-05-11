@@ -73,9 +73,12 @@ TXT;
 
     public function generateAiPosts(int $projectId, array $params): Collection
     {
-        $project  = Project::with(['brand', 'campaign'])->findOrFail($projectId);
+        $project  = Project::with('brand')->findOrFail($projectId);
         $brand    = $project->brand;
-        $campaign = $project->campaign;
+        // Generation legacy del project intero: nessuna campagna associata. Le campagne
+        // si lanciano dentro un calendario tramite QuickAddPostModal → POST
+        // /api/projects/{id}/campaigns che ha il suo proprio path (generateForCampaign).
+        $campaign = null;
 
         [$posts, , $tokens] = $this->generateCalendarPosts(
             brandName:    $brand->name,

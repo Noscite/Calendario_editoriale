@@ -256,7 +256,7 @@ final class GenerateCalendarJob implements ShouldQueue
             brandId:       $brand->id,
             projectId:     $this->projectId,
             brand:         $brand,
-            campaign:      $project->campaign,
+            campaign:      null,
         );
 
         Log::info("[GEN] Claude returned " . count($posts) . " posts");
