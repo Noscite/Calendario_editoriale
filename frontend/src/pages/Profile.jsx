@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  User, Mail, Lock, Save, Loader2, 
+import { Link } from 'react-router-dom';
+import {
+  User, Mail, Lock, Save, Loader2,
   CheckCircle, AlertCircle, Eye, EyeOff, Phone,
   Building, MapPin, Globe, FileText, Key
 } from 'lucide-react';
@@ -325,13 +326,13 @@ export default function Profile() {
           <p className="text-sm text-gray-500 mb-4">
             Gestisci le chiavi di accesso per integrare il tuo calendario con servizi esterni (MCP Hub, CRM, automazioni).
           </p>
-          <a
-            href="/api-keys"
+          <Link
+            to="/api-keys"
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#3DAFA8] text-white rounded-lg hover:bg-[#2C3E50]"
           >
             <Key size={16} />
             Gestisci API Keys
-          </a>
+          </Link>
         </div>
       </div>
       {/* Change Password Card */}
