@@ -147,6 +147,7 @@ export const generation = {
   addPersona: (projectId) => api.post(`/generate/personas/${projectId}/add`),
   generateCalendar: (projectId) => api.post(`/generate/calendar/${projectId}`),
   preflight: (projectId) => api.get(`/generate/preflight/${projectId}`),
+  status: (projectId) => api.get(`/projects/${projectId}/generation-status`),
 };
 
 export const exportApi = {

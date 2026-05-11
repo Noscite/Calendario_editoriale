@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Download, Filter, Loader2,
@@ -14,6 +14,8 @@ import EditionBadge from '../components/EditionBadge';
 import AddEditionModal from '../components/AddEditionModal';
 
 import GenerationProgress from '../components/GenerationProgress';
+import GenerationProgressBanner from '../components/GenerationProgressBanner';
+import { useGenerationStatus } from '../hooks/useGenerationStatus';
 const PLATFORMS = [
   { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'bg-blue-600' },
   { id: 'instagram', name: 'Instagram', icon: Instagram, color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
@@ -36,6 +38,21 @@ export default function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedPlatform, setSelectedPlatform] = useState('all');
+
+  // Generation progress polling (banner sticky)
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const handleProgressComplete = useCallback(() => {
+    // Refetch postsList senza hard refresh
+    setBannerDismissed(false);
+    if (id) {
+      postsApi.list(id).then(res => setPostsList(res.data || [])).catch(() => {});
+      projectsApi.get(id).then(res => setProject(res.data)).catch(() => {});
+    }
+  }, [id]);
+  const { status: generationStatus } = useGenerationStatus(
+    id ? parseInt(id, 10) : null,
+    { intervalMs: 3000, onComplete: handleProgressComplete }
+  );
   
   // View mode: 'calendar' or 'settings'
   const [viewMode, setViewMode] = useState('calendar');
@@ -111,6 +128,14 @@ export default function ProjectDetail() {
     loadData();
     loadPreflight();
   }, [id]);
+
+  // Auto-dismiss banner 8s dopo completed
+  useEffect(() => {
+    if (generationStatus?.status === 'completed' && !bannerDismissed) {
+      const t = setTimeout(() => setBannerDismissed(true), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [generationStatus?.status, bannerDismissed]);
 
   const loadPreflight = async () => {
     try {
@@ -580,7 +605,14 @@ export default function ProjectDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Progress Bar per generazione */}
+      {/* Banner progresso generazione (polling endpoint /generation-status) */}
+      {!bannerDismissed && (
+        <GenerationProgressBanner
+          status={generationStatus}
+          onDismiss={() => setBannerDismissed(true)}
+        />
+      )}
+      {/* Progress Bar per generazione (componente esistente, complementare) */}
       {isRegenerating && (
         <GenerationProgress
           projectId={id}
