@@ -39,6 +39,7 @@ use App\Domain\Organization\Models\Organization;
 use App\Domain\Subscription\Models\Plan;
 use App\Domain\Subscription\Models\Subscription;
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Project\Models\Project;
 use App\Domain\Post\Models\Post;
 use App\Domain\Organization\Models\ApiKey;
@@ -108,6 +109,23 @@ function createBrand(Organization $org, array $overrides = []): Brand
         'name' => 'Test Brand',
         'sector' => 'Tech',
         'tone_of_voice' => 'professionale',
+    ], $overrides));
+}
+
+/**
+ * Crea una campagna per test, attaccata a una organization esistente.
+ * Bypassa il global scope BelongsToOrganization (factory crea l'org separatamente).
+ */
+function createCampaign(Organization $org, array $overrides = []): Campaign
+{
+    return Campaign::withoutGlobalScope('organization')->create(array_merge([
+        'organization_id'    => $org->id,
+        'name'               => 'Test Campaign ' . \Illuminate\Support\Str::random(6),
+        'brief'              => 'Test brief',
+        'status'             => \App\Domain\Campaign\Enums\CampaignStatus::Draft,
+        'start_date'         => now()->addDays(1),
+        'end_date'           => now()->addDays(30),
+        'created_by_user_id' => null,
     ], $overrides));
 }
 
