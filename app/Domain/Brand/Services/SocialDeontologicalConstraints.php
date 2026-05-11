@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Brand\Services;
 
 use App\Domain\Brand\Enums\Sector;
+use App\Domain\Brand\Models\Brand;
 
 /**
  * Vincoli deontologici per la generazione di post social media in settori
@@ -38,6 +39,86 @@ final class SocialDeontologicalConstraints
             Sector::Finanza             => $this->finanza(),
             default                     => null,
         };
+    }
+
+    /**
+     * Ritorna il set unificato di vincoli deontologici applicabili a un brand.
+     * Se il brand ha più vincoli (es. psicologo + consulente finanziario),
+     * fa il merge: union dedup di phrases/themes/disclaimers, concat di
+     * tone/CTA con prefisso label, legal_basis aggregato.
+     *
+     * @return array{
+     *   forbidden_phrases: list<string>,
+     *   forbidden_themes: list<string>,
+     *   required_disclaimers: list<string>,
+     *   cta_guidelines: string,
+     *   tone_guidance: string,
+     *   preferred_themes: list<string>,
+     *   legal_basis: string,
+     *   sector_labels: list<string>,
+     * }|null
+     */
+    public function getForBrand(Brand $brand): ?array
+    {
+        $sectors = $brand->deontologicalConstraintSectors();
+
+        if ($sectors->isEmpty()) {
+            return null;
+        }
+
+        if ($sectors->count() === 1) {
+            $sector = $sectors->first();
+            $single = $this->getFor($sector);
+            if ($single === null) {
+                return null;
+            }
+            $single['sector_labels'] = [$sector->label()];
+
+            return $single;
+        }
+
+        $merged = [
+            'forbidden_phrases'    => [],
+            'forbidden_themes'     => [],
+            'required_disclaimers' => [],
+            'cta_guidelines'       => '',
+            'tone_guidance'        => '',
+            'preferred_themes'     => [],
+            'legal_basis'          => '',
+            'sector_labels'        => [],
+        ];
+
+        $ctaParts        = [];
+        $toneParts       = [];
+        $legalBasisParts = [];
+
+        foreach ($sectors as $sector) {
+            $set = $this->getFor($sector);
+            if ($set === null) {
+                continue;
+            }
+
+            $merged['forbidden_phrases']    = array_merge($merged['forbidden_phrases'], $set['forbidden_phrases']);
+            $merged['forbidden_themes']     = array_merge($merged['forbidden_themes'], $set['forbidden_themes']);
+            $merged['required_disclaimers'] = array_merge($merged['required_disclaimers'], $set['required_disclaimers']);
+            $merged['preferred_themes']     = array_merge($merged['preferred_themes'], $set['preferred_themes']);
+            $merged['sector_labels'][]      = $sector->label();
+
+            $ctaParts[]        = "[{$sector->label()}] " . $set['cta_guidelines'];
+            $toneParts[]       = "[{$sector->label()}] " . $set['tone_guidance'];
+            $legalBasisParts[] = $set['legal_basis'];
+        }
+
+        $merged['forbidden_phrases']    = array_values(array_unique($merged['forbidden_phrases']));
+        $merged['forbidden_themes']     = array_values(array_unique($merged['forbidden_themes']));
+        $merged['required_disclaimers'] = array_values(array_unique($merged['required_disclaimers']));
+        $merged['preferred_themes']     = array_values(array_unique($merged['preferred_themes']));
+
+        $merged['cta_guidelines'] = implode("\n", $ctaParts);
+        $merged['tone_guidance']  = implode("\n", $toneParts);
+        $merged['legal_basis']    = implode(' + ', $legalBasisParts);
+
+        return $merged;
     }
 
     private function psicologia(): array

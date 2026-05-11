@@ -58,3 +58,65 @@ it('Sector::isRegulated() identifies regulated sectors correctly', function () {
     expect(Sector::Turismo->isRegulated())->toBeFalse();
     expect(Sector::Food->isRegulated())->toBeFalse();
 });
+
+// ─── getForBrand: merge multi-vincolo ──────────────────────────
+
+it('getForBrand returns null for brand with no constraints', function () {
+    [$user, $org] = createAuthenticatedUser();
+    $brand        = createBrand($org, ['sector' => 'psicologia, formazione']);
+
+    expect($this->service->getForBrand($brand))->toBeNull();
+});
+
+it('getForBrand returns single constraint set with sector_labels for one-constraint brand', function () {
+    [$user, $org] = createAuthenticatedUser();
+    $brand        = createBrand($org, ['sector' => 'psicologia']);
+    $brand->syncDeontologicalConstraints(['psicologia']);
+
+    $result = $this->service->getForBrand($brand);
+
+    expect($result)->not->toBeNull();
+    expect($result['forbidden_phrases'])->toContain('guarigione garantita');
+    expect($result['sector_labels'])->toBe(['Psicologia / Psicoterapia / Counseling']);
+    expect($result['legal_basis'])->toContain('Ordine Psicologi');
+});
+
+it('getForBrand merges constraints for multi-constraint brand', function () {
+    [$user, $org] = createAuthenticatedUser();
+    $brand        = createBrand($org, ['sector' => 'psicologia, finanza']);
+    $brand->syncDeontologicalConstraints(['psicologia', 'finanza_indipendente']);
+
+    $result = $this->service->getForBrand($brand);
+
+    expect($result)->not->toBeNull();
+
+    expect($result['forbidden_phrases'])->toContain('guarigione garantita');
+    expect($result['forbidden_phrases'])->toContain('rendimento garantito');
+
+    expect($result['required_disclaimers'])->not->toBeEmpty();
+    $disclaimersBlob = implode(' ', $result['required_disclaimers']);
+    expect($disclaimersBlob)->toContain('rendimenti passati');
+
+    expect($result['sector_labels'])->toContain('Psicologia / Psicoterapia / Counseling');
+    expect($result['sector_labels'])->toContain('Consulenza Finanziaria Indipendente (OCF)');
+
+    expect($result['legal_basis'])->toContain('Ordine Psicologi');
+    expect($result['legal_basis'])->toContain('Consob');
+
+    expect($result['tone_guidance'])->toContain('[Psicologia');
+    expect($result['tone_guidance'])->toContain('[Consulenza Finanziaria Indipendente');
+});
+
+it('getForBrand dedups identical phrases across constraints', function () {
+    [$user, $org] = createAuthenticatedUser();
+    $brand        = createBrand($org, ['sector' => 'salute, psicologia']);
+    $brand->syncDeontologicalConstraints(['psicologia', 'salute']);
+
+    $result = $this->service->getForBrand($brand);
+
+    $occurrences = collect($result['forbidden_phrases'])
+        ->filter(fn ($p) => $p === 'guarigione garantita')
+        ->count();
+
+    expect($occurrences)->toBe(1);
+});
