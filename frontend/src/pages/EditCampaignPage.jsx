@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import CampaignForm from '../components/CampaignForm';
+import CampaignAttachmentsManager from '../components/CampaignAttachmentsManager';
 import { campaigns as campaignsApi, brands as brandsApi } from '../services/api';
 
 export default function EditCampaignPage() {
@@ -19,5 +20,12 @@ export default function EditCampaignPage() {
   if (loading) return <div className="p-6 text-gray-500">Caricamento...</div>;
   if (!campaign) return <div className="p-6 text-red-600">Campagna non trovata.</div>;
 
-  return <CampaignForm initial={campaign} brands={brands} />;
+  return (
+    <div>
+      <CampaignForm initial={campaign} brands={brands} />
+      <div className="max-w-4xl mx-auto px-4 pb-8">
+        <CampaignAttachmentsManager campaignId={campaign.id} />
+      </div>
+    </div>
+  );
 }

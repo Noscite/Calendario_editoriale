@@ -108,6 +108,13 @@ export const campaigns = {
   create: (data) => api.post('/campaigns', data),
   update: (id, data) => api.put(`/campaigns/${id}`, data),
   delete: (id) => api.delete(`/campaigns/${id}`),
+  attachments: {
+    list:   (campaignId)              => api.get(`/campaigns/${campaignId}/attachments`),
+    upload: (campaignId, formData)    => api.post(`/campaigns/${campaignId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    delete: (campaignId, attachmentId) => api.delete(`/campaigns/${campaignId}/attachments/${attachmentId}`),
+  },
 };
 
 export const projects = {
