@@ -16,29 +16,29 @@ final class CreateBrandData extends Data
         #[Required, Max(255)]
         public readonly string $name,
         #[Max(255)]
-        public readonly Optional|string $sector,
-        public readonly Optional|string $tone_of_voice,
-        public readonly Optional|array $brand_values,
-        public readonly Optional|string $description,
+        public readonly Optional|string|null $sector,
+        public readonly Optional|string|null $tone_of_voice,
+        public readonly Optional|array|null $brand_values,
+        public readonly Optional|string|null $description,
         #[Url]
-        public readonly Optional|string $website_url,
+        public readonly Optional|string|null $website_url,
         #[Url]
-        public readonly Optional|string $linkedin_url,
+        public readonly Optional|string|null $linkedin_url,
         #[Url]
-        public readonly Optional|string $instagram_url,
+        public readonly Optional|string|null $instagram_url,
         #[Url]
-        public readonly Optional|string $facebook_url,
-        public readonly Optional|string $target_audience,
-        public readonly Optional|string $unique_selling_points,
-        public readonly Optional|string $colors,
-        public readonly Optional|string $style_guide,
-        public readonly Optional|array $voice_examples,
+        public readonly Optional|string|null $facebook_url,
+        public readonly Optional|string|null $target_audience,
+        public readonly Optional|string|null $unique_selling_points,
+        public readonly Optional|string|null $colors,
+        public readonly Optional|string|null $style_guide,
+        public readonly Optional|array|null $voice_examples,
         // ── Wizard PR-1 (additivi, tutti opzionali) ─────────
         #[Max(180)]
-        public readonly Optional|string $tagline,
-        public readonly Optional|array $founder,
-        public readonly Optional|array $narrative_assets,
-        public readonly Optional|array $default_content_pillars,
-        public readonly Optional|array $forbidden_topics,
+        public readonly Optional|string|null $tagline,
+        public readonly Optional|array|null $founder,
+        public readonly Optional|array|null $narrative_assets,
+        public readonly Optional|array|null $default_content_pillars,
+        public readonly Optional|array|null $forbidden_topics,
     ) {}
 }
