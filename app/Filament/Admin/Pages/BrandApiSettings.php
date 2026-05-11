@@ -33,9 +33,16 @@ class BrandApiSettings extends Page
         }
     }
 
+    /**
+     * Admin panel cross-organization: bypass del global scope 'organization'
+     * applicato dal trait BelongsToOrganization. Il super-admin SaaS vede
+     * tutti i brand di tutte le org per gestirne le API keys.
+     */
     public function availableBrands()
     {
-        return Brand::orderBy('name')->get();
+        return Brand::withoutGlobalScope('organization')
+            ->orderBy('name')
+            ->get();
     }
 
     public function loadKeys(): void
@@ -44,7 +51,7 @@ class BrandApiSettings extends Page
             return;
         }
 
-        $brand           = Brand::findOrFail($this->selectedBrandId);
+        $brand           = Brand::withoutGlobalScope('organization')->findOrFail($this->selectedBrandId);
         $this->formData  = app(BrandApiKeyService::class)->getAll($brand);
     }
 
@@ -59,7 +66,7 @@ class BrandApiSettings extends Page
             return;
         }
 
-        $brand = Brand::findOrFail($this->selectedBrandId);
+        $brand = Brand::withoutGlobalScope('organization')->findOrFail($this->selectedBrandId);
         app(BrandApiKeyService::class)->saveMany($brand, $this->formData);
 
         Notification::make()
