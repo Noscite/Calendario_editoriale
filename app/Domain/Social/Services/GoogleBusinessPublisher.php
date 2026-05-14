@@ -35,17 +35,34 @@ final class GoogleBusinessPublisher
      *
      * @throws TokenExpiredException se l'API risponde 401
      */
+    private const ACCOUNT_TYPE_LITERALS = ['profile', 'page', 'organization', 'business', 'location'];
+
     public function publish(Post $post, SocialConnection $connection): array
     {
         try {
-            $accountId  = $connection->external_account_id;
-            $locationId = $connection->account_type ?? '';
+            $accountId  = (string) $connection->external_account_id;
+            $locationId = (string) ($connection->account_type ?? '');
 
             // L'external_account_id può avere il formato "accounts/{id}/locations/{locationId}"
             // oppure solo "{accountId}" con location in account_type.
-            // Se external_account_id contiene già il path completo usiamolo direttamente.
-            if (str_contains($accountId, '/locations/')) {
+            if (str_starts_with($accountId, 'accounts/') && str_contains($accountId, '/locations/')) {
                 $endpoint = self::API_BASE . "/{$accountId}/localPosts";
+            } elseif (str_starts_with($accountId, 'locations/')) {
+                $msg = 'Connessione GBP malconfigurata: external_account_id manca il prefisso "accounts/{accountId}/". Riconnettere il brand.';
+                Log::error('[GBP] ' . $msg, [
+                    'post_id'             => $post->id,
+                    'connection_id'       => $connection->id,
+                    'external_account_id' => $accountId,
+                ]);
+                return ['success' => false, 'error' => $msg];
+            } elseif (in_array($locationId, self::ACCOUNT_TYPE_LITERALS, true)) {
+                $msg = 'Connessione GBP malconfigurata: account_type contiene un literal ("' . $locationId . '") invece del location ID numerico. Riconnettere il brand.';
+                Log::error('[GBP] ' . $msg, [
+                    'post_id'       => $post->id,
+                    'connection_id' => $connection->id,
+                    'account_type'  => $locationId,
+                ]);
+                return ['success' => false, 'error' => $msg];
             } else {
                 $endpoint = self::API_BASE . "/accounts/{$accountId}/locations/{$locationId}/localPosts";
             }
@@ -112,8 +129,9 @@ final class GoogleBusinessPublisher
      */
     private function buildPayload(Post $post): array
     {
-        // Mappa i post_type dell'applicazione ai topicType GBP
-        $eventTypes = ['product_demo', 'promotional'];
+        // I post_type dell'applicazione sono tutti post di contenuto, non eventi datati.
+        // Mapparli a EVENT GBP richiederebbe schedule.start/endDate future valide.
+        $eventTypes = [];
         $topicType  = in_array($post->post_type, $eventTypes, true) ? 'EVENT' : 'STANDARD';
 
         $content = $this->buildContent($post);

@@ -683,6 +683,11 @@ final class SocialController extends Controller
             if (count($locations) === 1) {
                 $location = $locations[0];
 
+                if (!isset($location['name']) || !str_starts_with($location['name'], 'accounts/') || !str_contains($location['name'], '/locations/')) {
+                    Log::error('Formato location Google inatteso', ['location' => $location]);
+                    return redirect("{$frontend}?social_error=invalid_google_location_format");
+                }
+
                 SocialConnection::where('brand_id', $brandId)
                     ->where('platform', 'google_business')
                     ->delete();
@@ -941,6 +946,11 @@ final class SocialController extends Controller
 
         if (!$selectedLocation) {
             return response()->json(['detail' => 'Location non trovata'], 400);
+        }
+
+        if (!str_starts_with((string) $selectedLocation['id'], 'accounts/') || !str_contains((string) $selectedLocation['id'], '/locations/')) {
+            Log::error('Formato location Google inatteso', ['location' => $selectedLocation]);
+            return response()->json(['detail' => 'Formato location Google inatteso'], 500);
         }
 
         // Salva connessione (come Python)
