@@ -33,6 +33,73 @@ final class PromptBuilder
     ) {}
 
     /**
+     * Costruisce il blocco di DISTRIBUZIONE OBBLIGATORIA: converte i ratio
+     * "post per settimana" in totali assoluti per piattaforma sul periodo del
+     * progetto, così che il modello riceva numeri esatti e non distribuisca
+     * "a sentimento" (storico bias verso Instagram).
+     *
+     * Totale per piattaforma = round(perWeek * totalWeeks), con
+     * totalWeeks = max(1, diffInDays / 7).
+     *
+     * Accetta sia le chiavi abbreviate (ig, fb, li, gbp) sia quelle estese
+     * (instagram, facebook, linkedin, google_business) usate in produzione.
+     */
+    private function buildDistributionBlock(array $postsPerWeek, Carbon $startDate, Carbon $endDate): string
+    {
+        $diffDays   = $startDate->diffInDays($endDate);
+        $totalDays  = $diffDays + 1;
+        $totalWeeks = max(1, $diffDays / 7);
+
+        $labels = [
+            'ig'              => 'Instagram',
+            'instagram'       => 'Instagram',
+            'fb'              => 'Facebook',
+            'facebook'        => 'Facebook',
+            'li'              => 'LinkedIn',
+            'linkedin'        => 'LinkedIn',
+            'gbp'             => 'Google Business Profile',
+            'gmb'             => 'Google Business Profile',
+            'google_business' => 'Google Business Profile',
+            'tt'              => 'TikTok',
+            'tiktok'          => 'TikTok',
+            'x'               => 'X',
+            'twitter'         => 'X',
+            'yt'              => 'YouTube',
+            'youtube'         => 'YouTube',
+        ];
+
+        $lines = [];
+        $total = 0;
+        foreach ($postsPerWeek as $platform => $perWeek) {
+            $perWeek = (float) $perWeek;
+            if ($perWeek <= 0) {
+                continue;
+            }
+            $exactTotal = (int) round($perWeek * $totalWeeks);
+            $label      = $labels[strtolower((string) $platform)] ?? ucfirst((string) $platform);
+            $lines[]    = "- {$label}: ESATTAMENTE {$exactTotal} post";
+            $total     += $exactTotal;
+        }
+
+        if (empty($lines)) {
+            return '';
+        }
+
+        // Settimane formattate senza zeri/punti superflui (4.3, non 4.30; 4, non 4.0).
+        $weeksLabel = rtrim(rtrim(number_format($totalWeeks, 1, '.', ''), '0'), '.');
+        $bullets    = implode("\n", $lines);
+
+        return implode("\n", [
+            "DISTRIBUZIONE OBBLIGATORIA per il periodo ({$totalDays} giorni / {$weeksLabel} settimane):",
+            $bullets,
+            "TOTALE: {$total} post",
+            '',
+            'Devi rispettare questi numeri esatti per piattaforma. Deviazione max ±5%.',
+            'Non aggiungere piattaforme non elencate. Non omettere piattaforme elencate.',
+        ]);
+    }
+
+    /**
      * Costruisce il prompt per generare un batch di post del calendario.
      * Estratto da ClaudeContentGenerator::generateBatch().
      */
@@ -57,7 +124,7 @@ final class PromptBuilder
             : 'Usa mix standard: 60% post, 25% stories, 15% reel (dove supportati)';
         $personasText     = $this->formatPersonasForPrompt($buyerPersonas);
         $platformsList    = implode(', ', $platforms);
-        $postsPerWeekJson = json_encode($postsPerWeek, JSON_UNESCAPED_UNICODE);
+        $distributionBlock = $this->buildDistributionBlock($postsPerWeek, $startDate, $endDate);
         $themesList       = !empty($themes) ? implode(', ', $themes) : 'Generici per il settore';
         // Quando ci sono pillar configurati, etichettiamo la sezione come
         // "PILLAR DISPONIBILI" con vincolo di matching letterale (no
@@ -132,7 +199,7 @@ Per ogni post, considera quale persona stai indirizzando e adatta:
 ## PROGETTO
 Periodo: {$startDate->toDateString()} - {$endDate->toDateString()}
 Piattaforme: {$platformsList}
-Post per settimana: {$postsPerWeekJson}
+{$distributionBlock}
 {$pillarsLabel}: {$themesList}
 Brief: {$this->arr($projectInfo, 'brief', 'N/A')}
 Obiettivi: {$objectivesList}
@@ -1395,7 +1462,7 @@ DEON;
             ? "\n- Il valore del campo \"pillar\" di OGNI post DEVE essere uno dei valori elencati nella sezione PILLAR DISPONIBILI sopra, copiato letteralmente. NON parafrasare, tradurre, abbreviare, trasformare in slug."
             : '';
         $objectivesList   = implode(', ', $projectInfo['objectives'] ?? ['brand_awareness']);
-        $postsPerWeekJson = json_encode($postsPerWeek, JSON_UNESCAPED_UNICODE);
+        $distributionBlock = $this->buildDistributionBlock($postsPerWeek, $startDate, $endDate);
 
         $personasText  = $this->formatPersonasForPrompt($buyerPersonas);
         $schedulingTxt = $this->formatSchedulingFromPersonas($buyerPersonas, $platforms);
@@ -1445,7 +1512,7 @@ Valori: {$this->arrJson($brandInfo, 'brand_values', '[]')}
 ## PROGETTO
 Periodo: {$startDate->toDateString()} → {$endDate->toDateString()} ({$totalDays} giorni)
 Piattaforme: {$platformsList}
-Post per settimana: {$postsPerWeekJson}
+{$distributionBlock}
 {$pillarsLabel}: {$themesList}
 Brief: {$this->arr($projectInfo, 'brief', 'N/A')}
 Obiettivi: {$objectivesList}
