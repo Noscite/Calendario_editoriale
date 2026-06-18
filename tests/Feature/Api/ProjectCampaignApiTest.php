@@ -2,12 +2,32 @@
 
 declare(strict_types=1);
 
+use App\Domain\Brand\Models\Brand;
 use App\Domain\Campaign\Enums\CampaignStatus;
 use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Campaign\Models\CampaignAttachment;
+use App\Domain\Document\Models\BrandDocument;
 use App\Domain\Generation\Jobs\GenerateCampaignPostsJob;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+
+/**
+ * Crea un documento KB completato per un brand (no factory dedicata).
+ */
+function createKbDocument(Brand $brand, array $overrides = []): BrandDocument
+{
+    return BrandDocument::create(array_merge([
+        'brand_id'          => $brand->id,
+        'filename'          => 'doc-' . \Illuminate\Support\Str::random(6) . '.pdf',
+        'original_filename' => 'doc.pdf',
+        'file_type'         => 'pdf',
+        'file_path'         => 'brand-documents/doc.pdf',
+        'file_size'         => 1234,
+        'analysis_status'   => 'completed',
+        'summary'           => 'Riassunto del documento',
+    ], $overrides));
+}
 
 beforeEach(function () {
     Queue::fake();
@@ -181,4 +201,102 @@ it('GET /api/projects/{id}/campaigns lists campaigns having posts in this projec
     $response->assertJsonCount(1, 'data');
     $response->assertJsonPath('data.0.id', $campaign->id);
     $response->assertJsonPath('data.0.posts_in_project_count', 1);
+});
+
+// ── KB documents: selezione persistita anche sul path di generazione immediata ──
+
+it('store (immediate generation) popola la pivot KB PRIMA del dispatch', function () {
+    $doc = createKbDocument($this->brand);
+
+    $response = $this->actingAs($this->user)
+        ->postJson("/api/projects/{$this->project->id}/campaigns", [
+            'name'            => 'Con KB',
+            'brief'           => 'Brief con documenti KB',
+            'brand_documents' => [['id' => $doc->id, 'inject_mode' => 'full_text']],
+        ]);
+
+    $response->assertCreated();
+    $campaignId = $response->json('id');
+
+    // La pivot è popolata: il sync avviene dentro la transazione di
+    // createAndGenerate, PRIMA del dispatch → il job vede già i documenti.
+    $pivot = DB::table('campaign_brand_document')->where('campaign_id', $campaignId)->get();
+    expect($pivot)->toHaveCount(1);
+    expect($pivot->first()->brand_document_id)->toBe($doc->id);
+    expect($pivot->first()->inject_mode)->toBe('full_text');
+
+    // E il job di generazione è stato comunque dispatchato (dopo il sync).
+    Queue::assertPushed(GenerateCampaignPostsJob::class);
+});
+
+it('store scarta documenti KB di un\'altra organization (anti-IDOR)', function () {
+    [, $otherOrg] = createAuthenticatedUser();
+    $otherBrand   = createBrand($otherOrg);
+    $foreignDoc   = createKbDocument($otherBrand);
+    $ownDoc       = createKbDocument($this->brand);
+
+    $response = $this->actingAs($this->user)
+        ->postJson("/api/projects/{$this->project->id}/campaigns", [
+            'name'            => 'IDOR test',
+            'brief'           => 'Brief',
+            'brand_documents' => [
+                ['id' => $foreignDoc->id, 'inject_mode' => 'full_text'],
+                ['id' => $ownDoc->id,     'inject_mode' => 'summary'],
+            ],
+        ]);
+
+    $response->assertCreated();
+    $campaignId = $response->json('id');
+
+    // Solo il documento dell'organization dell'utente finisce in pivot;
+    // quello di un altro tenant è scartato dal filtro org.
+    $docIds = DB::table('campaign_brand_document')
+        ->where('campaign_id', $campaignId)
+        ->pluck('brand_document_id')
+        ->all();
+
+    expect($docIds)->toBe([$ownDoc->id]);
+    expect($docIds)->not->toContain($foreignDoc->id);
+});
+
+it('store e promote producono la stessa pivot KB a parità di payload', function () {
+    $doc     = createKbDocument($this->brand);
+    $payload = [['id' => $doc->id, 'inject_mode' => 'full_text']];
+
+    // Path 1: store (generazione immediata)
+    $storeRes = $this->actingAs($this->user)
+        ->postJson("/api/projects/{$this->project->id}/campaigns", [
+            'name'            => 'Via store',
+            'brief'           => 'Brief',
+            'brand_documents' => $payload,
+        ]);
+    $storeRes->assertCreated();
+
+    // Path 2: draft → promote
+    $draft = Campaign::create([
+        'organization_id' => $this->org->id,
+        'name'            => 'Bozza',
+        'brief'           => '',
+        'status'          => CampaignStatus::Draft,
+    ]);
+    $promoteRes = $this->actingAs($this->user)
+        ->postJson("/api/projects/{$this->project->id}/campaigns/{$draft->id}/promote", [
+            'name'            => 'Via promote',
+            'brief'           => 'Brief',
+            'brand_documents' => $payload,
+        ]);
+    $promoteRes->assertOk();
+
+    $storePivot = DB::table('campaign_brand_document')
+        ->where('campaign_id', $storeRes->json('id'))
+        ->pluck('inject_mode', 'brand_document_id')
+        ->toArray();
+
+    $promotePivot = DB::table('campaign_brand_document')
+        ->where('campaign_id', $draft->id)
+        ->pluck('inject_mode', 'brand_document_id')
+        ->toArray();
+
+    expect($storePivot)->toBe([$doc->id => 'full_text']);
+    expect($promotePivot)->toBe($storePivot);
 });
