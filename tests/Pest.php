@@ -11,11 +11,16 @@
 |
 */
 
+// GUARD ANTI-PRODUZIONE (belt-and-suspenders con TestCase::setUp): prima di
+// OGNI test aborta se il DB target non contiene 'test' (previene la pollution
+// del DB di produzione vista quando config:cache congela DB_DATABASE di prod).
 pest()->extend(Tests\TestCase::class)
     ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
+    ->beforeEach(fn () => Tests\TestCase::guardAgainstProductionDatabase())
     ->in('Feature');
 
 pest()->extend(Tests\TestCase::class)
+    ->beforeEach(fn () => Tests\TestCase::guardAgainstProductionDatabase())
     ->in('Unit');
 
 /*
