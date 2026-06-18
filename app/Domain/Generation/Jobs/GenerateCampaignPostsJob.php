@@ -51,7 +51,7 @@ final class GenerateCampaignPostsJob implements ShouldQueue
 
     public function handle(ClaudeContentGenerator $generator): void
     {
-        $campaign = Campaign::with(['attachments', 'mcpServers', 'brands'])->findOrFail($this->campaignId);
+        $campaign = Campaign::with(['attachments', 'mcpServers', 'brands', 'brandDocuments'])->findOrFail($this->campaignId);
         $project  = Project::with('brand')->findOrFail($this->projectId);
 
         // 1. Aspetta extraction degli allegati (best-effort, non bloccante).

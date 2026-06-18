@@ -53,6 +53,23 @@ class Campaign extends Model
         return $this->belongsToMany(Brand::class, 'brand_campaign')->withTimestamps();
     }
 
+    public function brandDocuments(): BelongsToMany
+    {
+        return $this->belongsToMany(\App\Domain\Document\Models\BrandDocument::class, 'campaign_brand_document')
+            ->withPivot('inject_mode')
+            ->withTimestamps();
+    }
+
+    /**
+     * Documenti KB del brand selezionati sulla campagna e pronti per l'AI
+     * (analysis_status='completed'). Colonna qualificata per evitare ambiguità
+     * con il join sulla pivot.
+     */
+    public function brandDocumentsForAI(): BelongsToMany
+    {
+        return $this->brandDocuments()->where('brand_documents.analysis_status', 'completed');
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');

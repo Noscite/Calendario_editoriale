@@ -1322,20 +1322,19 @@ TXT;
             return '';
         }
 
+        // --- Allegati campagna (logica esistente invariata) ---
+        $attachmentsBlock = '';
         $attachments = $campaign->attachmentsReadyForAI()->get();
-        if ($attachments->isEmpty()) {
-            return '';
-        }
+        if (! $attachments->isEmpty()) {
+            $sections = $attachments
+                ->map(fn ($a) => sprintf(
+                    "### Documento: %s\n```\n%s\n```",
+                    $a->original_filename,
+                    $a->extracted_text,
+                ))
+                ->implode("\n\n");
 
-        $sections = $attachments
-            ->map(fn ($a) => sprintf(
-                "### Documento: %s\n```\n%s\n```",
-                $a->original_filename,
-                $a->extracted_text,
-            ))
-            ->implode("\n\n");
-
-        return <<<KB
+            $attachmentsBlock = <<<KB
 
 ## KNOWLEDGE BASE — Documenti allegati alla campagna
 
@@ -1344,6 +1343,82 @@ Cita fatti e dati specifici quando rilevanti. Se un dato cliente è
 presente qui, usalo letteralmente invece di inventarne uno plausibile.
 
 {$sections}
+
+KB;
+        }
+
+        // --- Sezione gemella: documenti KB del brand selezionati sulla campagna ---
+        $brandDocsBlock = $this->buildCampaignSelectedDocuments($campaign);
+
+        return $attachmentsBlock . $brandDocsBlock;
+    }
+
+    /**
+     * Sezione gemella di KNOWLEDGE BASE per i documenti del brand selezionati
+     * sulla campagna (pivot campaign_brand_document) con
+     * analysis_status='completed'.
+     *
+     * Due cap di budget (stima ~4 char/token):
+     * - per-documento: 32000 char (~8000 token), applicato al full_text
+     * - totale KB:     80000 char (~20000 token), sommato su TUTTI i doc iniettati
+     *
+     * Stringa vuota se nessun documento KB selezionato.
+     */
+    private function buildCampaignSelectedDocuments(Campaign $campaign): string
+    {
+        $docs = $campaign->brandDocumentsForAI()->get();
+        if ($docs->isEmpty()) {
+            return '';
+        }
+
+        $budgetRestante = 80000; // char (~20000 token complessivi)
+        $sections = [];
+
+        foreach ($docs as $doc) {
+            $mode = $doc->pivot->inject_mode;
+
+            if ($mode === 'summary') {
+                $testo = trim(
+                    ($doc->summary ?? '') . "\n" . ($doc->description ?? '')
+                    . "\nTopics: " . (is_array($doc->key_topics) ? implode(', ', $doc->key_topics) : (string) $doc->key_topics)
+                );
+            } else { // full_text
+                $testo = \DB::table('document_chunks')
+                    ->where('document_id', $doc->id)
+                    ->orderBy('chunk_index')
+                    ->pluck('content')
+                    ->implode("\n");
+                if (mb_strlen($testo) > 32000) {
+                    $testo = mb_substr($testo, 0, 32000) . "\n[documento troncato]";
+                }
+            }
+
+            if ($budgetRestante <= 0) {
+                break; // budget complessivo esaurito → ignora i restanti
+            }
+            if (mb_strlen($testo) > $budgetRestante) {
+                $testo = mb_substr($testo, 0, $budgetRestante) . "\n[troncato: limite KB raggiunto]";
+            }
+            $budgetRestante -= mb_strlen($testo);
+
+            $sections[] = sprintf(
+                "### Documento: %s\n```\n%s\n```",
+                $doc->original_filename,
+                $testo,
+            );
+        }
+
+        $joined = implode("\n\n", $sections);
+
+        return <<<KB
+
+## KNOWLEDGE BASE — Documenti selezionati per la campagna
+
+Usa queste informazioni come fonte autoritativa per generare i post.
+Cita fatti e dati specifici quando rilevanti. Se un dato cliente è
+presente qui, usalo letteralmente invece di inventarne uno plausibile.
+
+{$joined}
 
 KB;
     }

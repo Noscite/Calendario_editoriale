@@ -3,10 +3,12 @@
 namespace App\Domain\Document\Models;
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Campaign\Models\Campaign;
 use App\Domain\User\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BrandDocument extends Model
@@ -68,5 +70,15 @@ class BrandDocument extends Model
     public function chunks(): HasMany
     {
         return $this->hasMany(DocumentChunk::class, 'document_id');
+    }
+
+    public function campaigns(): BelongsToMany
+    {
+        // withTimestamps() esplicito: BrandDocument ridefinisce i timestamp del
+        // model (CREATED_AT='uploaded_at'), che altrimenti verrebbero ereditati
+        // dal pivot — ma il pivot ha created_at/updated_at standard.
+        return $this->belongsToMany(Campaign::class, 'campaign_brand_document')
+            ->withPivot('inject_mode')
+            ->withTimestamps('created_at', 'updated_at');
     }
 }
