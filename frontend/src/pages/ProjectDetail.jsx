@@ -102,6 +102,7 @@ export default function ProjectDetail() {
 
   // Draft campaign per consentire upload KB / config MCP pre-submit
   const [draftCampaignId, setDraftCampaignId] = useState(null);
+  const [brandDocuments, setBrandDocuments] = useState([]); // [{id, inject_mode}]
   const [showKb, setShowKb] = useState(false);
   const [showMcp, setShowMcp] = useState(false);
   
@@ -476,6 +477,7 @@ export default function ProjectDetail() {
       pillar: '',
     });
     setDraftCampaignId(null);
+    setBrandDocuments([]);
     setShowKb(false);
     setShowMcp(false);
   };
@@ -496,8 +498,11 @@ export default function ProjectDetail() {
       };
 
       if (draftCampaignId) {
-        // Già caricato KB/MCP nella draft → promote
-        await projectsApi.campaigns.promote(parseInt(id), draftCampaignId, payload);
+        // Già caricato KB/MCP nella draft → promote (brand_documents nel body JSON)
+        await projectsApi.campaigns.promote(parseInt(id), draftCampaignId, {
+          ...payload,
+          brand_documents: brandDocuments,
+        });
       } else {
         // Flow standard: multipart (qui senza attachments, json normale)
         const fd = new FormData();
@@ -509,6 +514,10 @@ export default function ProjectDetail() {
             fd.append(k, v);
           }
         });
+        // Array di oggetti → JSON, decodificato dal backend (store).
+        if (brandDocuments.length > 0) {
+          fd.append('brand_documents', JSON.stringify(brandDocuments));
+        }
         await projectsApi.campaigns.create(parseInt(id), fd);
       }
 
@@ -1724,7 +1733,11 @@ export default function ProjectDetail() {
                     </summary>
                     {draftCampaignId && (
                       <div className="mt-3">
-                        <CampaignAttachmentsManager campaignId={draftCampaignId} />
+                        <CampaignAttachmentsManager
+                          campaignId={draftCampaignId}
+                          brandId={project?.brand_id}
+                          onBrandDocumentsChange={setBrandDocuments}
+                        />
                       </div>
                     )}
                   </details>
@@ -1849,6 +1862,7 @@ export default function ProjectDetail() {
         onClose={() => setShowQuickAddModal(false)}
         selectedDate={quickAddDate}
         projectId={id}
+        brandId={project?.brand_id}
         projectPlatforms={project?.platforms || []}
         projectPillars={project?.pillars || []}
         onPostCreated={handleQuickPostCreated}

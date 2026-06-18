@@ -18,6 +18,7 @@ export default function QuickAddPostModal({
   onClose,
   selectedDate,
   projectId,
+  brandId,
   projectPlatforms = [],
   projectPillars = [],
   onPostCreated,
@@ -47,6 +48,7 @@ export default function QuickAddPostModal({
   const [campaignStart, setCampaignStart] = useState('');
   const [campaignEnd, setCampaignEnd]     = useState('');
   const [draftCampaignId, setDraftCampaignId] = useState(null);
+  const [brandDocuments, setBrandDocuments] = useState([]); // [{id, inject_mode}]
   const [showKb, setShowKb]   = useState(false);
   const [showMcp, setShowMcp] = useState(false);
 
@@ -127,11 +129,15 @@ export default function QuickAddPostModal({
         };
 
         if (draftCampaignId) {
-          // Draft già creata (l'utente ha caricato allegati/MCP) → promote
-          const res = await projectsApi.campaigns.promote(projectId, draftCampaignId, payload);
+          // Draft già creata (l'utente ha caricato allegati/MCP) → promote.
+          // brand_documents come array nativo nel body JSON.
+          const res = await projectsApi.campaigns.promote(projectId, draftCampaignId, {
+            ...payload,
+            brand_documents: brandDocuments,
+          });
           onCampaignLaunched?.(res.data);
         } else {
-          // Flow standard: tutto in una request
+          // Flow standard: tutto in una request (FormData).
           const fd = new FormData();
           Object.entries(payload).forEach(([k, v]) => {
             if (v === null || v === undefined) return;
@@ -141,6 +147,11 @@ export default function QuickAddPostModal({
               fd.append(k, v);
             }
           });
+          // brand_documents è un array di oggetti → serializza come JSON,
+          // il backend (ProjectCampaignController::store) lo decodifica.
+          if (brandDocuments.length > 0) {
+            fd.append('brand_documents', JSON.stringify(brandDocuments));
+          }
           const res = await projectsApi.campaigns.create(projectId, fd);
           onCampaignLaunched?.(res.data);
         }
@@ -187,6 +198,7 @@ export default function QuickAddPostModal({
     setCampaignStart('');
     setCampaignEnd('');
     setDraftCampaignId(null);
+    setBrandDocuments([]);
     setShowKb(false);
     setShowMcp(false);
     setMessage(null);
@@ -463,7 +475,11 @@ export default function QuickAddPostModal({
                 </summary>
                 {draftCampaignId && (
                   <div className="mt-3">
-                    <CampaignAttachmentsManager campaignId={draftCampaignId} />
+                    <CampaignAttachmentsManager
+                      campaignId={draftCampaignId}
+                      brandId={brandId}
+                      onBrandDocumentsChange={setBrandDocuments}
+                    />
                   </div>
                 )}
               </details>

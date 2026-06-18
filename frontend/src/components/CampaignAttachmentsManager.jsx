@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { campaigns as campaignsApi } from '../services/api';
+import { campaigns as campaignsApi, documents as documentsApi } from '../services/api';
 
 const MAX_ATTACHMENTS = 5;
 const MAX_SIZE_MB = 25;
@@ -22,12 +22,54 @@ function mimeIcon(mime) {
   return '📎';
 }
 
-export default function CampaignAttachmentsManager({ campaignId }) {
+export default function CampaignAttachmentsManager({ campaignId, brandId, onBrandDocumentsChange }) {
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // ── Knowledge Base del brand: selezione documenti già caricati ──
+  const [kbDocs, setKbDocs] = useState([]);
+  const [kbLoading, setKbLoading] = useState(false);
+  // { [docId]: 'summary' | 'full_text' }
+  const [kbSelected, setKbSelected] = useState({});
+
+  // Carica i documenti KB del brand (solo quelli con analisi completata)
+  useEffect(() => {
+    if (!brandId) return;
+    let alive = true;
+    setKbLoading(true);
+    documentsApi.list(brandId)
+      .then((res) => {
+        if (!alive) return;
+        const arr = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        setKbDocs(arr.filter((d) => d.analysis_status === 'completed'));
+      })
+      .catch((err) => console.error('Errore caricamento Knowledge Base:', err))
+      .finally(() => { if (alive) setKbLoading(false); });
+    return () => { alive = false; };
+  }, [brandId]);
+
+  // Solleva la selezione al parent come [{id, inject_mode}]
+  useEffect(() => {
+    onBrandDocumentsChange?.(
+      Object.entries(kbSelected).map(([id, inject_mode]) => ({ id: Number(id), inject_mode }))
+    );
+  }, [kbSelected, onBrandDocumentsChange]);
+
+  const toggleKbDoc = (docId) => {
+    setKbSelected((prev) => {
+      const next = { ...prev };
+      if (next[docId]) delete next[docId];
+      else next[docId] = 'summary';
+      return next;
+    });
+  };
+
+  const setKbMode = (docId, mode) => {
+    setKbSelected((prev) => ({ ...prev, [docId]: mode }));
+  };
 
   const loadAttachments = useCallback(async () => {
     try {
@@ -106,6 +148,75 @@ export default function CampaignAttachmentsManager({ campaignId }) {
         Il testo verrà estratto e usato come fonte di conoscenza per la generazione
         AI dei post di questa campagna.
       </p>
+
+      {/* ── Selezione dalla Knowledge Base del brand ── */}
+      {brandId && (
+        <div className="mb-5 border border-gray-200 rounded-lg p-3 bg-[#f8fafc]">
+          <div className="font-medium text-sm text-[#2C3E50] mb-2">
+            📚 Seleziona dalla Knowledge Base del brand
+          </div>
+
+          {kbLoading ? (
+            <div className="text-sm text-gray-400 py-2">Caricamento documenti…</div>
+          ) : kbDocs.length === 0 ? (
+            <div className="text-sm text-gray-400 py-2">
+              Nessun documento nella Knowledge Base di questo brand
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {kbDocs.map((doc) => {
+                const selectedMode = kbSelected[doc.id];
+                const isSelected = selectedMode !== undefined;
+                const summaryFull = doc.summary || '';
+                const summaryShort = summaryFull.length > 120
+                  ? `${summaryFull.slice(0, 120)}…`
+                  : summaryFull;
+                return (
+                  <li key={doc.id} className="py-2">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleKbDoc(doc.id)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-[#2C3E50] truncate" title={doc.original_filename}>
+                          {doc.original_filename}
+                        </div>
+                        {summaryShort && (
+                          <div className="text-xs text-gray-500" title={summaryFull}>
+                            {summaryShort}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+
+                    {isSelected && (
+                      <div className="mt-1 ml-6 inline-flex rounded-md border border-gray-200 overflow-hidden text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setKbMode(doc.id, 'summary')}
+                          className={`px-2 py-1 ${selectedMode === 'summary' ? 'bg-[#3DAFA8] text-white' : 'bg-white text-gray-600'}`}
+                        >
+                          Sintesi
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setKbMode(doc.id, 'full_text')}
+                          className={`px-2 py-1 ${selectedMode === 'full_text' ? 'bg-[#3DAFA8] text-white' : 'bg-white text-gray-600'}`}
+                        >
+                          Testo completo
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
