@@ -23,5 +23,13 @@ final class UpdateCampaignData extends Data
         public readonly Optional|string $status,
         /** @var int[] */
         public readonly Optional|array|null $brand_ids,
+        /**
+         * Documenti KB del brand selezionati per la campagna.
+         * Nullable (default null) per non rompere payload che non includono il
+         * campo (pattern fix wizard 422): assente => selezione invariata.
+         *
+         * @var array<int, array{id:int, inject_mode?:string}>|null
+         */
+        public readonly ?array $brand_documents = null,
     ) {}
 }

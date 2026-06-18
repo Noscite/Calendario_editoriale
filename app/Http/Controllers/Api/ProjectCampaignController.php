@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Campaign\Enums\CampaignStatus;
 use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Campaign\Services\CampaignGenerationService;
+use App\Domain\Campaign\Support\CampaignBrandDocuments;
 use App\Domain\Project\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -82,6 +83,10 @@ final class ProjectCampaignController extends Controller
 
         $validated['attachments'] = $request->file('attachments') ?? [];
         $validated['mcp_servers'] = $this->parseMcpServers($request->input('mcp_servers'));
+        // brand_documents arriva come stringa JSON (multipart). Lo passa al
+        // service che fa il sync DENTRO la transazione, prima del dispatch del
+        // job di generazione (così la generation vede già i documenti).
+        $validated['brand_documents'] = CampaignBrandDocuments::parse($request->input('brand_documents'));
 
         $campaign = $this->service->createAndGenerate(
             project: $project,
@@ -107,7 +112,10 @@ final class ProjectCampaignController extends Controller
         $project = Project::findOrFail($projectId);
 
         $data = $request->validate([
-            'name' => 'nullable|string|max:255',
+            'name'                          => 'nullable|string|max:255',
+            'brand_documents'               => 'nullable|array',
+            'brand_documents.*.id'          => 'integer|exists:brand_documents,id',
+            'brand_documents.*.inject_mode' => 'nullable|in:summary,full_text',
         ]);
 
         $campaign = Campaign::create([
@@ -119,6 +127,12 @@ final class ProjectCampaignController extends Controller
         ]);
 
         $campaign->brands()->syncWithoutDetaching([$project->brand_id]);
+
+        $this->syncBrandDocuments(
+            $campaign,
+            $request->has('brand_documents') ? $request->input('brand_documents', []) : null,
+            $project->organization_id,
+        );
 
         return response()->json([
             'id'     => $campaign->id,
@@ -143,15 +157,26 @@ final class ProjectCampaignController extends Controller
         }
 
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
-            'brief'       => 'required|string|max:5000',
-            'pillar'      => 'nullable|string|max:255',
-            'start_date'  => 'nullable|date',
-            'end_date'    => 'nullable|date|after_or_equal:start_date',
-            'platforms'   => 'nullable|array',
-            'platforms.*' => 'string|in:linkedin,instagram,facebook,google_business',
-            'posts_count' => 'nullable|integer|min:1|max:50',
+            'name'                          => 'required|string|max:255',
+            'brief'                         => 'required|string|max:5000',
+            'pillar'                        => 'nullable|string|max:255',
+            'start_date'                    => 'nullable|date',
+            'end_date'                      => 'nullable|date|after_or_equal:start_date',
+            'platforms'                     => 'nullable|array',
+            'platforms.*'                   => 'string|in:linkedin,instagram,facebook,google_business',
+            'posts_count'                   => 'nullable|integer|min:1|max:50',
+            'brand_documents'               => 'nullable|array',
+            'brand_documents.*.id'          => 'integer|exists:brand_documents,id',
+            'brand_documents.*.inject_mode' => 'nullable|in:summary,full_text',
         ]);
+
+        // Sync PRIMA di promoteDraft: promoteDraft dispatcha GenerateCampaignPostsJob,
+        // i documenti KB devono già essere sulla pivot quando la generation parte.
+        $this->syncBrandDocuments(
+            $campaign,
+            $request->has('brand_documents') ? $request->input('brand_documents', []) : null,
+            $campaign->organization_id,
+        );
 
         $this->service->promoteDraft($campaign, $project, $validated);
 
@@ -182,5 +207,20 @@ final class ProjectCampaignController extends Controller
         }
 
         return [];
+    }
+
+    /**
+     * Sincronizza la pivot campaign_brand_document.
+     * - $docs === null  => campo assente nel payload: NON tocca la selezione.
+     * - $docs === []    => selezione esplicitamente svuotata.
+     * - in_array guard  => inject_mode non valido da payload manipolato => 'summary'.
+     * - filtro org      => Anti-IDOR: solo documenti il cui brand appartiene
+     *   all'organization.
+     *
+     * @param  array<int, array{id:int, inject_mode?:string}>|null  $docs
+     */
+    private function syncBrandDocuments(Campaign $campaign, ?array $docs, int $orgId): void
+    {
+        CampaignBrandDocuments::sync($campaign, $docs, $orgId);
     }
 }

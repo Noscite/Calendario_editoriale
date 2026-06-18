@@ -8,6 +8,7 @@ use App\Domain\Campaign\Enums\CampaignStatus;
 use App\Domain\Campaign\Jobs\ExtractAttachmentTextJob;
 use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Campaign\Models\CampaignAttachment;
+use App\Domain\Campaign\Support\CampaignBrandDocuments;
 use App\Domain\Generation\Jobs\GenerateCampaignPostsJob;
 use App\Domain\Project\Models\Project;
 use Illuminate\Http\UploadedFile;
@@ -66,6 +67,10 @@ final class CampaignGenerationService
                     'override_brand_mcp' => $mcp['override_brand_mcp'] ?? false,
                 ]);
             }
+
+            // Documenti KB selezionati: sync DENTRO la transazione, prima del
+            // dispatch, così non c'è race con il worker della generazione.
+            CampaignBrandDocuments::sync($campaign, $data['brand_documents'] ?? null, $project->organization_id);
 
             GenerateCampaignPostsJob::dispatch(
                 $campaign->id,

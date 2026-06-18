@@ -10,6 +10,7 @@ use App\Domain\Campaign\Data\UpdateCampaignData;
 use App\Domain\Campaign\Exceptions\CampaignInvalidTransitionException;
 use App\Domain\Campaign\Exceptions\CampaignLimitExceededException;
 use App\Domain\Campaign\Models\Campaign;
+use App\Domain\Campaign\Support\CampaignBrandDocuments;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,6 +46,8 @@ final class CampaignController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $request->validate($this->brandDocumentsRules());
+
         $dto = CreateCampaignData::from($request);
 
         try {
@@ -66,6 +69,8 @@ final class CampaignController extends Controller
                     );
                     $campaign->brands()->sync($validBrandIds);
                 }
+
+                $this->syncBrandDocuments($campaign, $dto->brand_documents, $request->user()->organization_id);
 
                 return $campaign->fresh(['brands:id,name']);
             });
@@ -89,6 +94,8 @@ final class CampaignController extends Controller
             return response()->json(['detail' => 'Campaign not found'], 404);
         }
 
+        $request->validate($this->brandDocumentsRules());
+
         $dto = UpdateCampaignData::from($request);
 
         // Costruisci array senza i campi Optional non passati nel payload
@@ -102,7 +109,7 @@ final class CampaignController extends Controller
         $brandIds = ! ($dto->brand_ids instanceof Optional) ? $dto->brand_ids : null;
 
         try {
-            $campaign = DB::transaction(function () use ($campaign, $data, $brandIds, $request) {
+            $campaign = DB::transaction(function () use ($campaign, $data, $brandIds, $dto, $request) {
                 if (! empty($data)) {
                     $campaign->update($data);
                 }
@@ -114,6 +121,8 @@ final class CampaignController extends Controller
                     );
                     $campaign->brands()->sync($validBrandIds);
                 }
+
+                $this->syncBrandDocuments($campaign, $dto->brand_documents, $request->user()->organization_id);
 
                 return $campaign->fresh(['brands:id,name']);
             });
@@ -175,6 +184,36 @@ final class CampaignController extends Controller
     private function unwrapOptional(mixed $value): mixed
     {
         return $value instanceof Optional ? null : $value;
+    }
+
+    /**
+     * Regole di validazione per la selezione di documenti KB sulla campagna.
+     * Nullable: il campo può mancare nel payload (pattern fix wizard 422).
+     *
+     * @return array<string, string>
+     */
+    private function brandDocumentsRules(): array
+    {
+        return [
+            'brand_documents'               => 'nullable|array',
+            'brand_documents.*.id'          => 'integer|exists:brand_documents,id',
+            'brand_documents.*.inject_mode' => 'nullable|in:summary,full_text',
+        ];
+    }
+
+    /**
+     * Sincronizza la pivot campaign_brand_document.
+     * - $docs === null  => campo assente nel payload: NON tocca la selezione.
+     * - $docs === []    => selezione esplicitamente svuotata.
+     * - in_array guard  => inject_mode non valido da payload manipolato => 'summary'.
+     * - filtro org      => Anti-IDOR: tiene solo i documenti il cui brand
+     *   appartiene all'organization (coerente con filterBrandsForOrganization).
+     *
+     * @param  array<int, array{id:int, inject_mode?:string}>|null  $docs
+     */
+    private function syncBrandDocuments(Campaign $campaign, ?array $docs, int $orgId): void
+    {
+        CampaignBrandDocuments::sync($campaign, $docs, $orgId);
     }
 
     private function toListPayload(Campaign $c): array
