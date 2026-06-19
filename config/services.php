@@ -48,7 +48,7 @@ return [
     'meta' => [
         'app_id' => env('META_APP_ID'),
         'app_secret' => env('META_APP_SECRET'),
-        'graph_version' => env('META_GRAPH_VERSION', 'v18.0'),
+        'graph_version' => env('META_GRAPH_VERSION', 'v25.0'),
     ],
 
     'linkedin' => [
