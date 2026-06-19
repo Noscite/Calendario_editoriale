@@ -19,8 +19,6 @@ use Illuminate\Support\Facades\Log;
  */
 class InstagramPublisher
 {
-    private const API_BASE = 'https://graph.facebook.com/v18.0';
-
     /** Numero massimo tentativi polling reel */
     private const REEL_POLL_MAX_ATTEMPTS = 30;
 
@@ -87,7 +85,7 @@ class InstagramPublisher
         $absoluteUrl = $this->makeAbsoluteUrl($imageUrl);
 
         // Step 1: Crea container
-        $containerResponse = Http::post(self::API_BASE . "/{$igAccountId}/media", [
+        $containerResponse = Http::post($this->apiBase() . "/{$igAccountId}/media", [
             'image_url' => $absoluteUrl,
             'caption' => $caption,
             'access_token' => $accessToken,
@@ -121,7 +119,7 @@ class InstagramPublisher
         foreach ($imageUrls as $imageUrl) {
             $absoluteUrl = $this->makeAbsoluteUrl($imageUrl);
 
-            $childResponse = Http::post(self::API_BASE . "/{$igAccountId}/media", [
+            $childResponse = Http::post($this->apiBase() . "/{$igAccountId}/media", [
                 'image_url' => $absoluteUrl,
                 'is_carousel_item' => true,
                 'access_token' => $accessToken,
@@ -146,7 +144,7 @@ class InstagramPublisher
         }
 
         // Crea parent container CAROUSEL
-        $parentResponse = Http::post(self::API_BASE . "/{$igAccountId}/media", [
+        $parentResponse = Http::post($this->apiBase() . "/{$igAccountId}/media", [
             'media_type' => 'CAROUSEL',
             'caption' => $caption,
             'children' => implode(',', $childrenIds),
@@ -177,7 +175,7 @@ class InstagramPublisher
         $absoluteUrl = $this->makeAbsoluteUrl($videoUrl);
 
         // Step 1: Crea container REELS
-        $containerResponse = Http::post(self::API_BASE . "/{$igAccountId}/media", [
+        $containerResponse = Http::post($this->apiBase() . "/{$igAccountId}/media", [
             'media_type' => 'REELS',
             'video_url' => $absoluteUrl,
             'caption' => $caption,
@@ -198,7 +196,7 @@ class InstagramPublisher
         for ($attempt = 0; $attempt < self::REEL_POLL_MAX_ATTEMPTS; $attempt++) {
             sleep(self::REEL_POLL_INTERVAL);
 
-            $statusResponse = Http::get(self::API_BASE . "/{$containerId}", [
+            $statusResponse = Http::get($this->apiBase() . "/{$containerId}", [
                 'fields' => 'status_code',
                 'access_token' => $accessToken,
             ]);
@@ -230,7 +228,7 @@ class InstagramPublisher
      */
     private function publishContainer(string $igAccountId, string $accessToken, string $containerId): array
     {
-        $publishResponse = Http::post(self::API_BASE . "/{$igAccountId}/media_publish", [
+        $publishResponse = Http::post($this->apiBase() . "/{$igAccountId}/media_publish", [
             'creation_id' => $containerId,
             'access_token' => $accessToken,
         ]);
@@ -248,6 +246,15 @@ class InstagramPublisher
 
         $error = $publishResponse->json('error.message', $publishResponse->body());
         return ['success' => false, 'error' => "Instagram publish error: {$error}"];
+    }
+
+    /**
+     * Base URL Graph API Meta. Versione centralizzata in
+     * config('services.meta.graph_version') (default v18.0).
+     */
+    private function apiBase(): string
+    {
+        return 'https://graph.facebook.com/' . config('services.meta.graph_version');
     }
 
     /**

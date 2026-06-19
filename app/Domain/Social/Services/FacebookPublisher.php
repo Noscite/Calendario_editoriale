@@ -19,8 +19,6 @@ use Illuminate\Support\Facades\Log;
  */
 class FacebookPublisher
 {
-    private const API_BASE = 'https://graph.facebook.com/v18.0';
-
     /**
      * Pubblica un post su Facebook.
      *
@@ -76,7 +74,7 @@ class FacebookPublisher
         foreach ($imageUrls as $imageUrl) {
             $absoluteUrl = $this->makeAbsoluteUrl($imageUrl);
 
-            $response = Http::post(self::API_BASE . "/{$pageId}/photos", [
+            $response = Http::post($this->apiBase() . "/{$pageId}/photos", [
                 'url' => $absoluteUrl,
                 'published' => false,
                 'access_token' => $accessToken,
@@ -112,7 +110,7 @@ class FacebookPublisher
             'access_token' => $accessToken,
         ];
 
-        $response = Http::post(self::API_BASE . "/{$pageId}/feed", $postData);
+        $response = Http::post($this->apiBase() . "/{$pageId}/feed", $postData);
 
         if ($response->successful()) {
             $postId = $response->json('id', '');
@@ -136,7 +134,7 @@ class FacebookPublisher
     {
         $absoluteUrl = $this->makeAbsoluteUrl($imageUrl);
 
-        $response = Http::post(self::API_BASE . "/{$pageId}/photos", [
+        $response = Http::post($this->apiBase() . "/{$pageId}/photos", [
             'caption' => $content,
             'url' => $absoluteUrl,
             'access_token' => $accessToken,
@@ -162,7 +160,7 @@ class FacebookPublisher
      */
     private function publishTextOnly(string $pageId, string $accessToken, string $content): array
     {
-        $response = Http::post(self::API_BASE . "/{$pageId}/feed", [
+        $response = Http::post($this->apiBase() . "/{$pageId}/feed", [
             'message' => $content,
             'access_token' => $accessToken,
         ]);
@@ -180,6 +178,15 @@ class FacebookPublisher
 
         $error = $response->json('error.message', $response->body());
         return ['success' => false, 'error' => "Facebook text error: {$error}"];
+    }
+
+    /**
+     * Base URL Graph API Meta. Versione centralizzata in
+     * config('services.meta.graph_version') (default v18.0).
+     */
+    private function apiBase(): string
+    {
+        return 'https://graph.facebook.com/' . config('services.meta.graph_version');
     }
 
     /**

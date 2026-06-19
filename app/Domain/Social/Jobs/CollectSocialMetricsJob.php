@@ -117,14 +117,17 @@ class CollectSocialMetricsJob implements ShouldQueue
         $accessToken = $connection->access_token;
 
         try {
+            // Versione Graph API centralizzata in config (default v18.0).
+            $base = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+
             // Recupera insights del post
-            $insightsResponse = Http::get("https://graph.facebook.com/v18.0/{$postId}/insights", [
+            $insightsResponse = Http::get("{$base}/{$postId}/insights", [
                 'metric'       => 'post_impressions,post_impressions_unique,post_engaged_users',
                 'access_token' => $accessToken,
             ]);
 
             // Recupera reactions/comments/shares
-            $postResponse = Http::get("https://graph.facebook.com/v18.0/{$postId}", [
+            $postResponse = Http::get("{$base}/{$postId}", [
                 'fields'       => 'likes.summary(true),comments.summary(true),shares',
                 'access_token' => $accessToken,
             ]);
