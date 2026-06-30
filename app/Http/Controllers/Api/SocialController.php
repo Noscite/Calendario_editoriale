@@ -34,7 +34,7 @@ final class SocialController extends Controller
     private const STATE_TTL = 900;
 
     /** Facebook Graph API version (come Python: v18.0) */
-    private const FB_API_VERSION = 'v18.0';
+    private const FB_API_VERSION = 'v22.0';
 
     // ─────────────────────────────────────────────────────────────
     // Helpers
@@ -189,24 +189,24 @@ final class SocialController extends Controller
 
     private function buildFacebookAuthUrl(string $state): string
     {
-        // Parametri ESATTI dal Python
+        // Facebook Login for Business — le permission sono definite nella configurazione lato Meta (config_id).
         return 'https://www.facebook.com/' . self::FB_API_VERSION . '/dialog/oauth?' . http_build_query([
             'client_id'     => $this->metaAppId(),
+            'config_id'     => config('services.meta.login_config_id'),
             'redirect_uri'  => $this->baseUrl() . '/api/social/callback/facebook',
             'state'         => $state,
-            'scope'         => 'pages_show_list,pages_read_engagement,pages_manage_posts,read_insights,public_profile',
             'response_type' => 'code',
         ]);
     }
 
     private function buildInstagramAuthUrl(string $state): string
     {
-        // Parametri ESATTI dal Python — scope include instagram_* + pages + business_management
+        // Facebook Login for Business — stessa configurazione di Facebook (include scope IG + Pages).
         return 'https://www.facebook.com/' . self::FB_API_VERSION . '/dialog/oauth?' . http_build_query([
             'client_id'     => $this->metaAppId(),
+            'config_id'     => config('services.meta.login_config_id'),
             'redirect_uri'  => $this->baseUrl() . '/api/social/callback/instagram',
             'state'         => $state,
-            'scope'         => 'instagram_basic,instagram_content_publish,instagram_manage_insights,pages_show_list,pages_read_engagement,pages_manage_posts,business_management',
             'response_type' => 'code',
         ]);
     }
@@ -683,10 +683,15 @@ final class SocialController extends Controller
             if (count($locations) === 1) {
                 $location = $locations[0];
 
-                if (!isset($location['name']) || !str_starts_with($location['name'], 'accounts/') || !str_contains($location['name'], '/locations/')) {
+                // L'API Business Information v1 restituisce name = "locations/{id}".
+                // Il publisher v4 richiede il path completo "accounts/{accountId}/locations/{locationId}",
+                // che ricomponiamo unendo l'account name a questo location name.
+                if (!isset($location['name']) || !str_starts_with($location['name'], 'locations/')) {
                     Log::error('Formato location Google inatteso', ['location' => $location]);
                     return redirect("{$frontend}?social_error=invalid_google_location_format");
                 }
+
+                $fullLocationName = "{$accountName}/{$location['name']}";
 
                 SocialConnection::where('brand_id', $brandId)
                     ->where('platform', 'google_business')
@@ -698,7 +703,7 @@ final class SocialController extends Controller
                     'access_token'          => $accessToken,
                     'refresh_token'         => $refreshToken,
                     'token_expires_at'      => now()->addSeconds($expiresIn),
-                    'external_account_id'   => $location['name'],
+                    'external_account_id'   => $fullLocationName,
                     'external_account_name' => $location['title'] ?? 'Google Business',
                     'account_type'          => 'location',
                     'connected_by_user_id'  => $userId,
@@ -716,8 +721,10 @@ final class SocialController extends Controller
                 'access_token'  => $accessToken,
                 'refresh_token' => $refreshToken,
                 'expires_in'    => $expiresIn,
+                // id = path completo "accounts/{accountId}/locations/{locationId}" richiesto dal publisher v4.
+                // L'API v1 restituisce $loc['name'] = "locations/{id}", quindi anteponiamo l'account name.
                 'locations'     => collect($locations)->map(fn ($loc) => [
-                    'id'   => $loc['name'],
+                    'id'   => "{$accountName}/{$loc['name']}",
                     'name' => $loc['title'] ?? $loc['name'],
                 ])->all(),
             ], self::STATE_TTL);
