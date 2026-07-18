@@ -281,4 +281,63 @@ describe('ClaudeContentGenerator::buildPostRow', function () {
                     && $ctx['pillar_proposed'] === 'thought leadership';
             });
     });
+
+    // ── BUG C: title non deve mai essere NULL/vuoto ─────────────────
+
+    it('BUG C: usa il title fornito da Claude quando presente', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand   = createBrand($org);
+        $project = createProject($brand);
+
+        $gen = app(ClaudeContentGenerator::class);
+        $row = $gen->buildPostRow(
+            raw: ['platform' => 'linkedin', 'title' => 'Titolo di Claude', 'content' => 'Corpo'],
+            projectId: $project->id,
+            organizationId: $org->id,
+            forBulkInsert: false,
+        );
+
+        expect($row['title'])->toBe('Titolo di Claude');
+    });
+
+    it('BUG C: deriva il title dal contenuto quando Claude non lo fornisce (persistito non NULL)', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand   = createBrand($org);
+        $project = createProject($brand);
+
+        $gen = app(ClaudeContentGenerator::class);
+        $row = $gen->buildPostRow(
+            raw: [
+                'platform'       => 'linkedin',
+                'content'        => "Primo titolo forte\nCorpo del post con dettagli...",
+                'scheduled_date' => '2026-05-08',
+            ],
+            projectId: $project->id,
+            organizationId: $org->id,
+            forBulkInsert: false,
+        );
+
+        expect($row['title'])->toBe('Primo titolo forte')->not->toBeEmpty();
+
+        // Verifica end-to-end: il valore raw persistito non è NULL.
+        $post = Post::create($row);
+        $post->refresh();
+        expect($post->getRawOriginal('title'))->not->toBeNull()->not->toBe('');
+    });
+
+    it('BUG C: title mai vuoto anche con $raw minimale', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand   = createBrand($org);
+        $project = createProject($brand);
+
+        $gen = app(ClaudeContentGenerator::class);
+        $row = $gen->buildPostRow(
+            raw: ['platform' => 'linkedin', 'post_type' => 'lead_magnet'],
+            projectId: $project->id,
+            organizationId: $org->id,
+            forBulkInsert: false,
+        );
+
+        expect($row['title'])->not->toBeEmpty();
+    });
 });

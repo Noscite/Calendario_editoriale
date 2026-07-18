@@ -8,6 +8,7 @@ use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Support\PillarNameNormalizer;
 use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Generation\Contracts\ContentGeneratorInterface;
+use App\Domain\Generation\Presets\EditorialPreset;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Models\Project;
 use Carbon\Carbon;
@@ -597,6 +598,7 @@ TXT;
 
         $allPosts = $this->personaScheduler->redistributePostsWithPersonas(
             $allPosts, $postsPerWeek, $startDate, $endDate, $buyerPersonas,
+            $this->resolveEditorialPreset($projectInfo),
         );
 
         Log::info('[CLAUDE] Total posts generated: ' . count($allPosts));
@@ -823,6 +825,7 @@ TXT;
 
         $allPosts = $this->personaScheduler->redistributePostsWithPersonas(
             $allPosts, $postsPerWeek, $startDate, $endDate, $buyerPersonas,
+            $this->resolveEditorialPreset($projectInfo),
         );
 
         Log::info('[STRATEGY] Total posts generated: ' . count($allPosts) . ' tokens: ' . $totalTokensUsed);
@@ -1183,6 +1186,7 @@ TXT;
             'organization_id'     => $organizationId,
             'project_id'          => $projectId,
             'platform'            => $platform,
+            'title'               => $this->derivePostTitle($raw),
             'scheduled_date'      => $scheduledDate,
             'scheduled_time'      => (! empty($raw['scheduled_time'])) ? $raw['scheduled_time'] : $defaultTime,
             'content'             => $raw['content']           ?? '',
@@ -1206,6 +1210,57 @@ TXT;
         }
 
         return $row;
+    }
+
+    /**
+     * Normalizza il preset editoriale presente in $projectInfo (propagato da
+     * GenerateCalendarJob dal cast Eloquent) in un ?EditorialPreset. Accetta enum,
+     * string o null. Usato per rendere lo scheduling preset-aware.
+     */
+    private function resolveEditorialPreset(array $projectInfo): ?EditorialPreset
+    {
+        $raw = $projectInfo['editorial_preset'] ?? null;
+
+        if ($raw instanceof EditorialPreset) {
+            return $raw;
+        }
+        if (is_string($raw) && $raw !== '') {
+            return EditorialPreset::tryFrom($raw);
+        }
+
+        return null;
+    }
+
+    /**
+     * BUG C: il campo `title` non era mai valorizzato dal path di generazione AI
+     * (né richiesto nel prompt, né mappato qui), lasciando `title` NULL su TUTTI i
+     * post generati. Deriva il titolo da (in ordine): il campo `title` di Claude,
+     * altrimenti la prima riga non vuota del contenuto (troncata), altrimenti un
+     * fallback generico basato su post_type/piattaforma. Non ritorna mai stringa vuota.
+     */
+    private function derivePostTitle(array $raw): string
+    {
+        $title = trim((string) ($raw['title'] ?? ''));
+        if ($title !== '') {
+            return mb_substr($title, 0, 255);
+        }
+
+        // Prima riga non vuota del contenuto.
+        $content = (string) ($raw['content'] ?? '');
+        foreach (preg_split('/\r\n|\r|\n/', $content) as $line) {
+            $line = trim((string) $line);
+            if ($line !== '') {
+                return mb_substr($line, 0, 120);
+            }
+        }
+
+        // Ultimo fallback: mai vuoto.
+        $postType = trim((string) ($raw['post_type'] ?? ''));
+        if ($postType !== '') {
+            return ucwords(str_replace('_', ' ', $postType));
+        }
+
+        return 'Post';
     }
 
     /**

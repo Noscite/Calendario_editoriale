@@ -285,7 +285,7 @@ cosa troverà l'utente.
 4. VARIA i formati (post/story/reel) secondo le percentuali raccomandate per ogni piattaforma
 5. Per STORY: testo breve, call-to-action diretta, emoji, interattività (sondaggi, domande)
 6. Per REEL: testo brevissimo (hook iniziale), descrizione video, hashtag trending
-7. Ogni contenuto deve avere: platform, scheduled_date, scheduled_time, content, hashtags, content_type (post/story/reel), post_type, pillar, visual_suggestion, call_to_action
+7. Ogni contenuto deve avere: platform, title (titolo breve, max 80 caratteri), scheduled_date, scheduled_time, content, hashtags, content_type (post/story/reel), post_type, pillar, visual_suggestion, call_to_action
 8. STRUTTURA DEL TESTO — framework AIDA adattato per piattaforma:
    - Attention:  prima frase/riga — cattura l'attenzione con un hook
                  (domanda, dato sorprendente, affermazione bold, problema noto)
@@ -301,6 +301,7 @@ cosa troverà l'utente.
 [
   {
     "platform": "instagram",
+    "title": "Titolo breve del post (max 80 caratteri)",
     "scheduled_date": "2025-01-07",
     "scheduled_time": "08:30",
     "content": "Testo lungo del post con valore educativo...",
