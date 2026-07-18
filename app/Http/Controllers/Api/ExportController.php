@@ -10,6 +10,7 @@ use App\Domain\Project\Models\Project;
 use App\Exceptions\BusinessException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -50,9 +51,9 @@ final class ExportController extends Controller
             $row     = 6;
 
             foreach ($headers as $col => $header) {
-                $cell  = $sheet->getCellByColumnAndRow($col + 1, $row);
+                $cell  = $sheet->getCell([$col + 1, $row]);
                 $cell->setValue($header);
-                $style = $sheet->getStyleByColumnAndRow($col + 1, $row);
+                $style = $sheet->getStyle([$col + 1, $row]);
                 $style->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
                 $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('3DAFA8');
                 $style->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
@@ -85,9 +86,9 @@ final class ExportController extends Controller
                 $fillColor = $platformColors[$platform] ?? 'FFFFFF';
 
                 foreach ($values as $col => $value) {
-                    $cell  = $sheet->getCellByColumnAndRow($col + 1, $row);
+                    $cell  = $sheet->getCell([$col + 1, $row]);
                     $cell->setValue($value);
-                    $style = $sheet->getStyleByColumnAndRow($col + 1, $row);
+                    $style = $sheet->getStyle([$col + 1, $row]);
                     $style->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
                     $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($fillColor);
 
@@ -99,7 +100,7 @@ final class ExportController extends Controller
 
             $widths = [12, 8, 12, 60, 30, 15, 12, 25, 30, 10];
             foreach ($widths as $i => $w) {
-                $sheet->getColumnDimensionByColumn($i + 1)->setWidth($w);
+                $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i + 1))->setWidth($w);
             }
         } catch (\Throwable $e) {
             report($e);

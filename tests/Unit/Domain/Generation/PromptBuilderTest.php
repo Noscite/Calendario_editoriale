@@ -218,6 +218,111 @@ describe('PromptBuilder', function () {
             ->toContain('tono annunci');
     });
 
+    it('buildBatchPrompt include i campi wizard prima dropped: tagline, target_audience brand, USP', function () {
+        $prompt = $this->builder->buildBatchPrompt(
+            brandName:    'Acme',
+            brandInfo:    [
+                'sector'                => 'Tech',
+                'description'           => 'desc',
+                'tone_of_voice'         => 'pro',
+                'brand_values'          => [],
+                'tagline'               => 'Software that just works',
+                'target_audience'       => 'CTO di PMI italiane',
+                'unique_selling_points' => 'Onboarding in 10 minuti, supporto h24',
+            ],
+            projectInfo:    ['brief' => 'b', 'objectives' => ['brand_awareness']],
+            startDate:      Carbon::parse('2026-03-01'),
+            endDate:        Carbon::parse('2026-03-07'),
+            platforms:      ['linkedin'],
+            postsPerWeek:   ['linkedin' => 3],
+            themes:         [],
+            urlContext:     null,
+            ragContext:     '',
+            styleGuide:     '',
+            buyerPersonas:  ['personas' => [], 'scheduling_strategy' => []],
+            contentMixData: [],
+        );
+
+        expect($prompt)
+            ->toContain('Software that just works')
+            ->toContain('CTO di PMI italiane')
+            ->toContain('Onboarding in 10 minuti');
+    });
+
+    it('buildBatchPrompt include la sezione anti-invenzione con narrative_assets, founder, forbidden_topics, competitors, special_dates', function () {
+        $prompt = $this->builder->buildBatchPrompt(
+            brandName:    'Acme',
+            brandInfo:    [
+                'sector'                => 'Tech',
+                'description'           => 'desc',
+                'tone_of_voice'         => 'pro',
+                'brand_values'          => [],
+                'founder'               => ['name' => 'Maria Bianchi', 'role' => 'CEO', 'bio_short' => 'Ex-Google, fondatrice nel 2018'],
+                'narrative_assets'      => [
+                    ['type' => 'product', 'name' => 'Acme Cloud Pro', 'details' => 'piano enterprise'],
+                    ['type' => 'event',   'name' => 'AcmeConf 2026',  'details' => 'Milano, 12 maggio'],
+                ],
+                'forbidden_topics'      => ['politica', 'religione'],
+            ],
+            projectInfo:    [
+                'brief'         => 'b',
+                'objectives'    => ['brand_awareness'],
+                'special_dates' => [
+                    ['date' => '2026-04-15', 'description' => 'Lancio Acme Cloud Pro v2'],
+                ],
+                'competitors'   => ['CompetitorX', 'CompetitorY'],
+            ],
+            startDate:      Carbon::parse('2026-03-01'),
+            endDate:        Carbon::parse('2026-03-07'),
+            platforms:      ['linkedin'],
+            postsPerWeek:   ['linkedin' => 3],
+            themes:         [],
+            urlContext:     null,
+            ragContext:     '',
+            styleGuide:     '',
+            buyerPersonas:  ['personas' => [], 'scheduling_strategy' => []],
+            contentMixData: [],
+        );
+
+        expect($prompt)
+            ->toContain('ELEMENTI DEL BRAND DISPONIBILI')
+            ->toContain('Maria Bianchi')
+            ->toContain('Acme Cloud Pro')
+            ->toContain('AcmeConf 2026')
+            ->toContain('Lancio Acme Cloud Pro v2')
+            ->toContain('ASSET DA NON CITARE')
+            ->toContain('CompetitorX')
+            ->toContain('politica');
+    });
+
+    it('buildBatchPrompt include la sezione deontologica per brand regolamentato', function () {
+        [$user, $org] = createAuthenticatedUser();
+        $brand = createBrand($org, ['sector' => 'psicologia']);
+        $brand->syncDeontologicalConstraints(['psicologia']);
+
+        $prompt = $this->builder->buildBatchPrompt(
+            brandName:    'Studio Psi',
+            brandInfo:    ['sector' => 'psicologia', 'description' => 'Studio di psicologia clinica', 'tone_of_voice' => 'empatico', 'brand_values' => []],
+            projectInfo:  ['brief' => 'b', 'objectives' => ['brand_awareness']],
+            startDate:    Carbon::parse('2026-03-01'),
+            endDate:      Carbon::parse('2026-03-07'),
+            platforms:    ['instagram'],
+            postsPerWeek: ['instagram' => 3],
+            themes:       [],
+            urlContext:   null,
+            ragContext:   '',
+            styleGuide:   '',
+            buyerPersonas:  ['personas' => [], 'scheduling_strategy' => []],
+            contentMixData: [],
+            brand:          $brand,
+        );
+
+        // Prima del fix, buildBatchPrompt (path legacy) non chiamava
+        // buildDeontologicalSection — psicologi/medici/avvocati generavano
+        // senza guardrail. Ora la sezione appare anche qui.
+        expect($prompt)->toContain('VINCOLI DEONTOLOGICI');
+    });
+
     it('buildBatchPrompt salta la sezione voice examples quando vuota', function () {
         $prompt = $this->builder->buildBatchPrompt(
             brandName:   'Acme SRL',

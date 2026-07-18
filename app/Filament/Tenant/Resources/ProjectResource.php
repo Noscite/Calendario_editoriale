@@ -2,6 +2,7 @@
 
 namespace App\Filament\Tenant\Resources;
 
+use App\Domain\Generation\Presets\EditorialPreset;
 use App\Domain\Project\Enums\ProjectStatus;
 use App\Domain\Project\Models\Project;
 use App\Filament\Tenant\Resources\ProjectResource\Pages;
@@ -66,6 +67,12 @@ class ProjectResource extends Resource
                         ->options(ProjectStatus::class)
                         ->default(ProjectStatus::Draft)
                         ->required(),
+
+                    Forms\Components\Select::make('editorial_preset')
+                        ->label('Preset editoriale')
+                        ->options(EditorialPreset::options())
+                        ->default(EditorialPreset::Standard->value)
+                        ->helperText('B2B Authority applica una cadenza settimanale Lun→Ven con un tipo di post dedicato per ogni giorno.'),
                 ]),
 
             Section::make('Piattaforme & Frequenza')

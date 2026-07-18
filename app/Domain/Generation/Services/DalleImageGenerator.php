@@ -40,7 +40,7 @@ final class DalleImageGenerator implements ImageGeneratorInterface
         '1920x1080' => '1792x1024',   // Orizzontale (landscape)
     ];
 
-    private const CLAUDE_MODEL        = 'claude-sonnet-4-20250514';
+    private const CLAUDE_MODEL        = 'claude-sonnet-4-5';
     private const CLAUDE_API_URL      = 'https://api.anthropic.com/v1/messages';
     private const OPENAI_API_URL      = 'https://api.openai.com/v1/images/generations';
     private const OPENAI_CHAT_API_URL = 'https://api.openai.com/v1/chat/completions';

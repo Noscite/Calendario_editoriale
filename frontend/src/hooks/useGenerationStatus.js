@@ -33,8 +33,15 @@ export function useGenerationStatus(projectId, { intervalMs = 3000, onComplete }
       setStatus(data);
       setError(null);
 
+      // "Done" può arrivare come status del servizio ('completed'/'failed')
+      // oppure come stato del progetto: a fine generazione base il progetto
+      // passa a 'review' (non 'completed'), quindi lo consideriamo terminale.
       const wasGenerating = prevStatusRef.current === 'generating';
-      const isNowDone = data.status === 'completed' || data.status === 'failed';
+      const doneProjectStatuses = ['review', 'approved', 'published'];
+      const isNowDone =
+        data.status === 'completed' ||
+        data.status === 'failed' ||
+        doneProjectStatuses.includes(data.project_status);
       if (wasGenerating && isNowDone) {
         onCompleteRef.current?.(data);
       }

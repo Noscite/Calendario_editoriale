@@ -46,7 +46,7 @@ final class AnthropicRateLimiter
         int    $organizationId,
         string $prompt,
         int    $maxTokens,
-        string $model = 'claude-sonnet-4-20250514',
+        string $model = 'claude-sonnet-4-5',
     ): array {
         $key = "anthropic:{$organizationId}";
 

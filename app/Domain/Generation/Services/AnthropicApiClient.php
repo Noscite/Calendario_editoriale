@@ -66,7 +66,7 @@ TXT;
     public function call(
         string  $prompt,
         int     $maxTokens,
-        string  $model = 'claude-sonnet-4-6',
+        string  $model = 'claude-opus-4-8',
         ?string $systemPrompt = null,
         array   $mcpServers = [],
     ): array {
@@ -261,7 +261,7 @@ TXT;
     public function callWithUsage(
         string  $prompt,
         int     $maxTokens,
-        string  $model = 'claude-sonnet-4-6',
+        string  $model = 'claude-opus-4-8',
         ?string $systemPrompt = null,
         ?string $purpose = null,
         array   $mcpServers = [],

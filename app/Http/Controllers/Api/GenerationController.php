@@ -20,6 +20,7 @@ use App\Domain\Project\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Generazione calendario editoriale — corrisponde a generation.py (Python).
@@ -109,14 +110,6 @@ final class GenerationController extends Controller
     {
         $project = Project::with('brand')->findOrFail($projectId);
 
-        // Guard: se il progetto è già in generazione, non dispatcha un secondo job
-        if ($project->status === ProjectStatus::Generating) {
-            return response()->json([
-                'status'  => 'already_generating',
-                'message' => 'La generazione è già in corso. Attendi il completamento.',
-            ], 409);
-        }
-
         // Preflight: blocca il dispatch se mancano chiavi API obbligatorie sul brand.
         // Il job in background non avrebbe contesto Auth per il fallback super-admin,
         // quindi fallirebbe immediatamente con MissingBrandApiKeyException.
@@ -146,10 +139,26 @@ final class GenerationController extends Controller
             $historyContext = app(EditionHistoryService::class)->buildContext($project);
         }
 
-        $project->status = ProjectStatus::Generating;
-        $project->save();
+        // Guard atomica: lockForUpdate elimina la finestra di race tra il read
+        // dello status e il save → dispatch. Senza questo, due POST simultanei
+        // possono entrambi vedere status != Generating e dispatchare due job
+        // (caso confermato in laravel-2026-06-02.log per project 656).
+        $dispatched = DB::transaction(function () use ($projectId, $historyContext) {
+            $project = Project::lockForUpdate()->findOrFail($projectId);
+            if ($project->status === ProjectStatus::Generating) {
+                return false;
+            }
+            $project->update(['status' => ProjectStatus::Generating]);
+            GenerateCalendarJob::dispatch($projectId, $historyContext);
+            return true;
+        });
 
-        GenerateCalendarJob::dispatch($projectId, $historyContext);
+        if (! $dispatched) {
+            return response()->json([
+                'status'  => 'already_generating',
+                'message' => 'La generazione è già in corso. Attendi il completamento.',
+            ], 409);
+        }
 
         return response()->json([
             'status'          => 'generating',

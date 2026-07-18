@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Project\Data;
 
+use App\Domain\Generation\Presets\EditorialPreset;
 use Spatie\LaravelData\Attributes\Validation\DateFormat;
+use Spatie\LaravelData\Attributes\Validation\Enum;
 use Spatie\LaravelData\Attributes\Validation\In;
 use Spatie\LaravelData\Attributes\Validation\Max;
 use Spatie\LaravelData\Data;
@@ -40,6 +42,8 @@ final class UpdateProjectData extends Data
         /** @var array<string, mixed>|Optional */
         public readonly Optional|array $buyer_personas = new Optional(),
         public readonly Optional|string|null $custom_prompt = new Optional(),
+        #[Enum(EditorialPreset::class)]
+        public readonly Optional|string $editorial_preset = new Optional(),
         /** @var array<string>|Optional */
         public readonly Optional|array $objectives = new Optional(),
         // ── Wizard PR-2 ────────────────────────────────────────────

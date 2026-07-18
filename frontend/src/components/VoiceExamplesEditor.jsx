@@ -11,7 +11,7 @@
  *
  * Vincoli applicati lato UI (paritari al backend):
  *   - max 5 esempi
- *   - content: 20–2000 caratteri
+ *   - content: 20–10000 caratteri (copre post FB lunghi)
  *   - platform: linkedin | instagram | facebook | google_business
  *   - note: opzionale, max 150
  */
@@ -32,7 +32,7 @@ const PLATFORM_OPTIONS = [
 
 const MAX_EXAMPLES = 5;
 const CONTENT_MIN = 20;
-const CONTENT_MAX = 2000;
+const CONTENT_MAX = 10000;
 const NOTE_MAX = 150;
 
 function emptyExample() {

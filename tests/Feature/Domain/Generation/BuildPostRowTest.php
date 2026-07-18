@@ -57,7 +57,7 @@ describe('ClaudeContentGenerator::buildPostRow', function () {
         expect($post->generation_metadata)->toBeArray()
             ->and($post->generation_metadata['generated_at'])->toBeString()
             ->and($post->generation_metadata['model_strategy'])->toBe('claude-opus-4-7')
-            ->and($post->generation_metadata['model_copy'])->toBe('claude-sonnet-4-20250514')
+            ->and($post->generation_metadata['model_copy'])->toBe('claude-opus-4-8')
             ->and($post->generation_metadata['strategy_angle'])->toBe('pattern_obs')
             ->and($post->generation_metadata['tokens_copy'])->toBe(200);
     });
@@ -86,7 +86,7 @@ describe('ClaudeContentGenerator::buildPostRow', function () {
             ->and(isset($row['created_at']))->toBeTrue()
             ->and(json_decode($row['generation_metadata'], true))->toMatchArray([
                 'model_strategy' => 'claude-opus-4-7',
-                'model_copy'     => 'claude-sonnet-4-20250514',
+                'model_copy'     => 'claude-opus-4-8',
             ]);
 
         // Inserimento reale via Post::insert() per verificare end-to-end
@@ -96,7 +96,7 @@ describe('ClaudeContentGenerator::buildPostRow', function () {
 
         expect($persisted)->not->toBeNull();
         expect($persisted->generation_metadata)->toBeArray()
-            ->and($persisted->generation_metadata['model_copy'])->toBe('claude-sonnet-4-20250514');
+            ->and($persisted->generation_metadata['model_copy'])->toBe('claude-opus-4-8');
     });
 
     it('è idempotente con $raw vuoto: metadata sempre valido, nessun crash', function () {
@@ -110,7 +110,7 @@ describe('ClaudeContentGenerator::buildPostRow', function () {
 
         expect($row['status'])->toBe('draft')
             ->and($row['generation_metadata'])->toBeArray()
-            ->and($row['generation_metadata']['model_copy'])->toBe('claude-sonnet-4-20250514')
+            ->and($row['generation_metadata']['model_copy'])->toBe('claude-opus-4-8')
             ->and($row['generation_metadata']['strategy_angle'])->toBeNull();
     });
 

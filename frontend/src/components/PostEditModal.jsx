@@ -171,8 +171,13 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
       const result = response.data;
       setEditedPost(prev => ({ ...prev, image_url: result.image_url }));
     } catch (error) {
-      console.error('Upload error:', error);
-      alert('Errore durante il caricamento: ' + error.message);
+      console.error('Upload error:', error, error.response?.data);
+      const serverMsg =
+        error.response?.data?.message ||
+        Object.values(error.response?.data?.errors || {}).flat().join(' ') ||
+        error.response?.data?.detail ||
+        error.message;
+      alert('Errore durante il caricamento: ' + serverMsg);
     }
     setIsUploadingImage(false);
     e.target.value = ''; // Reset input
@@ -206,8 +211,13 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
       setMessage({ type: 'success', text: '✅ Video caricato!' });
       setTimeout(() => setMessage(null), 2000);
     } catch (error) {
-      console.error('Upload error:', error);
-      setMessage({ type: 'error', text: '❌ Errore upload: ' + error.message });
+      console.error('Upload error:', error, error.response?.data);
+      const serverMsg =
+        error.response?.data?.message ||
+        Object.values(error.response?.data?.errors || {}).flat().join(' ') ||
+        error.response?.data?.detail ||
+        error.message;
+      setMessage({ type: 'error', text: '❌ Errore upload: ' + serverMsg });
     }
     setIsUploadingVideo(false);
     e.target.value = '';
@@ -567,7 +577,7 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
                 <input
                   type="file"
                   id="image-upload"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/svg+xml,image/avif,image/heic,image/heif"
                   onChange={handleImageUpload}
                   className="hidden"
                 />

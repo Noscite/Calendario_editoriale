@@ -48,6 +48,7 @@ return [
     'meta' => [
         'app_id' => env('META_APP_ID'),
         'app_secret' => env('META_APP_SECRET'),
+        'login_config_id' => env('META_LOGIN_CONFIG_ID'),
         'graph_version' => env('META_GRAPH_VERSION', 'v25.0'),
     ],
 

@@ -7,6 +7,7 @@ namespace App\Domain\Generation\Services;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Services\SocialDeontologicalConstraints;
 use App\Domain\Campaign\Models\Campaign;
+use App\Domain\Generation\Presets\EditorialPreset;
 use Carbon\Carbon;
 
 /**
@@ -117,6 +118,7 @@ final class PromptBuilder
         string  $styleGuide,
         array   $buyerPersonas,
         array   $contentMixData,
+        ?Brand  $brand = null,
     ): string {
         $schedulingInfo   = $this->formatSchedulingFromPersonas($buyerPersonas, $platforms);
         $contentMixInfo   = !empty($contentMixData)
@@ -146,6 +148,37 @@ final class PromptBuilder
             ? "### Stile del brand\n{$styleGuide}\n\n"
             : '';
 
+        // Sezioni profonde portate dal path strategy-split al path legacy:
+        // - buildBrandAssetsSection: anti-invenzione (narrative_assets, founder,
+        //   tagline, USP, target_audience, custom_prompt, special_dates,
+        //   competitors, forbidden_topics) — lista chiusa di asset citabili.
+        // - buildDeontologicalSection: vincoli settoriali (psicologia, medico,
+        //   legale, finanza) — compliance obbligatoria.
+        // Prima del fix queste sezioni esistevano solo in buildStrategyPrompt,
+        // dietro feature flag ANTHROPIC_STRATEGY_SPLIT=false di default. In
+        // produzione = campi configurati dal wizard ignorati.
+        $brandAssetsSection   = $this->buildBrandAssetsSection($brandInfo, $projectInfo);
+        $deontologicalSection = $this->buildDeontologicalSection($brand);
+        $deontologicalBlock   = $deontologicalSection !== '' ? "\n{$deontologicalSection}\n" : '';
+
+        // Preset editoriale (es. B2B Authority): struttura settimanale giorno→tipo
+        // post iniettata come vincolo di distribuzione. Attivo solo quando il
+        // progetto ha un preset diverso da Standard. Vedi buildEditorialPresetSection.
+        $editorialPresetSection = $this->buildEditorialPresetSection($projectInfo['editorial_preset'] ?? null);
+        $editorialPresetBlock   = $editorialPresetSection !== '' ? "\n{$editorialPresetSection}\n" : '';
+
+        // Riga opzionale tagline (citabile testualmente come slogan ufficiale).
+        $tagline      = trim((string) ($brandInfo['tagline'] ?? ''));
+        $taglineLine  = $tagline !== '' ? "Tagline: {$tagline}\n" : '';
+
+        // Target audience e USP a livello brand: prima esposti solo in
+        // buildPersonaPrompt, ora anche nel prompt batch.
+        $brandTargetAudience = trim((string) ($brandInfo['target_audience'] ?? ''));
+        $brandTargetLine     = $brandTargetAudience !== '' ? "Audience target: {$brandTargetAudience}\n" : '';
+
+        $brandUsp     = trim((string) ($brandInfo['unique_selling_points'] ?? ''));
+        $brandUspLine = $brandUsp !== '' ? "Unique selling points: {$brandUsp}\n" : '';
+
         // Edition history context (injected via projectInfo)
         $historyContext = $projectInfo['history_context'] ?? '';
         $historySection = ($historyContext !== '')
@@ -159,7 +192,7 @@ Genera contenuti per il calendario editoriale.
 Nome: {$brandName}
 Settore: {$this->arr($brandInfo, 'sector', 'N/A')}
 Descrizione: {$this->arr($brandInfo, 'description', 'N/A')}
-Tono di voce: {$this->arr($brandInfo, 'tone_of_voice', 'professionale')}
+{$taglineLine}{$brandTargetLine}{$brandUspLine}Tono di voce: {$this->arr($brandInfo, 'tone_of_voice', 'professionale')}
 Valori: {$this->arrJson($brandInfo, 'brand_values', '[]')}
 
 {$voiceExamplesSection}## CONTESTO DAL SITO
@@ -171,6 +204,9 @@ Valori: {$this->arrJson($brandInfo, 'brand_values', '[]')}
 ## BUYER PERSONAS
 {$personasText}
 
+{$brandAssetsSection}
+{$deontologicalBlock}
+{$editorialPresetBlock}
 ## STRATEGIA CONTENUTI PER PERSONAS
 Per ogni post, considera quale persona stai indirizzando e adatta:
 
@@ -306,11 +342,12 @@ PROMPT;
         string  $styleGuide,
         array   $buyerPersonas,
         array   $contentMixData,
+        ?Brand  $brand = null,
     ): array {
         $full       = $this->buildBatchPrompt(
             $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
             $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
-            $styleGuide, $buyerPersonas, $contentMixData,
+            $styleGuide, $buyerPersonas, $contentMixData, $brand,
         );
         $splitMark  = "\n## PROGETTO\n";
         $pos        = strpos($full, $splitMark);
@@ -1428,6 +1465,57 @@ KB;
      * uno o più vincoli deontologici attivi (multi-select sulla pivot table
      * brand_deontological_constraints). Stringa vuota se brand è null o senza vincoli.
      */
+    /**
+     * Costruisce la sezione "STRUTTURA SETTIMANALE" per un preset editoriale.
+     *
+     * Converte la mappa giorno→PostType del preset (es. B2B Authority) in un
+     * vincolo di distribuzione esplicito: ogni giorno lavorativo ha un tipo di
+     * post dedicato che il modello deve rispettare nella pianificazione.
+     *
+     * Accetta sia l'enum EditorialPreset sia il suo valore string (come arriva
+     * dal cast Eloquent o dall'array projectInfo). Ritorna stringa vuota per
+     * preset Standard, null, o valore non riconosciuto → nessun override.
+     */
+    private function buildEditorialPresetSection(EditorialPreset|string|null $preset): string
+    {
+        if ($preset === null) {
+            return '';
+        }
+
+        if (is_string($preset)) {
+            $preset = EditorialPreset::tryFrom($preset);
+        }
+
+        if ($preset === null) {
+            return '';
+        }
+
+        $schedule = $preset->weeklySchedule();
+        if (empty($schedule)) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($schedule as $day => $postType) {
+            $dayLabel = ucfirst((string) $day);
+            $lines[]  = "- {$dayLabel}: {$postType->label()} (post_type: {$postType->value})";
+        }
+        $scheduleList = implode("\n", $lines);
+
+        return <<<PRESET
+
+## STRUTTURA SETTIMANALE OBBLIGATORIA — preset {$preset->label()}
+Distribuisci i post secondo questa cadenza editoriale per ogni settimana del periodo.
+Ad ogni giorno lavorativo corrisponde un tipo di contenuto dedicato:
+
+{$scheduleList}
+
+Rispetta questa struttura come vincolo di distribuzione: il campo "post_type" di
+ogni post deve seguire il giorno di pubblicazione secondo la mappa sopra. Mantieni
+comunque coerenza con pillar, personas e piattaforme.
+PRESET;
+    }
+
     private function buildDeontologicalSection(?Brand $brand): string
     {
         if ($brand === null || ! $brand->hasDeontologicalConstraints()) {

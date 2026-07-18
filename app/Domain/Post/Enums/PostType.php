@@ -13,6 +13,8 @@ enum PostType: string
     case ThoughtLeadership = 'thought_leadership';
     case TerritorialEvent = 'territorial_event';
     case TerritorialMonthlyDigest = 'territorial_monthly_digest';
+    case LeadMagnet = 'lead_magnet';
+    case SocialProof = 'social_proof';
 
     public function label(): string
     {
@@ -26,6 +28,8 @@ enum PostType: string
             self::ThoughtLeadership => 'Thought Leadership',
             self::TerritorialEvent => 'Evento Territoriale',
             self::TerritorialMonthlyDigest => 'Digest Mensile Eventi',
+            self::LeadMagnet => 'Lead Magnet',
+            self::SocialProof => 'Social Proof / Case Study',
         };
     }
 }

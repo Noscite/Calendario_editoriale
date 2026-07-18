@@ -75,7 +75,7 @@ final class TokenRefreshService
      */
     private function refreshMeta(SocialConnection $connection): SocialConnection
     {
-        $response = Http::get('https://graph.facebook.com/v18.0/oauth/access_token', [
+        $response = Http::get('https://graph.facebook.com/v22.0/oauth/access_token', [
             'grant_type'        => 'fb_exchange_token',
             'client_id'         => config('services.meta.app_id'),
             'client_secret'     => config('services.meta.app_secret'),

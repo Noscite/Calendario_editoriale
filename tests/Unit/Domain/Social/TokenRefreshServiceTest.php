@@ -68,7 +68,7 @@ describe('TokenRefreshService', function () {
         $brand = createBrand($org);
 
         Http::fake([
-            'https://graph.facebook.com/v18.0/oauth/access_token*' => Http::response([
+            'https://graph.facebook.com/v22.0/oauth/access_token*' => Http::response([
                 'access_token' => 'new_meta_token',
                 'expires_in'   => 5_184_000,
             ], 200),
@@ -123,7 +123,7 @@ describe('TokenRefreshService', function () {
         $brand = createBrand($org);
 
         Http::fake([
-            'https://graph.facebook.com/v18.0/oauth/access_token*' => Http::response([
+            'https://graph.facebook.com/v22.0/oauth/access_token*' => Http::response([
                 'error' => ['message' => 'Invalid token'],
             ], 400),
         ]);

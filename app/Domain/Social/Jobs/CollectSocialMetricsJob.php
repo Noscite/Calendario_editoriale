@@ -206,31 +206,59 @@ class CollectSocialMetricsJob implements ShouldQueue
 
             $data = $response->json();
 
+            // socialActions restituisce SOLO like e commenti (real-time).
+            // NON contiene shareStatistics: impression/reach/click/share arrivano
+            // dalle statistiche a livello di organizzazione (vedi sotto).
             $likes    = (int) ($data['likesSummary']['totalLikes'] ?? 0);
             $comments = (int) ($data['commentsSummary']['totalFirstLevelComments'] ?? 0);
-            $shares   = (int) ($data['shareStatistics']['shareCount'] ?? 0);
-
-            // Impressions via statistiche ugcPost
-            $statsResponse = Http::withHeaders([
-                'Authorization'             => "Bearer {$accessToken}",
-                'X-Restli-Protocol-Version' => '2.0.0',
-            ])->get("https://api.linkedin.com/v2/ugcPosts/{$encodedUrn}/statistics");
+            $shares   = 0;
 
             $impressions = 0;
             $reach       = 0;
+            $engagement  = 0;
+            $clicks      = 0;
 
-            if ($statsResponse->successful()) {
-                $stats       = $statsResponse->json();
-                $impressions = (int) ($stats['totalShareStatistics']['impressionCount'] ?? 0);
-                $reach       = (int) ($stats['totalShareStatistics']['uniqueImpressionsCount'] ?? 0);
+            // Impression/reach sono esposte SOLO per le Pagine aziendali
+            // (organizationalEntityShareStatistics). Per i profili personali
+            // LinkedIn non fornisce queste metriche via API: restano 0.
+            $orgId = (string) ($connection->external_account_id ?? '');
+            $isOrg = $connection->account_type === 'organization' || ctype_digit($orgId);
+
+            if ($isOrg && $orgId !== '') {
+                $orgUrn = "urn:li:organization:{$orgId}";
+                $statsUrl = 'https://api.linkedin.com/v2/organizationalEntityShareStatistics'
+                    . '?q=organizationalEntity'
+                    . '&organizationalEntity=' . urlencode($orgUrn)
+                    . '&shares=List(' . $encodedUrn . ')';
+
+                $statsResponse = Http::withHeaders([
+                    'Authorization'             => "Bearer {$accessToken}",
+                    'X-Restli-Protocol-Version' => '2.0.0',
+                ])->get($statsUrl);
+
+                if ($statsResponse->successful()) {
+                    $stats = $statsResponse->json('elements.0.totalShareStatistics', []);
+                    $impressions = (int) ($stats['impressionCount'] ?? 0);
+                    $reach       = (int) ($stats['uniqueImpressionsCount'] ?? 0);
+                    $clicks      = (int) ($stats['clickCount'] ?? 0);
+                    $shares      = (int) ($stats['shareCount'] ?? 0);
+                    // engagement = interazioni totali (coerente con Facebook post_engaged_users)
+                    $engagement  = $clicks + $likes + $comments + $shares;
+                } else {
+                    Log::warning("[METRICS] LinkedIn: share statistics non disponibili per {$ugcPostId}", [
+                        'status' => $statsResponse->status(),
+                    ]);
+                }
             }
 
             Log::info("[METRICS] LinkedIn: metriche raccolte per post {$ugcPostId}", [
                 'impressions' => $impressions,
+                'reach'       => $reach,
                 'likes'       => $likes,
+                'org'         => $isOrg,
             ]);
 
-            return compact('impressions', 'reach', 'likes', 'comments', 'shares');
+            return compact('impressions', 'reach', 'engagement', 'likes', 'comments', 'shares', 'clicks');
 
         } catch (\Throwable $e) {
             Log::error("[METRICS] LinkedIn: eccezione per post {$ugcPostId}", ['error' => $e->getMessage()]);

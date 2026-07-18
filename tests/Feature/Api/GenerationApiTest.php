@@ -161,6 +161,30 @@ describe('POST /api/generate/calendar/{project_id}', function () {
 
         Bus::assertDispatched(GenerateCalendarJob::class);
     });
+
+    it('rejects a second dispatch while the project is already generating', function () {
+        Bus::fake([GenerateCalendarJob::class]);
+
+        [$user, $org] = createAuthenticatedUser();
+        $brand = createBrand($org);
+        \App\Domain\Brand\Models\BrandApiKey::create(['brand_id' => $brand->id, 'key_name' => 'anthropic_api_key', 'encrypted_value' => 'sk-test']);
+        \App\Domain\Brand\Models\BrandApiKey::create(['brand_id' => $brand->id, 'key_name' => 'perplexity_api_key', 'encrypted_value' => 'pplx-test']);
+
+        $project = createProject($brand, [
+            'buyer_personas' => ['personas' => [['name' => 'P1']], 'confirmed' => true],
+        ]);
+
+        $first = $this->actingAs($user)
+            ->postJson("/api/generate/calendar/{$project->id}");
+        $first->assertOk()->assertJsonFragment(['status' => 'generating']);
+
+        $second = $this->actingAs($user)
+            ->postJson("/api/generate/calendar/{$project->id}");
+        $second->assertStatus(409)
+            ->assertJsonFragment(['status' => 'already_generating']);
+
+        Bus::assertDispatchedTimes(GenerateCalendarJob::class, 1);
+    });
 });
 
 describe('GET /api/generate/preflight/{project_id}', function () {

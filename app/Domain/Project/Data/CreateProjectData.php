@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain\Project\Data;
 
+use App\Domain\Generation\Presets\EditorialPreset;
 use Spatie\LaravelData\Attributes\Validation\AfterOrEqual;
 use Spatie\LaravelData\Attributes\Validation\DateFormat;
+use Spatie\LaravelData\Attributes\Validation\Enum;
 use Spatie\LaravelData\Attributes\Validation\Max;
 use Spatie\LaravelData\Attributes\Validation\Required;
 use Spatie\LaravelData\Data;
@@ -39,6 +41,8 @@ final class CreateProjectData extends Data
         /** @var array<array<string, mixed>>|null */
         public readonly ?array $special_dates = null,
         public readonly Optional|string|null $custom_prompt = new Optional(),
+        #[Enum(EditorialPreset::class)]
+        public readonly ?string $editorial_preset = 'standard',
     ) {}
 
     public function toArray(): array
@@ -58,6 +62,7 @@ final class CreateProjectData extends Data
             'competitors'     => $this->competitors      ?? [],
             'special_dates'   => $this->special_dates   ?? [],
             'custom_prompt'   => $this->custom_prompt instanceof Optional ? null : $this->custom_prompt,
+            'editorial_preset' => $this->editorial_preset ?? EditorialPreset::Standard->value,
         ];
     }
 }

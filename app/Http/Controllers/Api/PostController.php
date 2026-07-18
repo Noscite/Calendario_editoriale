@@ -383,12 +383,57 @@ final class PostController extends Controller
     // POST /api/posts/{id}/upload-image (retrocompatibile)
     public function uploadImage(int $id, Request $request): JsonResponse
     {
-        $request->validate([
-            'file' => 'required|file|mimes:jpeg,png,webp,gif|max:10240',
-        ]);
+        $file = $request->file('file');
+
+        if (! $file || ! $file->isValid()) {
+            \Log::warning('[upload-image] file mancante o non valido', [
+                'post_id'    => $id,
+                'has_file'   => $file !== null,
+                'error_code' => $file?->getError(),
+                'php_files'  => array_keys($request->allFiles()),
+            ]);
+
+            return response()->json([
+                'message' => 'File non caricato correttamente. Riprova.',
+                'errors'  => ['file' => ['File mancante o upload interrotto.']],
+            ], 422);
+        }
+
+        $allowedMimes = [
+            'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+            'image/bmp', 'image/svg+xml', 'image/avif',
+            'image/heic', 'image/heif',
+        ];
+
+        $mime    = $file->getMimeType();
+        $sizeMb  = round($file->getSize() / 1024 / 1024, 2);
+        $maxSize = 20 * 1024; // KB
+
+        if ($file->getSize() > $maxSize * 1024) {
+            \Log::info('[upload-image] file troppo grande', [
+                'post_id' => $id, 'size_mb' => $sizeMb, 'mime' => $mime,
+            ]);
+            return response()->json([
+                'message' => "Immagine troppo grande ({$sizeMb} MB). Massimo 20 MB.",
+                'errors'  => ['file' => ["Immagine troppo grande ({$sizeMb} MB). Massimo 20 MB."]],
+            ], 422);
+        }
+
+        if (! in_array($mime, $allowedMimes, true)) {
+            \Log::info('[upload-image] mime non supportato', [
+                'post_id'      => $id,
+                'mime'         => $mime,
+                'original'     => $file->getClientOriginalName(),
+                'extension'    => $file->getClientOriginalExtension(),
+                'size_mb'      => $sizeMb,
+            ]);
+            return response()->json([
+                'message' => "Formato non supportato ({$mime}). Usa JPG, PNG, WEBP, GIF, BMP, SVG, AVIF, HEIC.",
+                'errors'  => ['file' => ["Formato non supportato ({$mime})."]],
+            ], 422);
+        }
 
         $post = $this->postService->getById($id);
-        $file = $request->file('file');
 
         $ext      = $file->getClientOriginalExtension() ?: 'jpg';
         $filename = "{$id}_" . Str::random(8) . ".{$ext}";

@@ -66,7 +66,13 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         // ── AuthenticationException → 401 ────────────────────────────────────
+        // Solo per l'API: per le richieste web (es. pannello Filament) si lascia
+        // il comportamento di default (redirect alla pagina di login del pannello).
         $exceptions->render(function (AuthenticationException $e, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
             return response()->json([
                 'error' => [
                     'code'    => 'UNAUTHORIZED',
@@ -76,7 +82,12 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         // ── AuthorizationException → 403 ─────────────────────────────────────
+        // Solo per l'API: le richieste web mantengono la 403 nativa di Filament.
         $exceptions->render(function (AuthorizationException $e, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
             return response()->json([
                 'error' => [
                     'code'    => 'FORBIDDEN',
@@ -96,7 +107,12 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         // ── NotFoundHttpException → 404 (route inesistente) ──────────────────
+        // Solo per l'API: per il web si lascia la 404 nativa (pagina Filament/Laravel).
         $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
             return response()->json([
                 'error' => [
                     'code'    => 'NOT_FOUND',
@@ -119,6 +135,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Il messaggio interno non viene mai esposto al client.
         // Sentry riceve l'eccezione originale tramite il meccanismo di report() di Laravel.
         $exceptions->render(function (\Throwable $e, Request $request) {
+            // Solo per l'API: per il web si lascia la gestione nativa di Laravel
+            // (redirect al login, pagine d'errore Filament/Laravel).
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
             $requestId = $request->attributes->get('request_id', Str::uuid()->toString());
 
             return response()->json([

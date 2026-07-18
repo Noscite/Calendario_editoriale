@@ -22,9 +22,11 @@ export default function GenerationProgressBanner({ status, onDismiss }) {
   const overall = status.progress_percent || 0;
   const eta = formatEta(status.estimated_remaining_seconds);
 
-  const isCompleted = status.status === 'completed';
+  const doneProjectStatuses = ['review', 'approved', 'published'];
+  const isCompleted = status.status === 'completed'
+    || doneProjectStatuses.includes(status.project_status);
   const isFailed    = status.status === 'failed';
-  const isRunning   = status.status === 'generating';
+  const isRunning   = status.status === 'generating' && !isCompleted;
 
   const baseStyle = isCompleted
     ? 'bg-green-50 border-green-200 text-green-900'

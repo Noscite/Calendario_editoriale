@@ -3,6 +3,7 @@
 namespace App\Domain\Project\Models;
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Generation\Presets\EditorialPreset;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Enums\ProjectStatus;
 use App\Domain\Shared\Traits\BelongsToOrganization;
@@ -29,6 +30,7 @@ class Project extends Model
         'themes',
         'brief',
         'custom_prompt',
+        'editorial_preset',
         'status',
         // Nuovi campi
         'reference_urls',
@@ -56,6 +58,7 @@ class Project extends Model
             'posts_per_week' => 'json',
             'themes' => 'json',
             'status' => ProjectStatus::class,
+            'editorial_preset' => EditorialPreset::class,
             'reference_urls' => 'json',
             'objectives' => 'json',
             'content_pillars' => 'json',

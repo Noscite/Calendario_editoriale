@@ -6,6 +6,7 @@ import BrandCompletenessIndicator from '../components/BrandCompletenessIndicator
 import {
   brands as brandsApi,
   projects as projectsApi,
+  editorialPresets as editorialPresetsApi,
 } from '../services/api';
 
 const STEPS = [
@@ -53,11 +54,13 @@ export default function CreateProjectWizardV2() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState(null);
   const [brandCompleteness, setBrandCompleteness] = useState(null);
+  const [presetOptions, setPresetOptions] = useState([]);
 
   const [formData, setFormData] = useState({
     name: '',
     brief: '',
     objectives: [],
+    editorial_preset: 'standard',
     start_date: todayISO(),
     end_date: defaultEndDate(),
   });
@@ -82,6 +85,22 @@ export default function CreateProjectWizardV2() {
       cancelled = true;
     };
   }, [brandId]);
+
+  // Mount: fetch opzioni preset editoriale per il select
+  useEffect(() => {
+    let cancelled = false;
+    editorialPresetsApi
+      .options()
+      .then((res) => {
+        if (!cancelled) setPresetOptions(res?.data?.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setPresetOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const toggleObjective = (val) => {
     const set = new Set(formData.objectives);
@@ -132,6 +151,7 @@ export default function CreateProjectWizardV2() {
         name: formData.name.trim(),
         brief: formData.brief.trim(),
         objectives: formData.objectives,
+        editorial_preset: formData.editorial_preset,
         start_date: formData.start_date,
         end_date: formData.end_date,
       });
@@ -241,6 +261,28 @@ export default function CreateProjectWizardV2() {
           })}
         </div>
       </div>
+
+      {presetOptions.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-[#2C3E50] mb-1">
+            Preset editoriale
+          </label>
+          <select
+            value={formData.editorial_preset}
+            onChange={(e) => updateField('editorial_preset', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#3DAFA8] focus:border-transparent bg-white"
+          >
+            {presetOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            "B2B Authority" applica una cadenza settimanale Lun→Ven con un tipo di post dedicato per ogni giorno.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>

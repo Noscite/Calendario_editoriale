@@ -36,7 +36,7 @@ LINEE GUIDA CONTENUTI:
 
 TXT;
 
-    private const MODEL                 = 'claude-sonnet-4-20250514';
+    private const MODEL                 = 'claude-opus-4-8';
     private const MODEL_HAIKU           = 'claude-haiku-4-5-20251001';
     private const MAX_TOKENS_BATCH      = 10_000;
     private const MAX_TOKENS_REGENERATE = 2_000;
@@ -515,25 +515,27 @@ TXT;
         return $this->generateCalendarPostsLegacy(
             $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
             $platforms, $postsPerWeek, $themes, $urlContext, $styleGuide,
-            $buyerPersonas, $brandId, $projectId,
+            $buyerPersonas, $brandId, $projectId, $brand, $campaign,
         );
     }
 
     /** @return array{0: list, 1: array, 2: int} [posts, personas, tokens] */
     private function generateCalendarPostsLegacy(
-        string  $brandName,
-        array   $brandInfo,
-        array   $projectInfo,
-        Carbon  $startDate,
-        Carbon  $endDate,
-        array   $platforms,
-        array   $postsPerWeek,
-        array   $themes = [],
-        ?string $urlContext = null,
-        ?string $styleGuide = null,
-        ?array  $buyerPersonas = null,
-        ?int    $brandId = null,
-        ?int    $projectId = null,
+        string    $brandName,
+        array     $brandInfo,
+        array     $projectInfo,
+        Carbon    $startDate,
+        Carbon    $endDate,
+        array     $platforms,
+        array     $postsPerWeek,
+        array     $themes = [],
+        ?string   $urlContext = null,
+        ?string   $styleGuide = null,
+        ?array    $buyerPersonas = null,
+        ?int      $brandId = null,
+        ?int      $projectId = null,
+        ?Brand    $brand = null,
+        ?Campaign $campaign = null,
     ): array {
         $ragContext = $brandId ? $this->getRagContext($brandId, "{$brandName} " . implode(' ', $themes)) : '';
 
@@ -555,7 +557,13 @@ TXT;
             Log::info("[CLAUDE] Batch " . ($batchNum + 1) . "/{$batches}: {$batchStart->toDateString()} → {$batchEnd->toDateString()}");
 
             if ($projectId) {
-                GenerationTracker::update($projectId, $batchNum, $batches, (int) (($batchNum / $batches) * 100));
+                $batchOneIndexed = $batchNum + 1;
+                GenerationTracker::update(
+                    $projectId,
+                    $batchOneIndexed,
+                    $batches,
+                    (int) (($batchOneIndexed / $batches) * 100),
+                );
             }
 
             if ($batchNum > 0) {
@@ -575,12 +583,16 @@ TXT;
                 $brandName, $brandInfo, $projectInfo, $batchStart, $batchEnd,
                 $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
                 $styleGuide ?? self::DEFAULT_STYLE_GUIDE, $buyerPersonas, $contentMixData,
-                $batchNum + 1, $batches,
+                $batchNum + 1, $batches, $brand, $campaign,
             );
 
             Log::info("[CLAUDE] Batch " . ($batchNum + 1) . " returned " . count($posts) . " posts");
             array_push($allPosts, ...$posts);
             $totalTokensUsed += $batchTokens;
+        }
+
+        if ($projectId) {
+            GenerationTracker::update($projectId, $batches, $batches, 100);
         }
 
         $allPosts = $this->personaScheduler->redistributePostsWithPersonas(
@@ -593,32 +605,46 @@ TXT;
 
     /** @return array{0: list, 1: int} [posts, tokens] */
     public function generateBatch(
-        string  $brandName,
-        array   $brandInfo,
-        array   $projectInfo,
-        Carbon  $startDate,
-        Carbon  $endDate,
-        array   $platforms,
-        array   $postsPerWeek,
-        array   $themes,
-        ?string $urlContext,
-        string  $ragContext,
-        string  $styleGuide,
-        array   $buyerPersonas,
-        array   $contentMixData,
-        int     $batchNum,
-        int     $totalBatches,
+        string    $brandName,
+        array     $brandInfo,
+        array     $projectInfo,
+        Carbon    $startDate,
+        Carbon    $endDate,
+        array     $platforms,
+        array     $postsPerWeek,
+        array     $themes,
+        ?string   $urlContext,
+        string    $ragContext,
+        string    $styleGuide,
+        array     $buyerPersonas,
+        array     $contentMixData,
+        int       $batchNum,
+        int       $totalBatches,
+        ?Brand    $brand = null,
+        ?Campaign $campaign = null,
     ): array {
         $parts = $this->promptBuilder->buildBatchPromptParts(
             $brandName, $brandInfo, $projectInfo, $startDate, $endDate,
             $platforms, $postsPerWeek, $themes, $urlContext, $ragContext,
-            $styleGuide, $buyerPersonas, $contentMixData,
+            $styleGuide, $buyerPersonas, $contentMixData, $brand,
         );
+
+        // MCP servers: campagna (con eventuale override su brand) oppure
+        // brand-level. Prima del fix il path legacy non li caricava mai.
+        $mcpServers = $this->resolveMcpServersForBatch($brand, $campaign);
 
         Log::info("[CLAUDE] API call — {$brandName}, {$startDate->toDateString()} → {$endDate->toDateString()}");
 
         try {
-            $response     = $this->apiClient->callCached($parts['static'], $parts['dynamic'], self::MAX_TOKENS_BATCH, self::MODEL, $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null));
+            $response = $this->apiClient->callCached(
+                $parts['static'],
+                $parts['dynamic'],
+                self::MAX_TOKENS_BATCH,
+                self::MODEL,
+                $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null),
+                null,
+                $mcpServers,
+            );
             $batchTokens  = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $posts        = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
 
@@ -628,6 +654,35 @@ TXT;
             Log::error("[CLAUDE] Batch error: {$e->getMessage()}");
             return [[], 0];
         }
+    }
+
+    /**
+     * Risolve gli MCP server effettivi per una chiamata batch.
+     * - Con campaign: usa effectiveMcpServers (brand + campaign + override).
+     * - Senza campaign: usa solo brand.mcpServers (calendari "puri").
+     *
+     * @return array<int, array{name: string, url: string, api_key: ?string}>
+     */
+    private function resolveMcpServersForBatch(?Brand $brand, ?Campaign $campaign): array
+    {
+        if ($campaign !== null) {
+            $campaign->loadMissing(['mcpServers', 'brands.mcpServers']);
+            return $campaign->effectiveMcpServers($brand?->id);
+        }
+
+        if ($brand === null) {
+            return [];
+        }
+
+        $brand->loadMissing('mcpServers');
+        return $brand->mcpServers
+            ->map(fn ($m): array => [
+                'name'    => $m->name,
+                'url'     => $m->url,
+                'api_key' => $m->getApiKey(),
+            ])
+            ->values()
+            ->all();
     }
 
     /** @return array{0: string, 1: int} [prompt, tokens] */
@@ -723,7 +778,13 @@ TXT;
             Log::info("[STRATEGY] Step 2 batch " . ($batchNum + 1) . "/{$batches}: " . count($batchPosts) . " post da scrivere");
 
             if ($projectId) {
-                GenerationTracker::update($projectId, $batchNum, $batches, (int) (($batchNum / $batches) * 100));
+                $batchOneIndexed = $batchNum + 1;
+                GenerationTracker::update(
+                    $projectId,
+                    $batchOneIndexed,
+                    $batches,
+                    (int) (($batchOneIndexed / $batches) * 100),
+                );
             }
 
             if ($batchNum > 0) {
@@ -754,6 +815,10 @@ TXT;
 
             array_push($allPosts, ...$posts);
             $totalTokensUsed += $batchTokens;
+        }
+
+        if ($projectId) {
+            GenerationTracker::update($projectId, $batches, $batches, 100);
         }
 
         $allPosts = $this->personaScheduler->redistributePostsWithPersonas(
@@ -884,11 +949,18 @@ TXT;
 
     private function persistPersonas(Project $project, array $personas): void
     {
+        // FIX 2026-06-09: rispetta sempre le posts_per_week configurate dall'utente.
+        // Salva la raccomandazione AI in un campo separato (suggestion only, non override).
         if (isset($personas['recommended_posts_per_week'])) {
-            $recommended             = $personas['recommended_posts_per_week'];
-            $project->posts_per_week = collect($project->platforms ?? [])
-                ->mapWithKeys(fn ($p) => [$p => $recommended[$p] ?? 3])
-                ->toArray();
+            $userConfigured = !empty($project->getOriginal('posts_per_week'));
+            if (!$userConfigured) {
+                $recommended             = $personas['recommended_posts_per_week'];
+                $project->posts_per_week = collect($project->platforms ?? [])
+                    ->mapWithKeys(fn ($p) => [$p => $recommended[$p] ?? 3])
+                    ->toArray();
+            }
+            // In ogni caso, conserva la raccomandazione dentro buyer_personas per UI/log.
+            $personas['_ai_recommended_ppw_kept_for_reference'] = $personas['recommended_posts_per_week'];
         }
         $project->buyer_personas = $personas;
         $project->save();
@@ -1039,6 +1111,16 @@ TXT;
         $gitCommit ??= $this->getCurrentGitCommit();
 
         $platform       = $raw['platform']       ?? '';
+
+        // Orari ottimali per canale (ora locale IT). Fallback quando Claude
+        // non specifica scheduled_time: evita che tutti i post finiscano alle 09:00.
+        $optimalTimeByPlatform = [
+            'linkedin'        => '08:00',
+            'facebook'        => '13:00',
+            'instagram'       => '18:00',
+            'google_business' => '10:00',
+        ];
+        $defaultTime = $optimalTimeByPlatform[$platform] ?? '09:00';
         $scheduledDate  = $raw['scheduled_date'] ?? null;
         $pillarProposed = $raw['pillar']         ?? null;
         $hashtags       = $raw['hashtags']       ?? [];
@@ -1102,10 +1184,10 @@ TXT;
             'project_id'          => $projectId,
             'platform'            => $platform,
             'scheduled_date'      => $scheduledDate,
-            'scheduled_time'      => $raw['scheduled_time']    ?? '09:00',
+            'scheduled_time'      => (! empty($raw['scheduled_time'])) ? $raw['scheduled_time'] : $defaultTime,
             'content'             => $raw['content']           ?? '',
             'hashtags'            => $hashtags,
-            'pillar'              => $pillarProposed           ?? '',
+            'pillar'              => (! empty($pillarProposed)) ? $pillarProposed : ($projectContentPillars[0] ?? 'Generale'),
             'post_type'           => $raw['post_type']         ?? '',
             'content_type'        => $raw['content_type']      ?? 'post',
             'visual_suggestion'   => $raw['visual_suggestion'] ?? '',

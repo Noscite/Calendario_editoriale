@@ -440,19 +440,62 @@ final class WebsiteDirectFetcher
         $schemas = [];
         foreach ($matches[1] ?? [] as $json) {
             try {
-                $data      = json_decode(trim($json), true, 10, JSON_THROW_ON_ERROR);
-                $schemas[] = $data['@type'] ?? 'Unknown';
+                $data = json_decode(trim($json), true, 10, JSON_THROW_ON_ERROR);
+                foreach ($this->collectSchemaTypes($data) as $type) {
+                    $schemas[] = $type;
+                }
             } catch (\Throwable) {
                 // skip malformed JSON-LD
             }
         }
 
+        $schemas = array_values(array_unique($schemas));
+
         return [
             'found'              => ! empty($schemas),
             'types'              => $schemas,
-            'has_local_business' => in_array('LocalBusiness', $schemas)
-                || in_array('Organization', $schemas),
+            'has_local_business' => in_array('LocalBusiness', $schemas, true)
+                || in_array('Organization', $schemas, true),
         ];
+    }
+
+    /**
+     * Walk a JSON-LD payload and collect every @type value as flat strings.
+     * Handles single objects, arrays of objects, @graph wrappers, and
+     * multi-type entries like "@type": ["LocalBusiness", "Psychologist"].
+     *
+     * @return list<string>
+     */
+    private function collectSchemaTypes(mixed $data): array
+    {
+        if (! is_array($data)) {
+            return [];
+        }
+
+        $types = [];
+
+        if (isset($data['@type'])) {
+            foreach ((array) $data['@type'] as $t) {
+                if (is_string($t) && $t !== '') {
+                    $types[] = $t;
+                }
+            }
+        }
+
+        if (isset($data['@graph']) && is_array($data['@graph'])) {
+            foreach ($data['@graph'] as $node) {
+                $types = array_merge($types, $this->collectSchemaTypes($node));
+            }
+        }
+
+        // Top-level array of nodes (no @graph wrapper)
+        if (! isset($data['@type']) && ! isset($data['@graph']) && array_is_list($data)) {
+            foreach ($data as $node) {
+                $types = array_merge($types, $this->collectSchemaTypes($node));
+            }
+        }
+
+        return $types;
     }
 
     private function fetchRobotsTxt(string $url): array

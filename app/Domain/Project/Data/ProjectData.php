@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Project\Data;
 
+use App\Domain\Generation\Presets\EditorialPreset;
 use App\Domain\Project\Models\Project;
 use Carbon\CarbonImmutable;
 use Spatie\LaravelData\Data;
@@ -29,6 +30,7 @@ final class ProjectData extends Data
         public readonly ?array $buyer_personas,
         public readonly ?array $objectives,
         public readonly ?string $custom_prompt,
+        public readonly ?string $editorial_preset,
         public readonly CarbonImmutable $created_at,
     ) {}
 
@@ -53,6 +55,9 @@ final class ProjectData extends Data
             buyer_personas: $project->buyer_personas,
             objectives: $project->objectives,
             custom_prompt: $project->custom_prompt,
+            editorial_preset: $project->editorial_preset instanceof \BackedEnum
+                ? $project->editorial_preset->value
+                : ($project->editorial_preset ?? EditorialPreset::Standard->value),
             created_at: CarbonImmutable::instance($project->created_at),
         );
     }

@@ -8,6 +8,7 @@ use App\Domain\Brand\Contracts\BrandServiceInterface;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Generation\Services\EditionHistoryService;
 use App\Domain\Generation\Services\GenerationProgressService;
+use App\Domain\Generation\Services\GenerationTracker;
 use App\Domain\Generation\Services\PersonasEvaluationTracker;
 use App\Domain\Project\Contracts\ProjectServiceInterface;
 use App\Domain\Project\Data\CreateProjectData;
@@ -47,6 +48,9 @@ final class ProjectController extends Controller
             'themes'            => $p->themes ?? [],
             'brief'             => $p->brief ?? '',
             'custom_prompt'     => $p->custom_prompt ?? '',
+            'editorial_preset'  => $p->editorial_preset instanceof \BackedEnum
+                ? $p->editorial_preset->value
+                : ($p->editorial_preset ?? 'standard'),
             'status'            => $p->status?->value ?? 'draft',
             'reference_urls'    => $p->reference_urls ?? [],
             'target_audience'   => $p->target_audience ?? '',
@@ -389,20 +393,33 @@ final class ProjectController extends Controller
             ]);
         }
 
-        $progressData['progress_percent']            = $this->computeOverallPercent($progressData);
-        $progressData['estimated_remaining_seconds'] = $this->computeEta($progressData);
+        $progressData['progress_percent']            = $this->computeOverallPercent($progressData, $id);
+        $progressData['estimated_remaining_seconds'] = $this->computeEta($progressData, $id);
         $progressData['project_status']              = $project->status?->value;
 
         return response()->json($progressData);
     }
 
-    private function computeOverallPercent(array $progress): int
+    private function computeOverallPercent(array $progress, ?int $projectId = null): int
     {
         $cb = $progress['phases']['calendar_base'] ?? [];
         $ts = $progress['phases']['territorial_sync'] ?? [];
         $tp = $progress['phases']['territorial_posts'] ?? [];
 
-        $cbPct = ($cb['status'] ?? 'pending') === 'completed' ? 1.0 : 0.0;
+        // La fase calendar_base è la generazione a batch dei post (Claude).
+        // Il suo avanzamento fine (batch 1/3, 2/3, …) vive nel GenerationTracker
+        // e NON nelle fasi: mentre è 'running' lo leggiamo da lì così la barra
+        // sale gradualmente invece di restare a 0% fino al completamento.
+        $cbStatus = $cb['status'] ?? 'pending';
+        if ($cbStatus === 'completed') {
+            $cbPct = 1.0;
+        } elseif ($cbStatus === 'running' && $projectId !== null) {
+            $batch = GenerationTracker::get($projectId);
+            $cbPct = $batch ? min(1.0, ($batch['percent'] ?? 0) / 100) : 0.0;
+        } else {
+            $cbPct = 0.0;
+        }
+
         $tsPct = ($ts['status'] ?? 'pending') === 'completed' ? 1.0 : 0.0;
 
         $tpExpected = $tp['posts_total_expected'] ?? null;
@@ -414,7 +431,7 @@ final class ProjectController extends Controller
         return (int) round(($cbPct * 0.30 + $tsPct * 0.05 + $tpPct * 0.65) * 100);
     }
 
-    private function computeEta(array $progress): ?int
+    private function computeEta(array $progress, ?int $projectId = null): ?int
     {
         if (($progress['status'] ?? null) !== 'generating') {
             return null;
@@ -423,7 +440,7 @@ final class ProjectController extends Controller
         if (! $startedAt) {
             return null;
         }
-        $percent = $this->computeOverallPercent($progress);
+        $percent = $this->computeOverallPercent($progress, $projectId);
         if ($percent <= 0) {
             return null;
         }

@@ -22,7 +22,7 @@ use RuntimeException;
  */
 final class OntologyBootstrapService implements OntologyBootstrapServiceInterface
 {
-    public const MODEL       = 'claude-sonnet-4-20250514';
+    public const MODEL       = 'claude-sonnet-4-5';
     private const MAX_TOKENS  = 1500;
     private const MAX_DOC_TOPICS = 20;
     private const MAX_REVIEW_SAMPLE = 10;

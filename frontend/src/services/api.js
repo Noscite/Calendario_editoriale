@@ -107,6 +107,10 @@ export const deontological = {
   options: () => api.get('/deontological-options'),
 };
 
+export const editorialPresets = {
+  options: () => api.get('/editorial-preset-options'),
+};
+
 export const campaigns = {
   list: () => api.get('/campaigns'),
   get: (id) => api.get(`/campaigns/${id}`),

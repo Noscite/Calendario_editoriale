@@ -7,7 +7,7 @@ import {
   Plus, Calendar, Sparkles, Loader2, Trash2, Mic, Building2,
   Linkedin, Instagram, Facebook, MapPin, Link2, CheckCircle, XCircle,
   ExternalLink, Globe, Palette, Users, Layers, Key, Eye, EyeOff, Save, ChevronDown, ChevronUp,
-  TrendingUp, Star, AlertTriangle,
+  TrendingUp, Star, AlertTriangle, Pencil,
 } from 'lucide-react';
 import EditionBadge from '../components/EditionBadge';
 import VoiceExamplesEditor from '../components/VoiceExamplesEditor';
@@ -290,7 +290,7 @@ export default function BrandDetail() {
 
       {/* Brand Header Card */}
       <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-gradient-to-br from-[#3DAFA8] to-[#2C3E50] rounded-2xl flex items-center justify-center">
               <Building2 className="text-white" size={32} />
@@ -309,9 +309,9 @@ export default function BrandDetail() {
                   </span>
                 )}
                 {brand.website && (
-                  <a 
-                    href={brand.website} 
-                    target="_blank" 
+                  <a
+                    href={brand.website}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-[#3DAFA8] hover:underline"
                   >
@@ -321,6 +321,14 @@ export default function BrandDetail() {
               </div>
             </div>
           </div>
+          <button
+            onClick={() => navigate(`/brand/${id}/wizard`)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#2C3E50] bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-[#3DAFA8] hover:text-[#3DAFA8] transition-colors whitespace-nowrap"
+            title="Modifica configurazione brand"
+          >
+            <Pencil size={16} />
+            Modifica brand
+          </button>
         </div>
       </div>
 

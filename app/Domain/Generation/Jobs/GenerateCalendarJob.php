@@ -21,6 +21,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +66,20 @@ final class GenerateCalendarJob implements ShouldQueue
         $this->onQueue('generazione');
     }
 
+    /**
+     * Impedisce due generazioni concorrenti sullo stesso progetto.
+     * - releaseAfter(60): un dispatch duplicato torna in coda fra 60s
+     * - expireAfter(1900): > $timeout (1800s), il lock si auto-rilascia se il worker muore
+     */
+    public function middleware(): array
+    {
+        return [
+            (new WithoutOverlapping("generate-calendar:{$this->projectId}"))
+                ->releaseAfter(60)
+                ->expireAfter(1900),
+        ];
+    }
+
     // ──────────────────────────────────────────────────────────
     //  handle() — replica di run_generation()
     // ──────────────────────────────────────────────────────────
@@ -82,6 +97,13 @@ final class GenerateCalendarJob implements ShouldQueue
             Log::info("[GEN] Brand not found for project {$this->projectId}");
             return;
         }
+
+        // Butta stato stantio da run precedenti e semina "starting" così il primo
+        // poll del frontend (prima che ClaudeContentGenerator scriva il primo update)
+        // mostra "1 di 1 — 5%" invece di "0 di 0 — 0%". Il vero total_batches
+        // viene riscritto dal primo update di ClaudeContentGenerator.
+        GenerationTracker::clear($this->projectId);
+        GenerationTracker::update($this->projectId, 1, 1, 5);
 
         $progress->start($this->projectId);
         $progress->updatePhase($this->projectId, 'calendar_base', ['status' => 'running']);
@@ -210,6 +232,10 @@ final class GenerateCalendarJob implements ShouldQueue
             'brand_values'            => $brand->brand_values,
             'tone_of_voice'           => $brand->tone_of_voice,
             'style_guide'             => $brand->style_guide,
+            // voice_examples: il wizard li raccoglie (step 2 "Voce", min 3 per
+            // sbloccare completeness ≥70). Devono finire nel prompt, altrimenti
+            // l'utente compila e li perde silenziosamente.
+            'voice_examples'          => $brand->voice_examples ?? [],
             // ── Wizard PR-1: fonti citabili strutturate ──────────────
             'tagline'                 => $brand->tagline,
             'founder'                 => $brand->founder ?? null,
@@ -223,6 +249,7 @@ final class GenerateCalendarJob implements ShouldQueue
             'target_audience' => $project->target_audience,
             'custom_prompt'   => $project->custom_prompt,
             'objectives'      => $project->objectives ?? [],
+            'editorial_preset' => $project->editorial_preset,
             'history_context' => $this->historyContext,
             // Propagati per buildBrandAssetsSection (anti-invenzione):
             // special_dates → fonte di aneddoti reali citabili
@@ -238,6 +265,12 @@ final class GenerateCalendarJob implements ShouldQueue
         $themes = Project::normalizeContentPillarsList($project->content_pillars);
         if (empty($themes)) {
             $themes = $project->themes ?? [];
+        }
+        // Fallback: se il project non ha pillar custom (creato via API o wizard
+        // saltato), usa quelli di default configurati sul brand. Evita che la
+        // sezione PILLAR DISPONIBILI vada vuota e Claude inventi pillar suoi.
+        if (empty($themes) && ! empty($brand->default_content_pillars)) {
+            $themes = Project::normalizeContentPillarsList($brand->default_content_pillars);
         }
 
         // ── 5. Genera con Claude (batch + rate-limit + sleep) ──
