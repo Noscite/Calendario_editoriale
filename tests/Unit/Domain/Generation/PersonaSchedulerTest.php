@@ -359,4 +359,98 @@ describe('PersonaScheduler preset-aware (b2b_authority)', function () {
         $engDates = collect($out)->where('post_type', 'engagement')->pluck('scheduled_date')->unique();
         expect($engDates)->toHaveCount(2);
     });
+
+    // ── FIX 3: orari determinati da (preset, piattaforma, giorno) ───
+
+    it('B2B + linkedin → orari 09:00, 08:30, 09:00, 08:30, 08:00 (lun→ven)', function () use ($typed) {
+        $start = $this->monday->copy();
+        $end   = $start->copy()->addDays(4);
+
+        $out = $this->scheduler->redistributePostsWithPersonas(
+            $typed('linkedin', ['engagement', 'educational', 'lead_magnet', 'social_proof', 'behind_the_scenes']),
+            ['linkedin' => 5],
+            $start,
+            $end,
+            [], // strategia vuota → slot di default (is_default) → il preset ne detta l'orario
+            EditorialPreset::B2BAuthority,
+        );
+
+        $timeByType = collect($out)->mapWithKeys(fn ($p) => [$p['post_type'] => $p['scheduled_time']]);
+
+        expect($timeByType['engagement'])->toBe('09:00')        // lunedì
+            ->and($timeByType['educational'])->toBe('08:30')     // martedì
+            ->and($timeByType['lead_magnet'])->toBe('09:00')     // mercoledì
+            ->and($timeByType['social_proof'])->toBe('08:30')    // giovedì
+            ->and($timeByType['behind_the_scenes'])->toBe('08:00'); // venerdì
+    });
+
+    it('B2B + instagram → orari invariati (nessun override, resta il default di piattaforma 18:00)', function () use ($typed) {
+        $start = $this->monday->copy();
+        $end   = $start->copy()->addDays(4);
+
+        $out = $this->scheduler->redistributePostsWithPersonas(
+            $typed('instagram', ['engagement', 'educational', 'lead_magnet', 'social_proof', 'behind_the_scenes']),
+            ['instagram' => 5],
+            $start,
+            $end,
+            [],
+            EditorialPreset::B2BAuthority,
+        );
+
+        // Il preset è tarato su LinkedIn: su instagram slotTime() è null → resta 18:00.
+        foreach ($out as $p) {
+            expect($p['scheduled_time'])->toBe('18:00');
+        }
+    });
+
+    it('B2B + personas custom con slot espliciti → vincono le personas sul preset', function () use ($typed) {
+        $start = $this->monday->copy();
+        $end   = $start->copy()->addDays(4);
+
+        // Slot espliciti dell'utente (NO is_default) con orari deliberati.
+        $personas = ['scheduling_strategy' => ['linkedin' => ['optimal_slots' => [
+            ['day' => 0, 'time' => '07:00', 'priority' => 1],
+            ['day' => 1, 'time' => '07:15', 'priority' => 2],
+            ['day' => 2, 'time' => '07:30', 'priority' => 3],
+            ['day' => 3, 'time' => '07:45', 'priority' => 4],
+            ['day' => 4, 'time' => '07:55', 'priority' => 5],
+        ]]]];
+
+        $out = $this->scheduler->redistributePostsWithPersonas(
+            $typed('linkedin', ['engagement', 'educational', 'lead_magnet', 'social_proof', 'behind_the_scenes']),
+            ['linkedin' => 5],
+            $start,
+            $end,
+            $personas,
+            EditorialPreset::B2BAuthority,
+        );
+
+        $timeByType = collect($out)->mapWithKeys(fn ($p) => [$p['post_type'] => $p['scheduled_time']]);
+
+        // Le personas custom vincono: orari utente, NON quelli del preset.
+        expect($timeByType['engagement'])->toBe('07:00')
+            ->and($timeByType['educational'])->toBe('07:15')
+            ->and($timeByType['lead_magnet'])->toBe('07:30')
+            ->and($timeByType['social_proof'])->toBe('07:45')
+            ->and($timeByType['behind_the_scenes'])->toBe('07:55');
+    });
+
+    it('preset Standard → orari invariati (default di piattaforma, nessun slotTime)', function () use ($typed) {
+        $start = $this->monday->copy();
+        $end   = $start->copy()->addDays(4);
+
+        $out = $this->scheduler->redistributePostsWithPersonas(
+            $typed('linkedin', ['a', 'b', 'c', 'd', 'e']),
+            ['linkedin' => 5],
+            $start,
+            $end,
+            [],
+            EditorialPreset::Standard,
+        );
+
+        // Standard non ha schedule → percorso classico, orario = default piattaforma.
+        foreach ($out as $p) {
+            expect($p['scheduled_time'])->toBe('08:00');
+        }
+    });
 });

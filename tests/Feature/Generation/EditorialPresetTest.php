@@ -110,4 +110,37 @@ describe('EditorialPreset', function () {
             ->toHaveKey('standard')
             ->toHaveKey('b2b_authority');
     });
+
+    // ── slotTime() — orari per (giorno, piattaforma) ────────────────
+
+    it('slotTime() B2B + linkedin ritorna gli orari lun→ven della tabella', function () {
+        $p = EditorialPreset::B2BAuthority;
+
+        expect($p->slotTime(0, 'linkedin'))->toBe('09:00') // lunedì
+            ->and($p->slotTime(1, 'linkedin'))->toBe('08:30') // martedì
+            ->and($p->slotTime(2, 'linkedin'))->toBe('09:00') // mercoledì
+            ->and($p->slotTime(3, 'linkedin'))->toBe('08:30') // giovedì
+            ->and($p->slotTime(4, 'linkedin'))->toBe('08:00'); // venerdì
+    });
+
+    it('slotTime() è case-insensitive sulla piattaforma', function () {
+        expect(EditorialPreset::B2BAuthority->slotTime(0, 'LinkedIn'))->toBe('09:00');
+    });
+
+    it('slotTime() B2B su weekend/altre piattaforme → null (nessun override)', function () {
+        $p = EditorialPreset::B2BAuthority;
+
+        expect($p->slotTime(5, 'linkedin'))->toBeNull()  // sabato non definito
+            ->and($p->slotTime(6, 'linkedin'))->toBeNull() // domenica non definita
+            ->and($p->slotTime(0, 'instagram'))->toBeNull()
+            ->and($p->slotTime(0, 'facebook'))->toBeNull();
+    });
+
+    it('slotTime() Standard → sempre null', function () {
+        $p = EditorialPreset::Standard;
+
+        expect($p->slotTime(0, 'linkedin'))->toBeNull()
+            ->and($p->slotTime(4, 'linkedin'))->toBeNull()
+            ->and($p->slotTime(0, 'instagram'))->toBeNull();
+    });
 });

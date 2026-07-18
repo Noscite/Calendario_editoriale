@@ -77,7 +77,7 @@ final class PersonaScheduler
                 // ── PRESET-AWARE: il giorno lo detta lo schedule del preset ──
                 $placed = $this->placePresetAware(
                     $platformPosts, $optimalSlots, $scheduleByDay, $ppw,
-                    $totalWeeks, $startDate, $endDate, $platform,
+                    $totalWeeks, $startDate, $endDate, $platform, $preset,
                 );
             } else {
                 // ── PERSONA CLASSICO: comportamento invariato ──
@@ -196,10 +196,30 @@ final class PersonaScheduler
         Carbon $startDate,
         Carbon $endDate,
         string $platform,
+        ?EditorialPreset $preset,
     ): array {
-        $placed    = [];
-        $assigned  = array_fill(0, count($platformPosts), false);
-        $timeByDay = $this->personaTimeByDayIndex($optimalSlots);
+        $placed   = [];
+        $assigned = array_fill(0, count($platformPosts), false);
+
+        // Risoluzione orario per giorno con priorità:
+        //   1. slot persona CUSTOM (scelta deliberata dell'utente, no is_default)
+        //   2. orario del preset per (giorno, piattaforma), se definito
+        //   3. slot persona di default/fallback (is_default) per quel giorno
+        //   4. orario di default della piattaforma
+        $customTimeByDay = $this->personaTimeByDayIndex(
+            array_filter($optimalSlots, fn ($s) => ($s['is_default'] ?? false) !== true)
+        );
+        $anyTimeByDay = $this->personaTimeByDayIndex($optimalSlots);
+        $resolveSlotTime = function (int $dayIdx) use ($customTimeByDay, $anyTimeByDay, $preset, $platform): string {
+            if (isset($customTimeByDay[$dayIdx])) {
+                return $customTimeByDay[$dayIdx];                       // (1) custom persona
+            }
+            $presetTime = $preset?->slotTime($dayIdx, $platform);
+            if ($presetTime !== null) {
+                return $presetTime;                                    // (2) preset
+            }
+            return $anyTimeByDay[$dayIdx] ?? $this->defaultTimeForPlatform($platform); // (3)/(4)
+        };
 
         for ($week = 0; $week < $totalWeeks; $week++) {
             $weekStart      = $startDate->copy()->addWeeks($week);
@@ -222,7 +242,7 @@ final class PersonaScheduler
 
                 $p                   = $platformPosts[$idx];
                 $p['scheduled_date'] = $postDate->toDateString();
-                $p['scheduled_time'] = $timeByDay[$dayIdx] ?? $this->defaultTimeForPlatform($platform);
+                $p['scheduled_time'] = $resolveSlotTime($dayIdx);
                 $placed[]            = $p;
                 $assigned[$idx]      = true;
                 $placedThisWeek++;
@@ -249,7 +269,7 @@ final class PersonaScheduler
 
                 $p                   = $platformPosts[$idx];
                 $p['scheduled_date'] = $postDate->toDateString();
-                $p['scheduled_time'] = $slot['time'] ?? $this->defaultTimeForPlatform($platform);
+                $p['scheduled_time'] = $resolveSlotTime($dayIdx);
                 $placed[]            = $p;
                 $assigned[$idx]      = true;
                 $placedThisWeek++;
@@ -387,12 +407,16 @@ final class PersonaScheduler
             // dipendere dall'espansione.
             $time = $this->defaultTimeForPlatform($platform);
 
+            // is_default: questi slot NON sono una scelta deliberata dell'utente,
+            // quindi un preset editoriale può sovrascriverne l'orario (vedi
+            // resolveSlotTime). Gli optimal_slots di personas reali non hanno
+            // questo flag e vincono sul preset.
             return [
-                ['day' => 0, 'time' => $time, 'priority' => 1],
-                ['day' => 1, 'time' => $time, 'priority' => 2],
-                ['day' => 2, 'time' => $time, 'priority' => 3],
-                ['day' => 3, 'time' => $time, 'priority' => 4],
-                ['day' => 4, 'time' => $time, 'priority' => 5],
+                ['day' => 0, 'time' => $time, 'priority' => 1, 'is_default' => true],
+                ['day' => 1, 'time' => $time, 'priority' => 2, 'is_default' => true],
+                ['day' => 2, 'time' => $time, 'priority' => 3, 'is_default' => true],
+                ['day' => 3, 'time' => $time, 'priority' => 4, 'is_default' => true],
+                ['day' => 4, 'time' => $time, 'priority' => 5, 'is_default' => true],
             ];
         }
 
@@ -448,7 +472,8 @@ final class PersonaScheduler
                 continue;
             }
             $priority++;
-            $expanded[]                       = ['day' => $day, 'time' => $refTime, 'priority' => $priority];
+            // is_default: slot sintetici (non scelte utente) → non vincono su un preset.
+            $expanded[]                       = ['day' => $day, 'time' => $refTime, 'priority' => $priority, 'is_default' => true];
             $usedDays[$day]                   = true;
             $usedPairs[$day . '@' . $refTime] = true;
         }
@@ -468,7 +493,7 @@ final class PersonaScheduler
                     continue;
                 }
                 $priority++;
-                $expanded[]       = ['day' => $day, 'time' => $time, 'priority' => $priority];
+                $expanded[]       = ['day' => $day, 'time' => $time, 'priority' => $priority, 'is_default' => true];
                 $usedPairs[$key]  = true;
                 $added            = true;
             }
@@ -543,13 +568,15 @@ final class PersonaScheduler
             // i default coprono fino a $ppw = 5 senza dover ricorrere all'espansione.
             $time = $this->defaultTimeForPlatform($platform);
 
+            // is_default: slot generati, non scelti dall'utente → un preset
+            // editoriale può sovrascriverne l'orario (vedi resolveSlotTime).
             $defaultSlots[$platform] = [
                 'optimal_slots' => [
-                    ['day' => 0, 'time' => $time, 'priority' => 1],
-                    ['day' => 1, 'time' => $time, 'priority' => 2],
-                    ['day' => 2, 'time' => $time, 'priority' => 3],
-                    ['day' => 3, 'time' => $time, 'priority' => 4],
-                    ['day' => 4, 'time' => $time, 'priority' => 5],
+                    ['day' => 0, 'time' => $time, 'priority' => 1, 'is_default' => true],
+                    ['day' => 1, 'time' => $time, 'priority' => 2, 'is_default' => true],
+                    ['day' => 2, 'time' => $time, 'priority' => 3, 'is_default' => true],
+                    ['day' => 3, 'time' => $time, 'priority' => 4, 'is_default' => true],
+                    ['day' => 4, 'time' => $time, 'priority' => 5, 'is_default' => true],
                 ],
                 'avoid' => [],
             ];

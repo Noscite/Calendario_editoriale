@@ -462,9 +462,9 @@ final class GenerateCalendarJob implements ShouldQueue
         foreach ($platforms as $platform) {
             $defaultSlots[$platform] = [
                 'optimal_slots' => [
-                    ['day' => 1, 'time' => '10:00', 'priority' => 1],
-                    ['day' => 3, 'time' => '14:00', 'priority' => 2],
-                    ['day' => 5, 'time' => '10:00', 'priority' => 3],
+                    ['day' => 1, 'time' => '10:00', 'priority' => 1, 'is_default' => true],
+                    ['day' => 3, 'time' => '14:00', 'priority' => 2, 'is_default' => true],
+                    ['day' => 5, 'time' => '10:00', 'priority' => 3, 'is_default' => true],
                 ],
                 'avoid' => [],
             ];

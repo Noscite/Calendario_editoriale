@@ -48,6 +48,48 @@ enum EditorialPreset: string
     }
 
     /**
+     * Orario ottimale per (giorno, piattaforma) sotto questo preset.
+     *
+     * @param  int     $dayIndex  0=lunedì … 6=domenica (coerente con weeklySchedule())
+     * @param  string  $platform  slug piattaforma (es. 'linkedin')
+     * @return string|null 'HH:MM' oppure null se il preset non specializza l'orario
+     *                     per quella coppia (→ si usa il comportamento esistente).
+     */
+    public function slotTime(int $dayIndex, string $platform): ?string
+    {
+        return $this->slotTimesByPlatform()[strtolower($platform)][$dayIndex] ?? null;
+    }
+
+    /**
+     * Mappa piattaforma → (indice giorno → orario) per il preset. Definita come
+     * dato, non come match annidati. Piattaforme/giorni non presenti → nessun
+     * override (slotTime() ritorna null).
+     *
+     * Razionale orari B2BAuthority/LinkedIn (dati 2026 su ~8M post B2B):
+     * martedì–giovedì concentra ~68% dell'engagement B2B; la finestra mattutina
+     * 8–11 è quando i decision maker sono attivi; il venerdì ha una finestra
+     * stretta che si chiude verso pranzo, quindi orario più anticipato.
+     * Il preset è tarato su LinkedIn: sulle altre piattaforme nessun override.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function slotTimesByPlatform(): array
+    {
+        return match ($this) {
+            self::B2BAuthority => [
+                'linkedin' => [
+                    0 => '09:00', // lunedì    — Engagement
+                    1 => '08:30', // martedì   — Educational
+                    2 => '09:00', // mercoledì — LeadMagnet
+                    3 => '08:30', // giovedì   — SocialProof
+                    4 => '08:00', // venerdì   — BehindTheScenes
+                ],
+            ],
+            self::Standard => [],
+        };
+    }
+
+    /**
      * Per dropdown Filament/React: ['standard' => 'Standard', ...]
      *
      * @return array<string, string>
