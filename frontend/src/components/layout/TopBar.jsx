@@ -1,4 +1,4 @@
-import { HelpCircle, Search, Clock } from 'lucide-react';
+import { HelpCircle, Search, Clock, Menu } from 'lucide-react';
 import NotificationBell from '../NotificationBell';
 import { useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -15,7 +15,7 @@ const pageTitles = {
   '/admin': { title: 'Admin', subtitle: 'Pannello di amministrazione' },
 };
 
-export default function TopBar() {
+export default function TopBar({ onMenuClick = () => {} }) {
   const location = useLocation();
   const { user } = useAuthStore();
 
@@ -53,13 +53,23 @@ export default function TopBar() {
   const pageInfo = getPageInfo();
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-[60]">
-      {/* Left: Page Title */}
-      <div>
-        <h1 className="text-xl font-bold text-[#2C3E50]">{pageInfo.title}</h1>
-        {pageInfo.subtitle && (
-          <p className="text-sm text-gray-500">{pageInfo.subtitle}</p>
-        )}
+    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6 sticky top-0 z-[60]">
+      {/* Left: Hamburger (mobile) + Page Title */}
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="Apri menu"
+          className="md:hidden p-2 -ml-2 rounded-lg text-gray-600 hover:bg-gray-100 flex-shrink-0"
+        >
+          <Menu size={22} />
+        </button>
+        <div className="min-w-0">
+          <h1 className="text-lg md:text-xl font-bold text-[#2C3E50] truncate">{pageInfo.title}</h1>
+          {pageInfo.subtitle && (
+            <p className="text-sm text-gray-500 truncate hidden sm:block">{pageInfo.subtitle}</p>
+          )}
+        </div>
       </div>
 
       {/* Trial Banner */}

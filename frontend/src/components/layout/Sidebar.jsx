@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { subscriptions } from '../../services/api';
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
   const [collapsed, setCollapsed] = useState(false);
   const [usage, setUsage] = useState(null);
   const { user, logout } = useAuthStore();
@@ -76,7 +76,9 @@ export default function Sidebar() {
   const imagesLimit = usage?.images_limit || 0;
 
   return (
-    <aside className={`fixed left-0 top-0 h-screen bg-[#1a1f2e] text-white flex flex-col transition-all duration-300 z-40 ${
+    <aside className={`fixed left-0 top-0 h-screen bg-[#1a1f2e] text-white flex flex-col transition-transform duration-300 ${
+      mobileOpen ? 'translate-x-0 z-[70]' : '-translate-x-full z-40'
+    } md:translate-x-0 md:z-40 ${
       collapsed ? 'w-16' : 'w-64'
     }`}>
       {/* Logo */}
@@ -101,6 +103,7 @@ export default function Sidebar() {
             <li key={item.to}>
               <NavLink
                 to={item.to}
+                onClick={onClose}
                 className={({ isActive }) => `
                   flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
                   ${isActive 
@@ -125,6 +128,7 @@ export default function Sidebar() {
             <li key={item.to}>
               <NavLink
                 to={item.to}
+                onClick={onClose}
                 className={({ isActive }) => `
                   flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
                   ${isActive 
