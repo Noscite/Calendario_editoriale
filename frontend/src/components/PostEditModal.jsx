@@ -342,8 +342,8 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-white rounded-none sm:rounded-2xl max-w-4xl w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
         
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-700 to-slate-800 text-white p-5">
@@ -385,15 +385,15 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-3 px-4 font-medium transition-colors ${
-                activeTab === tab 
-                  ? 'bg-white text-teal-600 border-b-2 border-teal-500' 
+              className={`flex-1 py-3 px-2 sm:px-4 text-lg sm:text-base font-medium transition-colors ${
+                activeTab === tab
+                  ? 'bg-white text-teal-600 border-b-2 border-teal-500'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'content' && '📝 Contenuto'}
-              {tab === 'visual' && '🎨 Visual & Immagine'}
-              {tab === 'settings' && '⚙️ Impostazioni'}
+              {tab === 'content' && (<><span className="sm:hidden">📝</span><span className="hidden sm:inline">📝 Contenuto</span></>)}
+              {tab === 'visual' && (<><span className="sm:hidden">🎨</span><span className="hidden sm:inline">🎨 Visual & Immagine</span></>)}
+              {tab === 'settings' && (<><span className="sm:hidden">⚙️</span><span className="hidden sm:inline">⚙️ Impostazioni</span></>)}
             </button>
           ))}
         </div>
@@ -408,7 +408,7 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {activeTab === 'content' && (
             <div className="space-y-4">
               <div>
@@ -845,7 +845,7 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
         </div>
 
         {/* Footer */}
-        <div className="border-t bg-gray-50 p-5 flex gap-3 flex-wrap">
+        <div className="border-t bg-gray-50 p-4 sm:p-5 flex gap-2 sm:gap-3 flex-wrap">
           <button
             onClick={handleRegenerate}
             disabled={isRegenerating}
@@ -862,8 +862,8 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
             )}
           </button>
           
-          <div className="flex-1"></div>
-          
+          <div className="hidden sm:block sm:flex-1"></div>
+
           {/* Bottone Pianifica */}
           <button
             onClick={handleSchedule}
