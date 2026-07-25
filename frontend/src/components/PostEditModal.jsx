@@ -70,6 +70,15 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
     }
   }, [post]);
 
+  // Debounce ricerca galleria — DEVE stare tra gli hook, prima di ogni early return
+  // (Rules of Hooks: gli hook vanno chiamati sempre, in ordine costante).
+  useEffect(() => {
+    if (!galleryOpen) return;
+    const t = setTimeout(() => fetchGallery(), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gallerySearch, galleryPillar, galleryPlatform]);
+
   if (!isOpen || !editedPost) return null;
 
   const handleChange = (field, value) => {
@@ -192,14 +201,6 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
     setGalleryOpen(true);
     fetchGallery();
   };
-
-  // Debounce ricerca testuale
-  useEffect(() => {
-    if (!galleryOpen) return;
-    const t = setTimeout(() => fetchGallery(), 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gallerySearch, galleryPillar, galleryPlatform]);
 
   const selectFromGallery = (url) => {
     setEditedPost(prev => ({
