@@ -886,6 +886,8 @@ export default function ProjectDetail() {
 
           {/* Calendar Grid */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+           <div className="overflow-x-auto">
+            <div className="min-w-[700px] md:min-w-0">
             {/* Days header */}
             <div className="grid grid-cols-7 border-b">
               {DAYS.map(day => (
@@ -984,6 +986,8 @@ export default function ProjectDetail() {
                 );
               })}
             </div>
+            </div>
+           </div>
           </div>
         </main>
       )}
