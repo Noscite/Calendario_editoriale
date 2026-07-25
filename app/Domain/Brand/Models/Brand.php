@@ -36,6 +36,7 @@ class Brand extends Model
         'unique_selling_points',
         'colors',
         'style_guide',
+        'image_provider',
         'voice_examples',
         'review_fetch_interval_minutes',
         'review_ontology',

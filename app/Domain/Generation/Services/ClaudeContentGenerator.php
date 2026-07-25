@@ -76,6 +76,10 @@ TXT;
     {
         $project  = Project::with('brand')->findOrFail($projectId);
         $brand    = $project->brand;
+        // Entrypoint HTTP (PostController/PostService): usa la chiave API del brand se
+        // configurata a mano, altrimenti resta sulla chiave di sistema (no blocco per
+        // utenti non-superuser su brand senza chiave propria).
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand);
         // Generation legacy del project intero: nessuna campagna associata. Le campagne
         // si lanciano dentro un calendario tramite QuickAddPostModal → POST
         // /api/projects/{id}/campaigns che ha il suo proprio path (generateForCampaign).
@@ -139,6 +143,9 @@ TXT;
         int $postsCount,
     ): \Illuminate\Database\Eloquent\Collection {
         $brand     = $project->brand;
+        // GenerateCampaignPostsJob non chiama useBrandKeys(): iniettiamo qui la chiave
+        // del brand se configurata, altrimenti fallback morbido alla chiave di sistema.
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand);
         $startDate = Carbon::parse($campaign->start_date ?? $project->start_date);
         $endDate   = Carbon::parse($campaign->end_date ?? $project->end_date);
         $weeks     = max(1, (int) ceil(max(1, $startDate->diffInDays($endDate) + 1) / 7));
@@ -203,6 +210,9 @@ TXT;
     {
         $post  = Post::with('project.brand')->findOrFail($postId);
         $brand = $post->project->brand;
+        // Rigenerazione singolo post (endpoint HTTP): chiave del brand se presente,
+        // altrimenti fallback morbido alla chiave di sistema (no blocco).
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand);
 
         $prompt = $this->promptBuilder->buildRegeneratePrompt(
             postContent:     $post->content,

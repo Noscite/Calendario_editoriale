@@ -13,7 +13,7 @@ use App\Domain\Generation\Contracts\ImageGeneratorInterface;
  */
 final class StubImageGenerator implements ImageGeneratorInterface
 {
-    public function generateImage(int $postId, ?string $visualSuggestion = null): string
+    public function generateImage(int $postId, ?string $visualSuggestion = null, ?string $provider = null): string
     {
         return '';
     }

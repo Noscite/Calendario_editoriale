@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Generation\Services;
 
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Brand\Services\BrandApiKeyService;
 use App\Domain\Generation\Contracts\ImageGeneratorInterface;
 use App\Domain\Generation\Services\ImageModelRouter;
 use App\Domain\Generation\Services\PromptBuilder;
@@ -44,17 +45,68 @@ final class DalleImageGenerator implements ImageGeneratorInterface
     private const CLAUDE_API_URL      = 'https://api.anthropic.com/v1/messages';
     private const OPENAI_API_URL      = 'https://api.openai.com/v1/images/generations';
     private const OPENAI_CHAT_API_URL = 'https://api.openai.com/v1/chat/completions';
+    private const GEMINI_API_BASE     = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+    private const PROVIDER_OPENAI = 'openai';
+    private const PROVIDER_GEMINI = 'gemini';
 
     private const MAX_CAROUSEL_SLIDES = 5;
 
     private string $anthropicKey;
     private string $openaiKey;
+    private string $geminiKey;
 
     public function __construct(
         private readonly PromptBuilder $promptBuilder,
     ) {
-        $this->anthropicKey = config('services.anthropic.api_key', env('ANTHROPIC_API_KEY', ''));
-        $this->openaiKey    = config('services.openai.api_key', env('OPENAI_API_KEY', ''));
+        // NB: config() ritorna il valore esistente anche se null → il default del
+        // secondo argomento NON scatta. Cast esplicito a string per proprietà tipate.
+        $this->anthropicKey = (string) config('services.anthropic.api_key', '');
+        $this->openaiKey    = (string) config('services.openai.api_key', '');
+        $this->geminiKey    = (string) config('services.gemini.api_key', '');
+    }
+
+    /**
+     * Sovrascrive le chiavi API con quelle configurate a mano sul brand (se presenti),
+     * altrimenti mantiene il fallback di sistema. Va chiamato all'inizio di ogni
+     * entrypoint pubblico: senza, si userebbe sempre la chiave di sistema Noscite.
+     */
+    private function resolveBrandKeys(?Brand $brand): void
+    {
+        if (! $brand) {
+            return;
+        }
+
+        $keys = app(BrandApiKeyService::class);
+
+        // Chiave del brand se configurata, altrimenti chiave di sistema — senza lanciare
+        // (un utente non-superuser su brand senza chiave non deve vedersi bloccare la
+        // generazione immagine col MissingBrandApiKeyException).
+        $this->anthropicKey = $keys->get($brand, BrandApiKeyService::ANTHROPIC_API_KEY)
+            ?: (string) config('services.anthropic.api_key', '');
+
+        // OpenAI/Gemini possono non essere configurati a livello sistema: non forziamo
+        // l'eccezione qui, la resa immagine fallirà con messaggio chiaro se manca la
+        // chiave del provider effettivamente scelto.
+        $this->openaiKey = $keys->get($brand, BrandApiKeyService::OPENAI_API_KEY)
+            ?: (string) config('services.openai.api_key', '');
+        $this->geminiKey = $keys->get($brand, BrandApiKeyService::GEMINI_API_KEY)
+            ?: (string) config('services.gemini.api_key', '');
+    }
+
+    /**
+     * Provider immagini effettivo: override esplicito → default del brand →
+     * default di sistema. Valori ammessi: 'openai' | 'gemini'.
+     */
+    private function resolveProvider(?Brand $brand, ?string $override): string
+    {
+        $provider = $override
+            ?: ($brand?->image_provider
+                ?: (string) config('services.image.default_provider', self::PROVIDER_OPENAI));
+
+        $provider = mb_strtolower(trim($provider));
+
+        return $provider === self::PROVIDER_GEMINI ? self::PROVIDER_GEMINI : self::PROVIDER_OPENAI;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -66,11 +118,15 @@ final class DalleImageGenerator implements ImageGeneratorInterface
      *
      * Flusso: Claude prompt → GPT-4o enhance → gpt-image-1/DALL-E 3 → salva su disco.
      */
-    public function generateImage(int $postId, ?string $visualSuggestion = null): string
+    public function generateImage(int $postId, ?string $visualSuggestion = null, ?string $provider = null): string
     {
         $post    = Post::with('project.brand')->findOrFail($postId);
         $project = $post->project;
         $brand   = $project->brand;
+
+        // Chiavi configurate a mano sul brand (fallback sistema) + provider effettivo.
+        $this->resolveBrandKeys($brand);
+        $provider = $this->resolveProvider($brand, $provider);
 
         $visual = $visualSuggestion ?? $post->visual_suggestion;
 
@@ -83,7 +139,7 @@ final class DalleImageGenerator implements ImageGeneratorInterface
             $post->update(['visual_suggestion' => $visualSuggestion]);
         }
 
-        // Step 1: Claude genera prompt DALL-E dettagliato
+        // Step 1: Claude genera prompt immagine dettagliato
         [$detailedPrompt, $promptTokens] = $this->generateImagePromptFromClaude(
             postContent:      $post->content ?? '',
             platform:         $post->platform?->value ?? $post->platform ?? '',
@@ -97,14 +153,20 @@ final class DalleImageGenerator implements ImageGeneratorInterface
 
         $post->update(['image_prompt' => $detailedPrompt]);
 
-        // Step 2: GPT-4o enhance prompt (come openai_service._enhance_prompt_with_gpt4)
-        $enhancedPrompt = $this->enhancePromptWithGpt4($detailedPrompt);
+        $size = '1024x1024'; // Default per feed
 
-        // Step 3: Router seleziona modello in base a piano + pillar, fallback DALL-E 3 immutato
-        $size       = '1024x1024'; // Default per feed
-        $routed     = app(ImageModelRouter::class)->selectForPost($post);
-        $imageUrl   = $this->callDalle($enhancedPrompt, $size, $routed['openai_model'], $routed['quality']);
-        Log::info('[ROUTER] Selected model', ['post_id' => $post->id, 'plan' => $routed['plan'], 'pillar' => $post->pillar, 'tier' => $routed['tier'], 'model' => $routed['openai_model'], 'quality' => $routed['quality'], 'cost_est' => $routed['estimated_cost'], 'hero' => $routed['hero_override']]);
+        // Step 2/3: resa immagine secondo il provider scelto.
+        if ($provider === self::PROVIDER_GEMINI) {
+            // Gemini genera direttamente dal prompt Claude (nessun enhance OpenAI).
+            $imageUrl = $this->callGemini($detailedPrompt, $size);
+            Log::info('[IMAGE] Provider gemini', ['post_id' => $post->id, 'model' => config('services.gemini.image_model')]);
+        } else {
+            // OpenAI: GPT-4o enhance → router (piano+pillar) → gpt-image-1/DALL-E 3.
+            $enhancedPrompt = $this->enhancePromptWithGpt4($detailedPrompt);
+            $routed         = app(ImageModelRouter::class)->selectForPost($post);
+            $imageUrl       = $this->callDalle($enhancedPrompt, $size, $routed['openai_model'], $routed['quality']);
+            Log::info('[ROUTER] Selected model', ['post_id' => $post->id, 'plan' => $routed['plan'], 'pillar' => $post->pillar, 'tier' => $routed['tier'], 'model' => $routed['openai_model'], 'quality' => $routed['quality'], 'cost_est' => $routed['estimated_cost'], 'hero' => $routed['hero_override']]);
+        }
 
         // Step 4: Salva su disco
         $savedPath = $this->saveImageToDisk($imageUrl, $post->id);
@@ -125,6 +187,7 @@ final class DalleImageGenerator implements ImageGeneratorInterface
     {
         $post  = Post::with('project.brand')->findOrFail($postId);
         $brand = $post->project->brand;
+        $this->resolveBrandKeys($brand);
 
         [$prompt] = $this->generateImagePromptFromClaude(
             postContent:      $post->content ?? '',
@@ -154,6 +217,9 @@ final class DalleImageGenerator implements ImageGeneratorInterface
         $post    = Post::with('project.brand')->findOrFail($postId);
         $project = $post->project;
         $brand   = $project->brand;
+
+        $this->resolveBrandKeys($brand);
+        $provider = $this->resolveProvider($brand, $params['provider'] ?? null);
 
         $visualSuggestion = $params['visual_suggestion'] ?? $post->visual_suggestion ?? '';
         $imageFormat      = $params['image_format'] ?? '1080x1080';
@@ -185,20 +251,43 @@ final class DalleImageGenerator implements ImageGeneratorInterface
             )];
         }
 
-        // Genera immagini con DALL-E
+        // Genera immagini con il provider scelto
         $generatedImages = [];
+        $lastError       = null;
 
         foreach ($prompts as $i => $prompt) {
             try {
-                $enhancedPrompt = $this->enhancePromptWithGpt4($prompt);
-                $rawUrl         = $this->callDalle($enhancedPrompt, $dalleSize);
-                $savedPath      = $this->saveImageToDisk($rawUrl, $post->id, "carousel_{$i}");
+                if ($provider === self::PROVIDER_GEMINI) {
+                    $rawUrl = $this->callGemini($prompt, $dalleSize);
+                } else {
+                    $enhancedPrompt = $this->enhancePromptWithGpt4($prompt);
+                    $rawUrl         = $this->callDalle($enhancedPrompt, $dalleSize);
+                }
+                $savedPath = $this->saveImageToDisk($rawUrl, $post->id, "carousel_{$i}");
 
                 $generatedImages[] = $savedPath;
             } catch (\Throwable $e) {
-                Log::error("[DALLE] Errore generazione immagine {$i}: {$e->getMessage()}");
+                $lastError = $e->getMessage();
+                Log::error("[IMAGE] Errore generazione immagine {$i} (provider {$provider}): {$lastError}");
             }
         }
+
+        // Se NESSUna immagine è stata generata, propaga la causa reale (es. quota
+        // Gemini esaurita, chiave provider mancante) invece di un 500 opaco.
+        if (empty($generatedImages)) {
+            $label = $provider === self::PROVIDER_GEMINI ? 'Gemini' : 'OpenAI';
+            throw new \RuntimeException(
+                "Generazione immagine fallita ({$label}): " . ($lastError ?? 'errore sconosciuto')
+            );
+        }
+
+        // Log esplicito del provider effettivamente usato (tracciabilità: il
+        // successo del percorso carosello non lasciava alcun marker).
+        Log::info('[IMAGE] Carosello generato', [
+            'provider' => $provider,
+            'images'   => count($generatedImages),
+            'post_id'  => $post->id,
+        ]);
 
         // Usage tracking
         if (! empty($generatedImages) && $brand) {
@@ -503,6 +592,84 @@ PROMPT;
         }
 
         throw new \RuntimeException("DALL-E API error: HTTP {$response->status()}");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  Gemini — generazione immagine (Nano Banana)
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Genera un'immagine con Google Gemini (gemini-2.5-flash-image).
+     * L'aspect ratio non è un parametro dedicato: lo suggeriamo nel prompt.
+     *
+     * @return string  data:image/...;base64,... string
+     */
+    private function callGemini(string $prompt, string $size = '1024x1024'): string
+    {
+        if ($this->geminiKey === '') {
+            throw new \RuntimeException('Chiave API Gemini non configurata per questo brand.');
+        }
+
+        $model  = (string) config('services.gemini.image_model', 'gemini-2.5-flash-image');
+        $ratio  = match ($size) {
+            '1024x1792' => '9:16 (verticale)',
+            '1792x1024' => '16:9 (orizzontale)',
+            default     => '1:1 (quadrato)',
+        };
+        $fullPrompt = "{$prompt}\n\nGenera l'immagine con aspect ratio {$ratio}. Nessun testo o scritte nell'immagine se non esplicitamente richiesto.";
+
+        // I modelli immagine di Gemini a volte rispondono con sola parte di testo
+        // (preambolo/rifiuto) e nessuna immagine — spesso in modo transitorio. Un
+        // secondo tentativo di norma la restituisce. responseModalities ['TEXT','IMAGE']
+        // (config documentata) dà al modello spazio per un testo E l'immagine.
+        $lastReason = null;
+        $lastText   = null;
+
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $response = Http::withHeaders([
+                'x-goog-api-key' => $this->geminiKey,
+                'Content-Type'   => 'application/json',
+            ])
+                ->timeout(120)
+                ->post(self::GEMINI_API_BASE . "/{$model}:generateContent", [
+                    'contents'         => [
+                        ['parts' => [['text' => $fullPrompt]]],
+                    ],
+                    'generationConfig' => [
+                        'responseModalities' => ['TEXT', 'IMAGE'],
+                    ],
+                ]);
+
+            if ($response->failed()) {
+                $detail = $response->json('error.message') ?? "HTTP {$response->status()}";
+                throw new \RuntimeException("Gemini API error: {$detail}");
+            }
+
+            foreach ($response->json('candidates.0.content.parts', []) as $part) {
+                $data = $part['inlineData']['data'] ?? $part['inline_data']['data'] ?? null;
+                if (! empty($data)) {
+                    $mime = $part['inlineData']['mimeType'] ?? $part['inline_data']['mime_type'] ?? 'image/png';
+                    return "data:{$mime};base64,{$data}";
+                }
+                if (! empty($part['text'])) {
+                    $lastText = $part['text'];
+                }
+            }
+
+            $lastReason = $response->json('candidates.0.finishReason')
+                ?? $response->json('promptFeedback.blockReason');
+            Log::warning("[GEMINI] Nessuna immagine (tentativo {$attempt}/2)", [
+                'finishReason' => $lastReason,
+                'text'         => $lastText ? mb_substr($lastText, 0, 200) : null,
+            ]);
+        }
+
+        // Esaurito il retry: propaga il motivo reale invece di un generico "no image".
+        $why = $lastReason ? " (motivo: {$lastReason})" : '';
+        if ($lastText) {
+            $why .= ' — Gemini ha risposto solo con testo: "' . mb_substr($lastText, 0, 140) . '"';
+        }
+        throw new \RuntimeException("Gemini non ha restituito alcuna immagine{$why}. Riprova o usa OpenAI.");
     }
 
     // ══════════════════════════════════════════════════════════

@@ -30,7 +30,15 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
   const [imageFormat, setImageFormat] = useState('1080x1080');
   const [isCarousel, setIsCarousel] = useState(false);
   const [numSlides, setNumSlides] = useState(3);
+  const [imageProvider, setImageProvider] = useState(''); // '' = default del brand
   const [carouselImages, setCarouselImages] = useState([]);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [gallerySearch, setGallerySearch] = useState('');
+  const [galleryPillar, setGalleryPillar] = useState('');
+  const [galleryPlatform, setGalleryPlatform] = useState('');
+  const [galleryFacets, setGalleryFacets] = useState({ pillars: [], platforms: [] });
   const [isScheduling, setIsScheduling] = useState(false);
   const [showScheduleOptions, setShowScheduleOptions] = useState(false);
   const [activeTab, setActiveTab] = useState('content');
@@ -129,7 +137,8 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
         visual_suggestion: editedPost.visual_suggestion,
         image_format: imageFormat,
         is_carousel: isCarousel,
-        num_slides: isCarousel ? numSlides : 1
+        num_slides: isCarousel ? numSlides : 1,
+        ...(imageProvider ? { provider: imageProvider } : {})
       });
       const result = response.data;
       // Aggiorna stato con le immagini generate
@@ -150,10 +159,58 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
         setMessage({ type: 'success', text: '🎨 Immagine generata con successo!' });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: '❌ ' + error.message });
+      // Mostra la causa reale rimandata dal server (es. quota Gemini, chiave
+      // mancante/invalida) invece del generico "Request failed with status code 502".
+      const detail = error.response?.data?.detail || error.message;
+      setMessage({ type: 'error', text: '❌ ' + detail });
     } finally {
       setIsGeneratingImage(false);
     }
+  };
+
+  const fetchGallery = async (params = {}) => {
+    setGalleryLoading(true);
+    try {
+      const res = await api.get('/gallery', {
+        params: {
+          q: params.q ?? gallerySearch,
+          pillar: params.pillar ?? galleryPillar,
+          platform: params.platform ?? galleryPlatform,
+        },
+      });
+      setGalleryImages(res.data.images || []);
+      if (res.data.facets) setGalleryFacets(res.data.facets);
+    } catch (error) {
+      const detail = error.response?.data?.detail || error.message;
+      setMessage({ type: 'error', text: '❌ ' + detail });
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  const openGallery = async () => {
+    setGalleryOpen(true);
+    fetchGallery();
+  };
+
+  // Debounce ricerca testuale
+  useEffect(() => {
+    if (!galleryOpen) return;
+    const t = setTimeout(() => fetchGallery(), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gallerySearch, galleryPillar, galleryPlatform]);
+
+  const selectFromGallery = (url) => {
+    setEditedPost(prev => ({
+      ...prev,
+      image_url: url,
+      carousel_images: [],
+      is_carousel: false,
+    }));
+    setCarouselImages([]);
+    setGalleryOpen(false);
+    setMessage({ type: 'success', text: '🖼️ Immagine selezionata dalla galleria!' });
   };
 
   const handleImageUpload = async (e) => {
@@ -554,6 +611,21 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
                 </div>
               )}
 
+              {/* Provider immagini: default del brand oppure override per questo post */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">🧠 Provider immagini</label>
+                <select
+                  value={imageProvider}
+                  onChange={(e) => setImageProvider(e.target.value)}
+                  disabled={isGeneratingImage}
+                  className="w-full py-2 px-3 rounded-xl border border-gray-300 bg-white text-gray-700 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                >
+                  <option value="">Default del brand</option>
+                  <option value="openai">OpenAI · DALL·E / gpt-image-1</option>
+                  <option value="gemini">Google Gemini · Nano Banana</option>
+                </select>
+              </div>
+
               <button
                 onClick={handleGenerateImage}
                 disabled={isGeneratingImage || !editedPost.visual_suggestion}
@@ -598,7 +670,96 @@ export default function PostEditModal({ post, isOpen, onClose, onSave }) {
                   )}
                 </label>
               </div>
-              
+
+              {/* Scegli dalla galleria dell'organizzazione */}
+              <div>
+                <button
+                  onClick={openGallery}
+                  className="w-full py-3 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shadow-lg hover:shadow-xl"
+                >
+                  🗂️ Scegli dalla galleria
+                </button>
+
+                {galleryOpen && (
+                  <div className="mt-3 border rounded-xl p-4 bg-gray-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-gray-700">Immagini della tua organizzazione</h4>
+                      <button onClick={() => setGalleryOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">
+                        Chiudi ✕
+                      </button>
+                    </div>
+
+                    {/* Ricerca + filtri */}
+                    <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={gallerySearch}
+                        onChange={(e) => setGallerySearch(e.target.value)}
+                        placeholder="🔎 Cerca per argomento, testo, hashtag…"
+                        className="flex-1 px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#3DAFA8] focus:border-[#3DAFA8]"
+                      />
+                      <select
+                        value={galleryPillar}
+                        onChange={(e) => setGalleryPillar(e.target.value)}
+                        className="px-3 py-2 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-[#3DAFA8]"
+                      >
+                        <option value="">Tutti gli argomenti</option>
+                        {galleryFacets.pillars?.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={galleryPlatform}
+                        onChange={(e) => setGalleryPlatform(e.target.value)}
+                        className="px-3 py-2 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-[#3DAFA8]"
+                      >
+                        <option value="">Tutte le piattaforme</option>
+                        {galleryFacets.platforms?.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {(gallerySearch || galleryPillar || galleryPlatform) && (
+                      <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
+                        <span>{galleryImages.length} risultati</span>
+                        <button
+                          onClick={() => { setGallerySearch(''); setGalleryPillar(''); setGalleryPlatform(''); }}
+                          className="text-[#3DAFA8] hover:underline"
+                        >
+                          Azzera filtri
+                        </button>
+                      </div>
+                    )}
+
+                    {galleryLoading ? (
+                      <div className="py-8 text-center text-gray-500"><span className="animate-spin inline-block">⏳</span> Caricamento galleria…</div>
+                    ) : galleryImages.length === 0 ? (
+                      <div className="py-8 text-center text-gray-400 text-sm">Nessuna immagine ancora disponibile nella galleria.</div>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-80 overflow-y-auto">
+                        {galleryImages.map((img) => (
+                          <button
+                            key={img.url}
+                            type="button"
+                            onClick={() => selectFromGallery(img.url)}
+                            title={img.prompt || ''}
+                            className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
+                              editedPost.image_url === img.url ? 'border-[#3DAFA8] ring-2 ring-[#3DAFA8]' : 'border-transparent hover:border-gray-300'
+                            }`}
+                          >
+                            <img src={img.url} alt={img.prompt || 'immagine'} loading="lazy" className="w-full h-24 object-cover" />
+                            <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold">Usa questa</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Upload Video */}
               <div className="relative">
                 <input

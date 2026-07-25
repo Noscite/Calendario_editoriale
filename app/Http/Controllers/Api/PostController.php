@@ -211,6 +211,7 @@ final class PostController extends Controller
     {
         $data = $request->validate([
             'visual_suggestion' => 'nullable|string',
+            'provider'          => 'nullable|string|in:openai,gemini',
         ]);
 
         $post = $this->postService->getById($id);
@@ -230,9 +231,14 @@ final class PostController extends Controller
         }
 
         try {
-            $imageUrl = $this->imageGenerator->generateImage($id, $data['visual_suggestion'] ?? null);
+            $imageUrl = $this->imageGenerator->generateImage($id, $data['visual_suggestion'] ?? null, $data['provider'] ?? null);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['detail' => $e->getMessage()], 400);
+        } catch (\Throwable $e) {
+            // Errore lato provider (es. quota Gemini esaurita, chiave mancante/invalida).
+            // 422 (non 5xx): Cloudflare intercetta le 5xx dell'origine e le rimpiazza
+            // con la sua pagina d'errore, nascondendo questo detail al frontend.
+            return response()->json(['detail' => $e->getMessage()], 422);
         }
 
         return response()->json(['image_url' => $imageUrl]);
@@ -456,14 +462,21 @@ final class PostController extends Controller
             'image_format'      => 'nullable|string',
             'is_carousel'       => 'nullable|boolean',
             'num_slides'        => 'nullable|integer|min:1|max:5',
+            'provider'          => 'nullable|string|in:openai,gemini',
         ]);
 
         $post = $this->postService->getById($id);
 
-        $result = $this->imageGenerator->generateCarouselImages($id, $data);
+        try {
+            $result = $this->imageGenerator->generateCarouselImages($id, $data);
+        } catch (\Throwable $e) {
+            // 422 (non 5xx): evita che Cloudflare rimpiazzi la risposta con la sua
+            // pagina d'errore, così il frontend riceve il detail reale.
+            return response()->json(['detail' => $e->getMessage()], 422);
+        }
 
         if (empty($result['images'])) {
-            return response()->json(['detail' => 'Generazione immagine fallita. Riprova tra qualche secondo.'], 500);
+            return response()->json(['detail' => 'Generazione immagine fallita. Riprova tra qualche secondo.'], 422);
         }
 
         return response()->json($result);

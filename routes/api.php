@@ -332,6 +332,9 @@ Route::middleware(['auth:sanctum', 'subscription.active'])->group(function () {
     //   api.post('/posts/{id}/schedule', data)
     //   api.post('/posts/{id}/publish')
 
+    // Galleria immagini a livello organizzazione (riuso immagini già generate)
+    Route::get('/gallery', [\App\Http\Controllers\Api\GalleryController::class, 'index']);
+
     Route::prefix('posts')->group(function () {
         // CRUD
         Route::get('/project/{project_id}', [PostController::class, 'byProject']);

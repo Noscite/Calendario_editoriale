@@ -9,11 +9,13 @@ use App\Domain\Post\Models\Post;
 interface ImageGeneratorInterface
 {
     /**
-     * Genera un'immagine per un post tramite DALL-E.
+     * Genera un'immagine per un post.
      *
+     * @param  ?string  $provider  Override provider ('openai'|'gemini'). Se null usa
+     *                             il default del brand, poi il default di sistema.
      * @return string URL dell'immagine generata.
      */
-    public function generateImage(int $postId, ?string $visualSuggestion = null): string;
+    public function generateImage(int $postId, ?string $visualSuggestion = null, ?string $provider = null): string;
 
     /**
      * Genera un prompt immagine ottimizzato per DALL-E da un post.

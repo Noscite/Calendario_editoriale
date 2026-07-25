@@ -37,6 +37,7 @@ class BrandApiKeyService
     public const ANTHROPIC_API_KEY  = 'anthropic_api_key';
     public const OPENAI_API_KEY     = 'openai_api_key';
     public const PERPLEXITY_API_KEY = 'perplexity_api_key';
+    public const GEMINI_API_KEY     = 'gemini_api_key';
 
     // ── Gruppi per la UI ──────────────────────────────────────────────────────
 
@@ -65,7 +66,8 @@ class BrandApiKeyService
             ],
             'AI' => [
                 self::ANTHROPIC_API_KEY  => 'Anthropic API Key',
-                self::OPENAI_API_KEY     => 'OpenAI API Key',
+                self::OPENAI_API_KEY     => 'OpenAI API Key (immagini DALL·E)',
+                self::GEMINI_API_KEY     => 'Google Gemini API Key (immagini)',
                 self::PERPLEXITY_API_KEY => 'Perplexity API Key',
             ],
         ];

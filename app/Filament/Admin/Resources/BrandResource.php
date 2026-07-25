@@ -55,6 +55,16 @@ class BrandResource extends Resource
                         ->label('Tono di voce (descrizione)')
                         ->rows(3)
                         ->helperText('Es: caldo, autentico, vicino alle comunità locali. Sovrascrive i default del settore.'),
+
+                    Forms\Components\Select::make('image_provider')
+                        ->label('Provider immagini (default)')
+                        ->options([
+                            'openai' => 'OpenAI · DALL·E / gpt-image-1',
+                            'gemini' => 'Google Gemini · Nano Banana',
+                        ])
+                        ->placeholder('Default di sistema')
+                        ->native(false)
+                        ->helperText('Provider usato di default per generare le immagini di questo brand. Richiede la relativa chiave API in "API & Integrazioni". Sovrascrivibile per singolo post.'),
                 ])
                 ->columns(2),
 

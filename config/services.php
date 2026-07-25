@@ -98,6 +98,17 @@ return [
         'image_default_model'  => env('IMAGE_DEFAULT_MODEL', 'gpt-image-1'),
     ],
 
+    'gemini' => [
+        'api_key'     => env('GEMINI_API_KEY'),
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
+    ],
+
+    // Provider immagini di default a livello sistema. Sovrascrivibile per brand
+    // (colonna brands.image_provider) e per singola generazione (param `provider`).
+    'image' => [
+        'default_provider' => env('IMAGE_DEFAULT_PROVIDER', 'openai'), // openai | gemini
+    ],
+
     'perplexity' => [
         'api_key' => env('PERPLEXITY_API_KEY'),
     ],

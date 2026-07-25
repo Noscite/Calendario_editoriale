@@ -58,7 +58,13 @@ class BrandApiKeyController extends Controller
             'keys' => ['required', 'array'],
         ])['keys'];
 
-        $this->service->saveMany($brand, $data);
+        try {
+            $this->service->saveMany($brand, $data);
+        } catch (\DomainException $e) {
+            // Piano senza has_own_api_keys: la UI non mostra il form, ma una POST
+            // diretta all'API arriverebbe fin qui → 403 pulito invece di 500.
+            return response()->json(['detail' => $e->getMessage()], 403);
+        }
 
         return response()->json(['message' => 'Chiavi salvate con successo']);
     }

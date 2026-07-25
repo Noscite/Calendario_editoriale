@@ -59,6 +59,31 @@ TXT;
     }
 
     /**
+     * Variante "morbida" per i percorsi sincroni innescati da un utente autenticato
+     * (generazione post AI, rigenerazione, campagne). Usa la chiave del brand se
+     * configurata a mano, altrimenti MANTIENE la chiave di sistema corrente SENZA
+     * lanciare — a differenza di withBrand(), che pretende superuser/system-tenant/
+     * queue per il fallback. Evita di bloccare la generazione dei brand che non hanno
+     * (ancora) una chiave propria, replicando il comportamento del job in coda.
+     */
+    public function withBrandOrSystemFallback(?Brand $brand): static
+    {
+        if (! $brand) {
+            return $this;
+        }
+
+        $key = app(BrandApiKeyService::class)->get($brand, BrandApiKeyService::ANTHROPIC_API_KEY);
+
+        if ($key === null || $key === '') {
+            return $this; // nessuna chiave brand-level → resta sulla chiave di sistema
+        }
+
+        $clone         = clone $this;
+        $clone->apiKey = $key;
+        return $clone;
+    }
+
+    /**
      * @param  array<int, array{name: string, url: string, api_key: ?string}>  $mcpServers
      *         MCP connectors da iniettare nella request (opzionale). Quando non
      *         vuoto attiva l'header beta MCP. Vedi formatMcpServers().
