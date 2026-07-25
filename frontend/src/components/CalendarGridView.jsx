@@ -121,7 +121,7 @@ export default function CalendarGridView({ posts, onPostsUpdate, apiUrl }) {
       </div>
 
       {/* Month Navigation */}
-      <div className="flex justify-center gap-3 mb-6">
+      <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-6">
         <button
           onClick={() => setCurrentDate(subMonths(currentDate, 1))}
           className="px-6 py-2 border-2 border-teal-500 text-teal-500 rounded-full font-semibold hover:bg-teal-500 hover:text-white transition-all"
@@ -141,6 +141,8 @@ export default function CalendarGridView({ posts, onPostsUpdate, apiUrl }) {
 
       {/* Calendar Grid */}
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+       <div className="overflow-x-auto">
+        <div className="min-w-[700px] md:min-w-0">
         {/* Header */}
         <div className="grid grid-cols-7 bg-slate-700 text-white">
           {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(day => (
@@ -199,6 +201,8 @@ export default function CalendarGridView({ posts, onPostsUpdate, apiUrl }) {
             );
           })}
         </div>
+        </div>
+       </div>
       </div>
 
       {/* Edit Modal */}
