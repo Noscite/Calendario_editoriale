@@ -174,7 +174,7 @@ final class DalleImageGenerator implements ImageGeneratorInterface
 
         // Usage tracking
         if ($brand) {
-            $this->trackUsage($brand->organization_id, 1, $promptTokens);
+            $this->trackUsage($brand->organization_id, $brand->id, 1, $promptTokens);
         }
 
         return $savedPath;
@@ -291,7 +291,7 @@ final class DalleImageGenerator implements ImageGeneratorInterface
 
         // Usage tracking
         if (! empty($generatedImages) && $brand) {
-            $this->trackUsage($brand->organization_id, count($generatedImages), 0);
+            $this->trackUsage($brand->organization_id, $brand->id, count($generatedImages), 0);
         }
 
         // Aggiorna post (come il Python)
@@ -746,12 +746,13 @@ PROMPT;
     /**
      * Tracka usage immagini + token.
      */
-    private function trackUsage(int $organizationId, int $images, int $tokens): void
+    private function trackUsage(int $organizationId, int $brandId, int $images, int $tokens): void
     {
         try {
             $usage = UsageLog::firstOrCreate(
                 [
                     'organization_id' => $organizationId,
+                    'brand_id'        => $brandId,
                     'period_start'    => now()->startOfMonth()->toDateString(),
                 ],
                 [
@@ -766,7 +767,7 @@ PROMPT;
                 $usage->increment('text_tokens_used', $tokens);
             }
 
-            Log::info("[DALLE] Usage tracked: org={$organizationId}, images={$images}, tokens={$tokens}");
+            Log::info("[DALLE] Usage tracked: org={$organizationId}, brand={$brandId}, images={$images}, tokens={$tokens}");
         } catch (\Throwable $e) {
             Log::warning("[DALLE] Usage tracking error: {$e->getMessage()}");
         }

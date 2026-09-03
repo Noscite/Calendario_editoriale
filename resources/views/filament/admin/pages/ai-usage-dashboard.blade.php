@@ -97,6 +97,63 @@
             @endif
         </div>
 
+        {{-- Storico grezzo per brand — fallback finché ai_usage_events non ha dati --}}
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
+            <h3 class="font-semibold text-lg mb-1">🏢 Chi ha usato l'AI — brand di {{ $data['org']->name }} ({{ $data['period_label'] }})</h3>
+            <p class="text-xs text-gray-500 mb-4">
+                Dati grezzi da <code>usage_tracking</code> (token/immagini per singolo brand), filtrati sull'organizzazione
+                selezionata sopra. Il costo è una <strong>stima a range</strong> (min = tutto a tariffa input, max = tutto a
+                tariffa output di Opus 4.8): <code>usage_tracking</code> salva solo il totale di token, non lo split
+                esatto input/output né il modello di ogni singola chiamata — a differenza delle tabelle sopra e
+                sotto, che quando <code>ai_usage_events</code> avrà dati mostreranno importi esatti.
+            </p>
+            @if ($data['raw_usage']->isEmpty())
+                <div class="text-sm text-gray-500 italic">Nessun brand di questa organizzazione ha consumato token AI nel periodo selezionato.</div>
+            @else
+                <div class="mb-3 text-sm">
+                    <span class="text-gray-500">Totale organizzazione (range):</span>
+                    <span class="font-semibold">
+                        €{{ number_format($data['raw_usage_total_min'], 2, ',', '.') }} – €{{ number_format($data['raw_usage_total_max'], 2, ',', '.') }}
+                    </span>
+                </div>
+                @php $maxTokens = max(1, $data['raw_usage']->max('text_tokens')); @endphp
+                <div class="overflow-x-auto -mx-2">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-2 px-3">Brand</th>
+                            <th class="text-left py-2 px-3">Consumo token</th>
+                            <th class="text-right py-2 px-3 whitespace-nowrap">Generazioni</th>
+                            <th class="text-right py-2 px-3 whitespace-nowrap">Immagini</th>
+                            <th class="text-right py-2 px-3 whitespace-nowrap">Costo stimato €</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($data['raw_usage'] as $row)
+                            <tr class="border-b last:border-0">
+                                <td class="py-2 px-3 font-semibold">
+                                    {{ $row['brand_name'] }}
+                                </td>
+                                <td class="py-2 px-3 w-48">
+                                    @php $width = min(100, max(2, ($row['text_tokens'] / $maxTokens) * 100)); @endphp
+                                    <div class="flex items-center gap-2">
+                                        <div class="bg-blue-500 h-2 rounded" style="width: {{ $width }}%"></div>
+                                        <span class="text-xs text-gray-500 whitespace-nowrap">{{ number_format($row['text_tokens'], 0, ',', '.') }}</span>
+                                    </div>
+                                </td>
+                                <td class="py-2 px-3 text-right whitespace-nowrap">{{ $row['calendar_generations'] }}</td>
+                                <td class="py-2 px-3 text-right whitespace-nowrap">{{ $row['images'] }}</td>
+                                <td class="py-2 px-3 text-right font-semibold whitespace-nowrap">
+                                    €{{ number_format($row['cost_min_eur'], 2, ',', '.') }} – €{{ number_format($row['cost_max_eur'], 2, ',', '.') }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                </div>
+            @endif
+        </div>
+
         {{-- Costo per step di generazione e modello --}}
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
             <h3 class="font-semibold text-lg mb-4">🧩 Costo per step e modello</h3>

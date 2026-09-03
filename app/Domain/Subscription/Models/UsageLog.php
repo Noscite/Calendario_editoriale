@@ -2,6 +2,7 @@
 
 namespace App\Domain\Subscription\Models;
 
+use App\Domain\Brand\Models\Brand;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Shared\Traits\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,6 +17,7 @@ class UsageLog extends Model
 
     protected $fillable = [
         'organization_id',
+        'brand_id',
         'period_start',
         'period_end',
         // Contatori
@@ -56,4 +58,9 @@ class UsageLog extends Model
 
     // ── Relations ──────────────────────────────────────────────
     // organization() is provided by BelongsToOrganization trait
+
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
+    }
 }

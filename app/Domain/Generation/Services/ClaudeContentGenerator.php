@@ -120,7 +120,7 @@ TXT;
             $created->push(Post::create($row));
         }
 
-        $this->logTokenUsage($project->organization_id, $tokens, 'generate_ai_posts');
+        $this->logTokenUsage($project->organization_id, $brand->id, $tokens, 'generate_ai_posts');
         return $created;
     }
 
@@ -202,7 +202,7 @@ TXT;
             $created->push(Post::create($row));
         }
 
-        $this->logTokenUsage($project->organization_id, $tokens, "campaign_{$campaign->id}");
+        $this->logTokenUsage($project->organization_id, $brand->id, $tokens, "campaign_{$campaign->id}");
 
         return $created;
     }
@@ -252,7 +252,7 @@ TXT;
             'call_to_action'    => $result['cta'] ?? $result['call_to_action'] ?? $post->call_to_action,
         ]);
 
-        $this->logTokenUsage($post->organization_id, $tokensUsed, 'regenerate_post');
+        $this->logTokenUsage($post->organization_id, $brand->id, $tokensUsed, 'regenerate_post');
         return $post->fresh();
     }
 
@@ -1423,17 +1423,19 @@ TXT;
         }
     }
 
-    private function logTokenUsage(int $organizationId, int $tokens, string $operation): void
+    private function logTokenUsage(int $organizationId, int $brandId, int $tokens, string $operation): void
     {
         if ($tokens <= 0) return;
-        Log::info("[TOKENS] Org #{$organizationId}: {$tokens} tokens ({$operation})");
+        Log::info("[TOKENS] Org #{$organizationId} Brand #{$brandId}: {$tokens} tokens ({$operation})");
         try {
             $now = now();
-            \App\Domain\Subscription\Models\UsageLog::updateOrCreate([
+            \App\Domain\Subscription\Models\UsageLog::firstOrCreate([
                 'organization_id' => $organizationId,
+                'brand_id'        => $brandId,
                 'period_start'    => $now->copy()->startOfMonth()->toDateString(),
-                'period_end'      => $now->copy()->endOfMonth()->toDateString(),
-            ], [])->increment('text_tokens_used', $tokens);
+            ], [
+                'period_end' => $now->copy()->endOfMonth()->toDateString(),
+            ])->increment('text_tokens_used', $tokens);
         } catch (\Throwable $e) {
             Log::warning("[TOKENS] Failed to log usage: {$e->getMessage()}");
         }

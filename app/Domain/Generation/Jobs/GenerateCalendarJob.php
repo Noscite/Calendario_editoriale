@@ -340,7 +340,7 @@ final class GenerateCalendarJob implements ShouldQueue
         }
 
         // ── 9. Usage tracking (calendars=1 + tokens) ──
-        $this->incrementUsage($brand->organization_id, $totalTokensUsed);
+        $this->incrementUsage($brand->organization_id, $brand->id, $totalTokensUsed);
 
         // ── 10. Status → review ──
         $project->update(['status' => ProjectStatus::Review]);
@@ -383,7 +383,7 @@ final class GenerateCalendarJob implements ShouldQueue
      * Incrementa contatori usage.
      * Replica di increment_usage() da subscriptions.py.
      */
-    private function incrementUsage(int $organizationId, int $tokens): void
+    private function incrementUsage(int $organizationId, int $brandId, int $tokens): void
     {
         try {
             $periodStart = now()->startOfMonth()->toDateString();
@@ -392,6 +392,7 @@ final class GenerateCalendarJob implements ShouldQueue
             $usage = UsageLog::firstOrCreate(
                 [
                     'organization_id' => $organizationId,
+                    'brand_id'        => $brandId,
                     'period_start'    => $periodStart,
                 ],
                 [
@@ -405,7 +406,7 @@ final class GenerateCalendarJob implements ShouldQueue
                 $usage->increment('text_tokens_used', $tokens);
             }
 
-            Log::info("[GEN] Usage tracked: org={$organizationId}, tokens={$tokens}, calendars=1");
+            Log::info("[GEN] Usage tracked: org={$organizationId}, brand={$brandId}, tokens={$tokens}, calendars=1");
         } catch (\Throwable $e) {
             Log::error("[GEN] Usage tracking error: {$e->getMessage()}");
         }

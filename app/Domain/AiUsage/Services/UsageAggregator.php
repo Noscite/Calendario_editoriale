@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\AiUsage\Services;
 
 use App\Domain\AiUsage\Models\AiUsageEvent;
+use App\Domain\Subscription\Models\UsageLog;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
@@ -123,5 +124,74 @@ class UsageAggregator
                 'total_eur' => (float) $r->total_eur,
                 'calls'     => (int) $r->calls,
             ]);
+    }
+
+    /**
+     * Fallback quando ai_usage_events non ha ancora dati (es. subito dopo il
+     * deploy del tracking, prima che sia partita una nuova generazione): usa
+     * i contatori grezzi di usage_tracking, popolati da GenerateCalendarJob
+     * e DalleImageGenerator fin da prima dell'introduzione di ai_usage_events.
+     *
+     * Granularità per BRAND, non per organizzazione: un'organizzazione con
+     * più brand deve poter vedere quale brand specifico ha consumato, non
+     * solo il totale aggregato. brand_id è nullable in usage_tracking (righe
+     * storiche pre-migrazione, o organizzazioni senza brand associato): quelle
+     * righe vengono raggruppate sotto "— (non attribuito a un brand)".
+     *
+     * A differenza di costByPurposeAndModel(), qui il costo è una STIMA a
+     * range (min/max), non un importo esatto: usage_tracking salva solo il
+     * totale di token input+output per brand/mese, senza lo split tra i due
+     * (che ha tariffe molto diverse) né il modello usato per ogni chiamata.
+     * Cross-tenant per default (un superuser deve poter vedere quali brand
+     * hanno consumato su tutta la piattaforma), ma filtrabile su una singola
+     * organizzazione — es. la pagina AI Usage Dashboard, che ha già un
+     * selettore organizzazione e deve mostrare solo i suoi brand, non tutti.
+     *
+     * @return Collection<int, array{brand_id:?int, brand_name:string, organization_name:string, calendar_generations:int, text_tokens:int, images:int, cost_min_eur:float, cost_max_eur:float}>
+     */
+    public function rawUsageByBrand(CarbonInterface $startDate, CarbonInterface $endDate, ?int $organizationId = null): Collection
+    {
+        $pricing  = config('ai_pricing.anthropic.claude-opus-4-8', config('ai_pricing.anthropic.default'));
+        $usdToEur = (float) config('ai_pricing.usd_to_eur', 0.93);
+        $imgCost  = (float) config('ai_pricing.openai_images.default', 0.04);
+
+        return UsageLog::query()
+            ->withoutGlobalScope('organization')
+            ->join('organizations', 'organizations.id', '=', 'usage_tracking.organization_id')
+            ->leftJoin('brands', 'brands.id', '=', 'usage_tracking.brand_id')
+            ->when($organizationId !== null, fn ($q) => $q->where('usage_tracking.organization_id', $organizationId))
+            ->where('usage_tracking.period_start', '<=', $endDate->toDateString())
+            ->where('usage_tracking.period_end', '>=', $startDate->toDateString())
+            ->where(function ($q) {
+                $q->where('usage_tracking.text_tokens_used', '>', 0)
+                  ->orWhere('usage_tracking.images_generated', '>', 0);
+            })
+            ->selectRaw('usage_tracking.brand_id AS brand_id, brands.name AS brand_name, '
+                . 'organizations.id AS organization_id, organizations.name AS organization_name, '
+                . 'SUM(usage_tracking.calendar_generations_used) AS calendar_generations, '
+                . 'SUM(usage_tracking.text_tokens_used) AS text_tokens, '
+                . 'SUM(usage_tracking.images_generated) AS images')
+            ->groupBy('usage_tracking.brand_id', 'brands.name', 'organizations.id', 'organizations.name')
+            ->orderByDesc('text_tokens')
+            ->get()
+            ->map(function ($r) use ($pricing, $usdToEur, $imgCost) {
+                $tokens  = (int) $r->text_tokens;
+                $images  = (int) $r->images;
+                $minUsd  = ($tokens / 1_000_000) * $pricing['input'];
+                $maxUsd  = ($tokens / 1_000_000) * $pricing['output'];
+                $imgUsd  = $images * $imgCost;
+
+                return [
+                    'brand_id'             => $r->brand_id !== null ? (int) $r->brand_id : null,
+                    'brand_name'           => $r->brand_name ?? '— (non attribuito a un brand)',
+                    'organization_id'      => (int) $r->organization_id,
+                    'organization_name'    => $r->organization_name,
+                    'calendar_generations' => (int) $r->calendar_generations,
+                    'text_tokens'          => $tokens,
+                    'images'               => $images,
+                    'cost_min_eur'         => ($minUsd + $imgUsd) * $usdToEur,
+                    'cost_max_eur'         => ($maxUsd + $imgUsd) * $usdToEur,
+                ];
+            });
     }
 }

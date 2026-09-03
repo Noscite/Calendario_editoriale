@@ -53,6 +53,7 @@ class AIUsageDashboard extends Page
         $topBrands = $aggregator->topConsumers($org->id, $start, $end, 10);
         $daily     = $aggregator->dailyCostForOrganization($org->id, days: 30);
         $byStep    = $aggregator->costByPurposeAndModel($org->id, $start, $end);
+        $rawUsage  = $aggregator->rawUsageByBrand($start, $end, $org->id);
 
         $planRevenue = $this->resolvePlanRevenue($org);
 
@@ -70,6 +71,9 @@ class AIUsageDashboard extends Page
             'top_brands'             => $topBrands,
             'daily'                  => $daily,
             'by_step'                => $byStep,
+            'raw_usage'              => $rawUsage,
+            'raw_usage_total_min'    => $rawUsage->sum('cost_min_eur'),
+            'raw_usage_total_max'    => $rawUsage->sum('cost_max_eur'),
             'period_label'           => $this->periodLabel(),
             'plan_revenue_eur'       => $planRevenue,
             'gross_margin_pct'       => $planRevenue > 0

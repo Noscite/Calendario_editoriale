@@ -49,6 +49,12 @@ class UsageLogResource extends Resource
                         ->preload()
                         ->required(),
 
+                    Forms\Components\Select::make('brand_id')
+                        ->label('Brand')
+                        ->relationship('brand', 'name')
+                        ->searchable()
+                        ->preload(),
+
                     Forms\Components\DatePicker::make('period_start')
                         ->label('Inizio periodo')
                         ->required(),
@@ -110,6 +116,12 @@ class UsageLogResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('brand.name')
+                    ->label('Brand')
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('— (non attribuito)'),
+
                 Tables\Columns\TextColumn::make('period_start')
                     ->label('Inizio')
                     ->date('d/m/Y')
@@ -135,6 +147,13 @@ class UsageLogResource extends Resource
                     ->numeric()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('estimated_cost')
+                    ->label('Costo AI stimato')
+                    ->state(fn (UsageLog $record): string => static::formatEstimatedCost($record))
+                    ->tooltip('Stima da usage_tracking (token totali, non lo split input/output): min = tutto a '
+                        . 'tariffa input, max = tutto a tariffa output di Opus 4.8, + immagini a tariffa piatta. '
+                        . 'Non è un importo esatto fatturato — vedi Sistema → AI Usage & Costi per il dettaglio per step/modello.'),
+
                 Tables\Columns\TextColumn::make('overage_cost')
                     ->label('Costo extra')
                     ->money('eur')
@@ -145,6 +164,12 @@ class UsageLogResource extends Resource
                 Tables\Filters\SelectFilter::make('organization_id')
                     ->label('Organizzazione')
                     ->relationship('organization', 'name')
+                    ->searchable()
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('brand_id')
+                    ->label('Brand')
+                    ->relationship('brand', 'name')
                     ->searchable()
                     ->preload(),
             ])
@@ -176,5 +201,32 @@ class UsageLogResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->withoutGlobalScope('organization');
+    }
+
+    /**
+     * Range di costo stimato per la riga (token + immagini), stessa
+     * metodologia di UsageAggregator::rawUsageByBrand() — vedi il tooltip
+     * della colonna per il perché è un range e non un importo esatto.
+     */
+    private static function formatEstimatedCost(UsageLog $record): string
+    {
+        $pricing  = config('ai_pricing.anthropic.claude-opus-4-8', config('ai_pricing.anthropic.default'));
+        $usdToEur = (float) config('ai_pricing.usd_to_eur', 0.93);
+        $imgCost  = (float) config('ai_pricing.openai_images.default', 0.04);
+
+        $tokens = (int) $record->text_tokens_used;
+        $images = (int) $record->images_generated;
+
+        if ($tokens <= 0 && $images <= 0) {
+            return '—';
+        }
+
+        $minUsd = ($tokens / 1_000_000) * $pricing['input'] + $images * $imgCost;
+        $maxUsd = ($tokens / 1_000_000) * $pricing['output'] + $images * $imgCost;
+
+        $minEur = $minUsd * $usdToEur;
+        $maxEur = $maxUsd * $usdToEur;
+
+        return '€' . number_format($minEur, 2, ',', '.') . ' – €' . number_format($maxEur, 2, ',', '.');
     }
 }
