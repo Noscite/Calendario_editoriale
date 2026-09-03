@@ -39,6 +39,8 @@ class Plan extends Model
         'allows_overage',
         'overage_price_per_1k_tokens',
         'overage_price_per_image',
+        // Wallet crediti-post
+        'post_credit_price_eur',
         'is_active',
         // Campaigns
         'max_active_campaigns',
@@ -60,6 +62,7 @@ class Plan extends Model
         'has_ab_testing'  => false,
         'has_own_api_keys' => false,
         'allows_overage'  => false,
+        'post_credit_price_eur' => 2.00,
         'is_active' => true,
     ];
 
@@ -85,6 +88,7 @@ class Plan extends Model
             'allows_overage'  => 'boolean',
             'overage_price_per_1k_tokens' => 'decimal:4',
             'overage_price_per_image' => 'decimal:4',
+            'post_credit_price_eur' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }

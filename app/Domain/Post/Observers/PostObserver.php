@@ -6,10 +6,12 @@ namespace App\Domain\Post\Observers;
 
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Models\PostEditLog;
+use App\Domain\Subscription\Services\PostCreditService;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Observer che traccia le modifiche manuali su post AI-generated.
+ * Observer che traccia le modifiche manuali su post AI-generated e debita
+ * il wallet crediti-post alla creazione.
  * Salva un PostEditLog per ogni cambio dei campi rilevanti, escludendo
  * il momento di creazione iniziale (è la generazione AI, non un edit umano).
  */
@@ -21,6 +23,22 @@ final class PostObserver
         'visual_suggestion',
         'call_to_action',
     ];
+
+    /**
+     * Debita 1 credito-post per ogni Post AI-generated creato via
+     * Post::create() (Eloquent). NB: Post::insert() bulk (usato da
+     * GenerateCalendarJob per il path principale) bypassa gli eventi
+     * Eloquent e quindi questo observer — quel percorso chiama
+     * PostCreditService::debit() esplicitamente dopo l'insert.
+     */
+    public function created(Post $post): void
+    {
+        if (empty($post->generation_metadata) || $post->organization_id === null) {
+            return;
+        }
+
+        app(PostCreditService::class)->debit($post->organization_id, count: 1, postId: $post->id);
+    }
 
     public function updating(Post $post): void
     {

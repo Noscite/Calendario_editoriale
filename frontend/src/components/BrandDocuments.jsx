@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { apiErrorMessage } from '../services/apiError';
 import { 
   Upload, FileText, Trash2, RefreshCw, Search, 
   CheckCircle, AlertCircle, Loader2, File, X,
@@ -82,8 +83,7 @@ export default function BrandDocuments({ brandId }) {
         if (response.ok) {
           setMessage({ type: 'success', text: `${file.name} caricato! Elaborazione in corso...` });
         } else {
-          const err = await response.json();
-          setMessage({ type: 'error', text: err.detail || 'Errore upload' });
+          setMessage({ type: 'error', text: await apiErrorMessage(response, 'Errore upload') });
         }
       } catch (error) {
         setMessage({ type: 'error', text: 'Errore di connessione' });

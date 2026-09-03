@@ -28,7 +28,7 @@
                 <div class="text-3xl font-bold text-blue-600">
                     €{{ number_format($data['org_cost']['total_eur'], 2, ',', '.') }}
                 </div>
-                <div class="text-xs text-gray-500 mt-1">{{ $data['org_cost']['post_count'] }} post generati</div>
+                <div class="text-xs text-gray-500 mt-1">{{ $data['org_cost']['event_count'] }} chiamate AI</div>
             </div>
 
             @if ($data['plan_revenue_eur'] > 0)
@@ -53,6 +53,25 @@
                     {{ $data['brands_over_threshold']->count() }}
                 </div>
             </div>
+
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-500">Saldo crediti-post</div>
+                @if(! $data['wallet_enrolled'])
+                    <div class="text-3xl font-bold text-gray-400">—</div>
+                    <div class="text-xs text-gray-500 mt-1">Wallet mai attivato (nessuna ricarica)</div>
+                @else
+                    <div class="text-3xl font-bold @if($data['credit_balance'] <= 0) text-red-600 @elseif($data['credit_balance'] < $data['low_credit_threshold']) text-orange-500 @else text-green-600 @endif">
+                        {{ number_format($data['credit_balance'], 0, ',', '.') }}
+                    </div>
+                    @if($data['credit_balance'] <= 0)
+                        <div class="text-xs text-red-600 mt-1">⚠️ Esaurito — generazioni bloccate</div>
+                    @elseif($data['credit_balance'] < $data['low_credit_threshold'])
+                        <div class="text-xs text-orange-500 mt-1">⚠️ Sotto soglia ({{ $data['low_credit_threshold'] }})</div>
+                    @else
+                        <div class="text-xs text-gray-500 mt-1">post residui</div>
+                    @endif
+                @endif
+            </div>
         </div>
 
         {{-- Grafico spesa giornaliera --}}
@@ -75,6 +94,37 @@
                         @endforeach
                     </tbody>
                 </table>
+            @endif
+        </div>
+
+        {{-- Costo per step di generazione e modello --}}
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
+            <h3 class="font-semibold text-lg mb-4">🧩 Costo per step e modello</h3>
+            @if ($data['by_step']->isEmpty())
+                <div class="text-sm text-gray-500 italic">Nessuna chiamata AI tracciata nel periodo.</div>
+            @else
+                <div class="overflow-x-auto -mx-2">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-2 px-3">Step</th>
+                            <th class="text-left py-2 px-3">Modello</th>
+                            <th class="text-right py-2 px-3 whitespace-nowrap">Chiamate</th>
+                            <th class="text-right py-2 px-3 whitespace-nowrap">Costo €</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($data['by_step'] as $row)
+                            <tr class="border-b last:border-0">
+                                <td class="py-2 px-3">{{ \App\Domain\Generation\Services\AiGenerationSettingsService::steps()[$row['purpose']] ?? $row['purpose'] }}</td>
+                                <td class="py-2 px-3 font-mono text-xs whitespace-nowrap">{{ $row['model'] }}</td>
+                                <td class="py-2 px-3 text-right whitespace-nowrap">{{ $row['calls'] }}</td>
+                                <td class="py-2 px-3 text-right font-semibold whitespace-nowrap">€{{ number_format($row['total_eur'], 3, ',', '.') }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                </div>
             @endif
         </div>
 

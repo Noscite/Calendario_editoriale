@@ -17,6 +17,7 @@ use App\Domain\Post\Contracts\PostServiceInterface;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Enums\ProjectStatus;
 use App\Domain\Project\Models\Project;
+use App\Domain\Subscription\Services\PostCreditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -126,6 +127,19 @@ final class GenerationController extends Controller
             }
         }
 
+        // Wallet crediti-post: blocca il dispatch se il credito residuo non
+        // copre la stima dei post che questa generazione produrrebbe.
+        $creditService = app(PostCreditService::class);
+        $postsNeeded   = $creditService->estimatePostsForProject($project);
+        if (! $creditService->hasSufficientCredit($project->organization_id, $postsNeeded)) {
+            return response()->json([
+                'status'          => 'insufficient_credit',
+                'message'         => "Credito insufficiente: servono ~{$postsNeeded} post, ne restano " . $creditService->balance($project->organization_id) . '.',
+                'credit_balance'  => $creditService->balance($project->organization_id),
+                'credit_needed'   => $postsNeeded,
+            ], 422);
+        }
+
         $personasStatus = 'not_generated';
         if ($project->buyer_personas) {
             $personasStatus = ($project->buyer_personas['confirmed'] ?? false)
@@ -186,10 +200,37 @@ final class GenerationController extends Controller
 
         $missingKeys = app(BrandApiKeyService::class)->getMissingRequiredKeys($project->brand);
 
+        if (! empty($missingKeys)) {
+            return response()->json([
+                'can_generate' => false,
+                'reason'       => 'missing_api_keys',
+                'missing_keys' => $missingKeys,
+                'brand_id'     => $project->brand_id,
+                'brand_name'   => $project->brand->name,
+            ]);
+        }
+
+        $creditService  = app(PostCreditService::class);
+        $postsNeeded    = $creditService->estimatePostsForProject($project);
+        $creditBalance  = $creditService->balance($project->organization_id);
+
+        if (! $creditService->hasSufficientCredit($project->organization_id, $postsNeeded)) {
+            return response()->json([
+                'can_generate'    => false,
+                'reason'          => 'insufficient_credit',
+                'message'         => "Credito insufficiente: servono ~{$postsNeeded} post, ne restano {$creditBalance}.",
+                'credit_balance'  => $creditBalance,
+                'credit_needed'   => $postsNeeded,
+                'missing_keys'    => [],
+                'brand_id'        => $project->brand_id,
+                'brand_name'      => $project->brand->name,
+            ]);
+        }
+
         return response()->json([
-            'can_generate' => empty($missingKeys),
-            'reason'       => empty($missingKeys) ? null : 'missing_api_keys',
-            'missing_keys' => $missingKeys,
+            'can_generate' => true,
+            'reason'       => null,
+            'missing_keys' => [],
             'brand_id'     => $project->brand_id,
             'brand_name'   => $project->brand->name,
         ]);

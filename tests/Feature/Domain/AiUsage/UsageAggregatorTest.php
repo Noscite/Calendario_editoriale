@@ -2,40 +2,33 @@
 
 declare(strict_types=1);
 
+use App\Domain\AiUsage\Models\AiUsageEvent;
 use App\Domain\AiUsage\Services\UsageAggregator;
-use App\Domain\Post\Models\Post;
 
-function makePostWithUsage(int $projectId, int $orgId, float $costEur, string $purpose, string $model = 'claude-sonnet-4-6', ?\Carbon\Carbon $createdAt = null): Post
-{
-    $post = Post::withoutGlobalScope('organization')->create([
-        'project_id'      => $projectId,
-        'organization_id' => $orgId,
-        'platform'        => 'linkedin',
-        'post_type'       => 'storytelling',
-        'title'           => 'Test',
-        'content'         => 'Test content',
-        'scheduled_date'  => now(),
-        'status'          => 'draft',
-        'generation_metadata' => [
-            'source' => 'test',
-            'usage'  => [
-                'provider'      => 'anthropic',
-                'model'         => $model,
-                'input_tokens'  => 3000,
-                'output_tokens' => 500,
-                'cost_eur'      => $costEur,
-                'cost_usd'      => $costEur / 0.93,
-                'purpose'       => $purpose,
-            ],
-        ],
+function makeUsageEvent(
+    int $orgId,
+    ?int $brandId,
+    ?int $projectId,
+    float $costEur,
+    string $purpose,
+    string $model = 'claude-sonnet-4-6',
+    ?\Carbon\Carbon $createdAt = null,
+): AiUsageEvent {
+    return AiUsageEvent::create([
+        'organization_id'       => $orgId,
+        'brand_id'              => $brandId,
+        'project_id'            => $projectId,
+        'purpose'               => $purpose,
+        'provider'              => 'anthropic',
+        'model'                 => $model,
+        'input_tokens'          => 3000,
+        'output_tokens'         => 500,
+        'cache_creation_tokens' => 0,
+        'cache_read_tokens'     => 0,
+        'cost_usd'              => $costEur / 0.93,
+        'cost_eur'              => $costEur,
+        'created_at'            => $createdAt ?? now(),
     ]);
-
-    if ($createdAt) {
-        $post->created_at = $createdAt;
-        $post->save();
-    }
-
-    return $post;
 }
 
 beforeEach(function () {
@@ -51,9 +44,9 @@ beforeEach(function () {
 });
 
 it('aggregates cost for brand in date range', function () {
-    makePostWithUsage($this->project->id, $this->org->id, 0.015, 'calendar_base_post');
-    makePostWithUsage($this->project->id, $this->org->id, 0.018, 'territorial_event_post');
-    makePostWithUsage($this->project->id, $this->org->id, 0.012, 'calendar_base_post');
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.015, 'copy');
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.018, 'event_post');
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.012, 'copy');
 
     $result = $this->aggregator->costForBrand(
         $this->brand->id,
@@ -63,19 +56,20 @@ it('aggregates cost for brand in date range', function () {
 
     expect($result['total_eur'])->toBeGreaterThan(0.044);
     expect($result['total_eur'])->toBeLessThan(0.046);
-    expect($result['post_count'])->toBe(3);
-    expect($result['by_purpose']['calendar_base_post'])->toBeGreaterThan(0.026);
+    expect($result['event_count'])->toBe(3);
+    expect($result['by_purpose']['copy'])->toBeGreaterThan(0.026);
 });
 
-it('aggregates cost for project broken down by post_type', function () {
-    makePostWithUsage($this->project->id, $this->org->id, 0.020, 'p1');
-    makePostWithUsage($this->project->id, $this->org->id, 0.030, 'p2');
+it('aggregates cost for project broken down by purpose and model', function () {
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.020, 'strategy');
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.030, 'copy');
 
     $result = $this->aggregator->costForProject($this->project->id);
 
     expect($result['total_eur'])->toBeGreaterThan(0.049);
-    expect($result['post_count'])->toBe(2);
-    expect($result['by_post_type'])->toHaveKey('storytelling');
+    expect($result['event_count'])->toBe(2);
+    expect($result['by_purpose'])->toHaveKey('strategy');
+    expect($result['by_purpose'])->toHaveKey('copy');
 });
 
 it('returns top consumers ordered by spend desc', function () {
@@ -83,9 +77,9 @@ it('returns top consumers ordered by spend desc', function () {
     $brand2 = createBrand($org2, ['vertical' => 'pro_loco']);
     $project2 = createProject($brand2, ['start_date' => '2026-05-01', 'end_date' => '2026-05-31']);
 
-    makePostWithUsage($this->project->id, $this->org->id, 0.10, 'p');
-    makePostWithUsage($this->project->id, $this->org->id, 0.20, 'p');
-    makePostWithUsage($project2->id, $org2->id, 0.50, 'p');
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.10, 'copy');
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.20, 'copy');
+    makeUsageEvent($org2->id, $brand2->id, $project2->id, 0.50, 'copy');
 
     $topOrg1 = $this->aggregator->topConsumers($this->org->id, now()->subDay(), now()->addDay(), 5);
 
@@ -95,12 +89,12 @@ it('returns top consumers ordered by spend desc', function () {
 });
 
 it('computes daily breakdown', function () {
-    makePostWithUsage(
-        $this->project->id, $this->org->id, 0.05, 'p',
+    makeUsageEvent(
+        $this->org->id, $this->brand->id, $this->project->id, 0.05, 'copy',
         createdAt: now()->subDays(2)->setTime(10, 0)
     );
-    makePostWithUsage(
-        $this->project->id, $this->org->id, 0.07, 'p',
+    makeUsageEvent(
+        $this->org->id, $this->brand->id, $this->project->id, 0.07, 'copy',
         createdAt: now()->subDays(1)->setTime(10, 0)
     );
 
@@ -110,28 +104,14 @@ it('computes daily breakdown', function () {
     expect($daily->sum('total_eur'))->toBeGreaterThan(0.11);
 });
 
-it('ignores posts without generation_metadata.usage', function () {
-    // Post legacy senza usage
-    Post::withoutGlobalScope('organization')->create([
-        'project_id'      => $this->project->id,
-        'organization_id' => $this->org->id,
-        'platform'        => 'linkedin',
-        'title'           => 'Legacy',
-        'content'         => 'Legacy content',
-        'scheduled_date'  => now(),
-        'status'          => 'draft',
-        'generation_metadata' => ['source' => 'legacy-no-usage'],
-    ]);
-    makePostWithUsage($this->project->id, $this->org->id, 0.05, 'p');
+it('breaks down cost by purpose and model', function () {
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.05, 'copy', 'claude-opus-4-8');
+    makeUsageEvent($this->org->id, $this->brand->id, $this->project->id, 0.02, 'strategy', 'claude-opus-4-7');
 
-    $result = $this->aggregator->costForBrand(
-        $this->brand->id,
-        now()->subDay(),
-        now()->addDay(),
-    );
+    $rows = $this->aggregator->costByPurposeAndModel($this->org->id, now()->subDay(), now()->addDay());
 
-    expect($result['post_count'])->toBe(2);
-    // Solo il post con usage contribuisce al total_eur
-    expect($result['total_eur'])->toBeGreaterThan(0.049);
-    expect($result['total_eur'])->toBeLessThan(0.051);
+    expect($rows->count())->toBe(2);
+    $copyRow = $rows->firstWhere('purpose', 'copy');
+    expect($copyRow['model'])->toBe('claude-opus-4-8');
+    expect($copyRow['calls'])->toBe(1);
 });

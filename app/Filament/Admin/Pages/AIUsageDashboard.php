@@ -6,6 +6,7 @@ namespace App\Filament\Admin\Pages;
 
 use App\Domain\AiUsage\Services\UsageAggregator;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Subscription\Services\PostCreditService;
 use Filament\Pages\Page;
 use Illuminate\Contracts\Support\Htmlable;
 
@@ -51,24 +52,34 @@ class AIUsageDashboard extends Page
         $orgCost   = $aggregator->costForOrganization($org->id, $start, $end);
         $topBrands = $aggregator->topConsumers($org->id, $start, $end, 10);
         $daily     = $aggregator->dailyCostForOrganization($org->id, days: 30);
+        $byStep    = $aggregator->costByPurposeAndModel($org->id, $start, $end);
 
         $planRevenue = $this->resolvePlanRevenue($org);
 
         $alertThreshold = (float) config('ai_pricing.alert_brand_monthly_cost_eur', 20.0);
         $brandsOverThreshold = $topBrands->filter(fn ($b) => $b['total_eur'] > $alertThreshold);
 
+        $creditService      = app(PostCreditService::class);
+        $creditBalance      = $creditService->balance($org->id);
+        $walletEnrolled     = $creditService->isWalletEnrolled($org->id);
+        $lowCreditThreshold = (int) config('ai_pricing.low_post_credit_threshold', 10);
+
         return [
-            'org'                   => $org,
-            'org_cost'              => $orgCost,
-            'top_brands'            => $topBrands,
-            'daily'                 => $daily,
-            'period_label'          => $this->periodLabel(),
-            'plan_revenue_eur'      => $planRevenue,
-            'gross_margin_pct'      => $planRevenue > 0
+            'org'                    => $org,
+            'org_cost'               => $orgCost,
+            'top_brands'             => $topBrands,
+            'daily'                  => $daily,
+            'by_step'                => $byStep,
+            'period_label'           => $this->periodLabel(),
+            'plan_revenue_eur'       => $planRevenue,
+            'gross_margin_pct'       => $planRevenue > 0
                 ? round((($planRevenue - $orgCost['total_eur']) / $planRevenue) * 100, 1)
                 : null,
-            'alert_threshold'       => $alertThreshold,
-            'brands_over_threshold' => $brandsOverThreshold,
+            'alert_threshold'        => $alertThreshold,
+            'brands_over_threshold'  => $brandsOverThreshold,
+            'credit_balance'         => $creditBalance,
+            'wallet_enrolled'        => $walletEnrolled,
+            'low_credit_threshold'   => $lowCreditThreshold,
         ];
     }
 

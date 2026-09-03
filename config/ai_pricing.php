@@ -65,4 +65,10 @@ return [
     ],
 
     'alert_brand_monthly_cost_eur' => env('AI_ALERT_BRAND_MONTHLY_EUR', 20.0),
+
+    // Sotto questa soglia di post residui nel wallet, la dashboard segnala
+    // in rosso l'organizzazione (non blocca nulla di per sé — il blocco vero
+    // è in GenerationController::preflight quando il saldo è insufficiente
+    // per la generazione richiesta).
+    'low_post_credit_threshold' => env('AI_LOW_POST_CREDIT_THRESHOLD', 10),
 ];

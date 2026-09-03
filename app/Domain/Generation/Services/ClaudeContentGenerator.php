@@ -50,19 +50,20 @@ TXT;
     private const RATE_LIMIT_SLEEP      = 3;  // usato solo come fallback minimo
 
     public function __construct(
-        private readonly PromptBuilder       $promptBuilder,
-        private readonly PersonaScheduler    $personaScheduler,
-        private readonly SystemPromptLibrary $systemPrompts,
-        private AnthropicApiClient           $apiClient,
+        private readonly PromptBuilder              $promptBuilder,
+        private readonly PersonaScheduler           $personaScheduler,
+        private readonly SystemPromptLibrary        $systemPrompts,
+        private AnthropicApiClient                  $apiClient,
+        private readonly AiGenerationSettingsService $aiSettings,
     ) {}
 
     /**
      * Configura i client per usare le chiavi API del brand (se presenti).
      * Chiamato da GenerateCalendarJob prima di avviare la generazione.
      */
-    public function useBrandKeys(Brand $brand): void
+    public function useBrandKeys(Brand $brand, ?int $projectId = null): void
     {
-        $this->apiClient = $this->apiClient->withBrand($brand);
+        $this->apiClient = $this->apiClient->withBrand($brand)->withProject($projectId);
     }
 
     // ── ContentGeneratorInterface ──────────────────────────────
@@ -79,7 +80,7 @@ TXT;
         // Entrypoint HTTP (PostController/PostService): usa la chiave API del brand se
         // configurata a mano, altrimenti resta sulla chiave di sistema (no blocco per
         // utenti non-superuser su brand senza chiave propria).
-        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand);
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand)->withProject($project->id);
         // Generation legacy del project intero: nessuna campagna associata. Le campagne
         // si lanciano dentro un calendario tramite QuickAddPostModal → POST
         // /api/projects/{id}/campaigns che ha il suo proprio path (generateForCampaign).
@@ -145,7 +146,7 @@ TXT;
         $brand     = $project->brand;
         // GenerateCampaignPostsJob non chiama useBrandKeys(): iniettiamo qui la chiave
         // del brand se configurata, altrimenti fallback morbido alla chiave di sistema.
-        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand);
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand)->withProject($project->id);
         $startDate = Carbon::parse($campaign->start_date ?? $project->start_date);
         $endDate   = Carbon::parse($campaign->end_date ?? $project->end_date);
         $weeks     = max(1, (int) ceil(max(1, $startDate->diffInDays($endDate) + 1) / 7));
@@ -212,7 +213,7 @@ TXT;
         $brand = $post->project->brand;
         // Rigenerazione singolo post (endpoint HTTP): chiave del brand se presente,
         // altrimenti fallback morbido alla chiave di sistema (no blocco).
-        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand);
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand)->withProject($post->project_id);
 
         $prompt = $this->promptBuilder->buildRegeneratePrompt(
             postContent:     $post->content,
@@ -225,8 +226,17 @@ TXT;
             voiceExamples:   $brand->voice_examples ?? [],
         );
 
+        $params = $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_REGENERATE);
         try {
-            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_REGENERATE, self::MODEL_HAIKU, $this->systemPrompts->forContentGeneration($brand->sector));
+            $response   = $this->apiClient->call(
+                $prompt, $params->maxTokens, $params->model,
+                $this->systemPrompts->forContentGeneration($brand->sector),
+                mcpServers: [],
+                purpose: AiGenerationSettingsService::STEP_REGENERATE,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
+            );
             $tokensUsed = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $result     = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
         } catch (\Throwable $e) {
@@ -261,9 +271,19 @@ TXT;
         }
 
         $prompt = $this->promptBuilder->buildPersonaPrompt($brand, $project->platforms ?? [], $urlContext);
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand)->withProject($projectId);
+        $params = $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_PERSONAS);
 
         try {
-            $response             = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL, $this->systemPrompts->forPersonaAnalysis());
+            $response             = $this->apiClient->call(
+                $prompt, $params->maxTokens, $params->model,
+                $this->systemPrompts->forPersonaAnalysis(),
+                mcpServers: [],
+                purpose: AiGenerationSettingsService::STEP_PERSONAS,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
+            );
             $personas             = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
             $personas['generated_at'] = now()->toIso8601String();
             $personas['source']   = 'ai_analysis';
@@ -277,6 +297,16 @@ TXT;
         return $personas;
     }
 
+    /**
+     * Imposta contesto brand/project sull'apiClient e risolve i parametri
+     * dello step "personas". Helper condiviso da tutti i metodi personas.
+     */
+    private function preparePersonasCall(Brand $brand, int $projectId): \App\Domain\Generation\Data\AiGenerationParams
+    {
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand)->withProject($projectId);
+        return $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_PERSONAS);
+    }
+
     public function regeneratePersonas(int $projectId, ?string $feedback = null): array
     {
         $project         = Project::with('brand')->findOrFail($projectId);
@@ -285,9 +315,18 @@ TXT;
         $prompt = $this->promptBuilder->buildRegeneratePersonasPrompt(
             $project->brand, $project->platforms ?? [], $currentPersonas, $feedback ?? '',
         );
+        $params = $this->preparePersonasCall($project->brand, $projectId);
 
         try {
-            $response             = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL, $this->systemPrompts->forPersonaAnalysis());
+            $response             = $this->apiClient->call(
+                $prompt, $params->maxTokens, $params->model,
+                $this->systemPrompts->forPersonaAnalysis(),
+                mcpServers: [],
+                purpose: AiGenerationSettingsService::STEP_PERSONAS,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
+            );
             $personas             = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
             $personas['generated_at'] = now()->toIso8601String();
             $personas['source']   = 'ai_regenerated';
@@ -326,9 +365,18 @@ TXT;
         $prompt = $this->promptBuilder->buildAddPersonaPrompt(
             $project->brand, $project->platforms ?? [], $bp['personas'] ?? [], $description,
         );
+        $params = $this->preparePersonasCall($project->brand, $projectId);
 
         try {
-            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL, $this->systemPrompts->forPersonaAnalysis());
+            $response   = $this->apiClient->call(
+                $prompt, $params->maxTokens, $params->model,
+                $this->systemPrompts->forPersonaAnalysis(),
+                mcpServers: [],
+                purpose: AiGenerationSettingsService::STEP_PERSONAS,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
+            );
             $newPersona = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
         } catch (\Throwable $e) {
             Log::error("[PERSONAS] Add persona failed: {$e->getMessage()}");
@@ -381,9 +429,18 @@ TXT;
         $prompt     = $this->promptBuilder->buildRegenerateSinglePersonaPrompt(
             $project->brand, $project->platforms ?? [], $oldPersona, $description,
         );
+        $params = $this->preparePersonasCall($project->brand, $projectId);
 
         try {
-            $response   = $this->apiClient->call($prompt, self::MAX_TOKENS_PERSONAS, self::MODEL, $this->systemPrompts->forPersonaAnalysis());
+            $response   = $this->apiClient->call(
+                $prompt, $params->maxTokens, $params->model,
+                $this->systemPrompts->forPersonaAnalysis(),
+                mcpServers: [],
+                purpose: AiGenerationSettingsService::STEP_PERSONAS,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
+            );
             $newPersona = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
         } catch (\Throwable $e) {
             Log::error("[PERSONAS] Regenerate single failed: {$e->getMessage()}");
@@ -418,13 +475,19 @@ TXT;
     public function evaluatePersonasFit(Brand $brand, string $newBrief, array $candidates): array
     {
         $prompt = $this->promptBuilder->buildPersonasEvaluationPrompt($brand, $newBrief, $candidates);
+        $params = $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_PERSONAS);
 
         try {
             $response = $this->apiClient->call(
                 $prompt,
-                self::MAX_TOKENS_PERSONAS,
-                self::MODEL,
+                $params->maxTokens,
+                $params->model,
                 $this->systemPrompts->forPersonaAnalysis(),
+                mcpServers: [],
+                purpose: AiGenerationSettingsService::STEP_PERSONAS,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
             );
             $parsed = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
         } catch (\Throwable $e) {
@@ -466,13 +529,19 @@ TXT;
     public function adaptPersonas(Brand $brand, string $newBrief, array $sourcePersonas): array
     {
         $prompt = $this->promptBuilder->buildPersonasAdaptationPrompt($brand, $newBrief, $sourcePersonas);
+        $params = $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_PERSONAS);
 
         try {
             $response = $this->apiClient->call(
                 $prompt,
-                self::MAX_TOKENS_PERSONAS,
-                self::MODEL,
+                $params->maxTokens,
+                $params->model,
                 $this->systemPrompts->forPersonaAnalysis(),
+                mcpServers: [],
+                purpose: AiGenerationSettingsService::STEP_PERSONAS,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
             );
             $adapted = $this->apiClient->parseJsonResponse($response['content'][0]['text'] ?? '');
             $adapted['generated_at'] = now()->toIso8601String();
@@ -647,16 +716,37 @@ TXT;
 
         Log::info("[CLAUDE] API call — {$brandName}, {$startDate->toDateString()} → {$endDate->toDateString()}");
 
+        $params = $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_COPY);
+        $systemPrompt = $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null);
+
         try {
-            $response = $this->apiClient->callCached(
-                $parts['static'],
-                $parts['dynamic'],
-                self::MAX_TOKENS_BATCH,
-                self::MODEL,
-                $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null),
-                null,
-                $mcpServers,
-            );
+            if ($params->promptCachingEnabled) {
+                $response = $this->apiClient->callCached(
+                    $parts['static'],
+                    $parts['dynamic'],
+                    $params->maxTokens,
+                    $params->model,
+                    $systemPrompt,
+                    null,
+                    $mcpServers,
+                    purpose: AiGenerationSettingsService::STEP_COPY,
+                    temperature: $params->temperature,
+                    topP: $params->topP,
+                    topK: $params->topK,
+                );
+            } else {
+                $response = $this->apiClient->call(
+                    $parts['static'] . "\n\n" . $parts['dynamic'],
+                    $params->maxTokens,
+                    $params->model,
+                    $systemPrompt,
+                    mcpServers: $mcpServers,
+                    purpose: AiGenerationSettingsService::STEP_COPY,
+                    temperature: $params->temperature,
+                    topP: $params->topP,
+                    topK: $params->topK,
+                );
+            }
             $batchTokens  = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $posts        = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
 
@@ -712,8 +802,17 @@ TXT;
             $postContent, $platform, $pillar, $brandName, $brandSector, $brandColors, $visualSuggestion, $contentType
         );
 
+        $params = $this->aiSettings->resolve(null, AiGenerationSettingsService::STEP_IMAGE_PROMPT);
         try {
-            $response  = $this->apiClient->call($prompt, self::MAX_TOKENS_IMAGE, self::MODEL_HAIKU, $this->systemPrompts->forImagePrompt());
+            $response  = $this->apiClient->call(
+                $prompt, $params->maxTokens, $params->model,
+                $this->systemPrompts->forImagePrompt(),
+                mcpServers: [],
+                purpose: AiGenerationSettingsService::STEP_IMAGE_PROMPT,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
+            );
             $imgTokens = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             return [trim($response['content'][0]['text'] ?? ''), $imgTokens];
         } catch (\Throwable $e) {
@@ -823,6 +922,8 @@ TXT;
                 strategyTokensTotal: $strategyTokens,
                 strategyPostsTotal: max(1, count($strategyPlan['posts'] ?? [])),
                 batchTokens: $batchTokens,
+                strategyModel: $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_STRATEGY)->model,
+                copyModel: $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_COPY)->model,
             );
 
             array_push($allPosts, ...$posts);
@@ -869,7 +970,7 @@ TXT;
             $buyerPersonas, $contentMixData, $brand, $campaign,
         );
 
-        $opusModel = (string) config('services.anthropic.opus_model', self::MODEL_OPUS);
+        $params = $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_STRATEGY);
 
         // MCP servers effettivi: solo se project↔campaign linkato. La campagna
         // unisce campaign MCP + brand MCP (con eventuale override).
@@ -888,10 +989,14 @@ TXT;
         try {
             $response = $this->apiClient->call(
                 $prompt,
-                self::MAX_TOKENS_STRATEGY,
-                $opusModel,
+                $params->maxTokens,
+                $params->model,
                 $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null),
                 $mcpServers,
+                purpose: AiGenerationSettingsService::STEP_STRATEGY,
+                temperature: $params->temperature,
+                topP: $params->topP,
+                topK: $params->topK,
             );
             $tokens   = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $plan     = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
@@ -903,8 +1008,11 @@ TXT;
     }
 
     /**
-     * Step 2 del split: chiama Sonnet 4.6 cached per scrivere il copy.
-     * 3 cache breakpoints: system, brand context, strategy plan.
+     * Step 2 del split: scrive il copy dei post pianificati dalla strategy.
+     * Modello, temperature e uso del caching sono risolti da
+     * AiGenerationSettingsService (override brand → default globale →
+     * fallback hardcoded), non più fissi nel codice.
+     * Con caching attivo: 3 cache breakpoints (system, brand context, strategy plan).
      *
      * @return array{0: list, 1: int} [posts, tokens]
      */
@@ -923,15 +1031,37 @@ TXT;
             $strategyPlan, $batchPosts, $batchNum, $totalBatches, $brand,
         );
 
+        $params       = $this->aiSettings->resolve($brand, AiGenerationSettingsService::STEP_COPY);
+        $systemPrompt = $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null);
+
         try {
-            $response = $this->apiClient->callCached(
-                $parts['static_brand'],
-                $parts['dynamic'],
-                self::MAX_TOKENS_COPY,
-                self::MODEL,
-                $this->systemPrompts->forContentGeneration($brandInfo['sector'] ?? null),
-                $parts['static_strategy'],
-            );
+            if ($params->promptCachingEnabled) {
+                $response = $this->apiClient->callCached(
+                    $parts['static_brand'],
+                    $parts['dynamic'],
+                    $params->maxTokens,
+                    $params->model,
+                    $systemPrompt,
+                    $parts['static_strategy'],
+                    purpose: AiGenerationSettingsService::STEP_COPY,
+                    temperature: $params->temperature,
+                    topP: $params->topP,
+                    topK: $params->topK,
+                );
+            } else {
+                $flatPrompt = $parts['static_brand'] . "\n\n" . $parts['static_strategy'] . "\n\n" . $parts['dynamic'];
+                $response = $this->apiClient->call(
+                    $flatPrompt,
+                    $params->maxTokens,
+                    $params->model,
+                    $systemPrompt,
+                    mcpServers: [],
+                    purpose: AiGenerationSettingsService::STEP_COPY,
+                    temperature: $params->temperature,
+                    topP: $params->topP,
+                    topK: $params->topK,
+                );
+            }
             $tokens = ($response['usage']['input_tokens'] ?? 0) + ($response['usage']['output_tokens'] ?? 0);
             $posts  = $this->apiClient->parseJsonResponse(trim($response['content'][0]['text'] ?? ''));
             return [$posts, $tokens];
@@ -1013,6 +1143,8 @@ TXT;
         int $strategyTokensTotal,
         int $strategyPostsTotal,
         int $batchTokens,
+        ?string $strategyModel = null,
+        ?string $copyModel = null,
     ): array {
         // Costruisci indice strategy: scheduled_date|platform → entry
         $byKey = [];
@@ -1047,6 +1179,8 @@ TXT;
                 'strategy' => $strategyShare,
                 'copy'     => $copyShare,
             ];
+            $raw['_model_strategy'] = $strategyModel;
+            $raw['_model_copy']     = $copyModel;
 
             $out[] = $raw;
         }
@@ -1184,8 +1318,8 @@ TXT;
             'strategy_cta_goal'        => $raw['_strategy']['cta_goal']       ?? null,
             'tokens_strategy'          => $raw['_tokens']['strategy']         ?? null,
             'tokens_copy'              => $raw['_tokens']['copy']             ?? null,
-            'model_strategy'           => self::MODEL_OPUS,
-            'model_copy'               => self::MODEL,
+            'model_strategy'           => $raw['_model_strategy'] ?? self::MODEL_OPUS,
+            'model_copy'               => $raw['_model_copy']     ?? self::MODEL,
             // Audit trail della pillar-coercion. Sempre mutex: al massimo uno
             // dei due è non-null per ogni post (vedi logica sopra).
             'pillar_normalized_from'   => $pillarNormalizedFrom,

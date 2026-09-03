@@ -10,14 +10,35 @@ Progetto proprietario — **Noscite SRLS**, Milano. Codice privato, non open sou
 
 ### Fase 1 — Piano editoriale automatico
 
-Il sistema ricerca i trend di settore, genera contenuti brandizzati (copy + immagini) e costruisce un calendario editoriale pronto da approvare. Pipeline AI:
+Il sistema genera contenuti brandizzati (copy + immagini) a partire da documenti/URL del brand e costruisce un calendario editoriale pronto da approvare. Pipeline AI:
 
 ```
-Perplexity (trend research, cache L1 nazionale 14gg / L2 locale 7gg)
-    → Claude Sonnet (generazione copy)
-    → GPT-4o mini (prompt immagini)
-    → gpt-image-1 / DALL·E 3 (immagini)
+RAG sui documenti del brand + fetch diretto delle URL di riferimento (contesto)
+    → Claude Opus (strategy plan + copy batch)
+    → Claude Haiku / GPT-4o (prompt immagini)
+    → gpt-image-1 / DALL·E 3 / Gemini (immagini)
 ```
+
+> **Perplexity non è più nel percorso attivo.** `PerplexityTrendResearcher` resta bindato nel container DI e la chiave API è configurata, ma nessun punto del job di generazione lo richiama più (0 occorrenze in 14gg di log applicativi) — il contesto di settore arriva oggi da RAG sui documenti brand e dal fetch diretto delle URL di riferimento. Anche `PerplexityAuditBridge`, che lo riusava per l'audit dei siti, non ha chiamanti nel codice: è codice morto, non cablato in nessun flusso.
+
+#### Modelli AI per funzione
+
+Ogni funzione richiama un modello di default (hardcoded in `AiGenerationSettingsService`), sovrascrivibile per singolo brand dal pannello admin (tabella `ai_generation_settings`, override → default globale → hardcoded). Verificato in produzione: nessun brand ha override attivi, quindi valgono sempre i default qui sotto.
+
+| Funzione | Step interno | Modello di default | Note |
+| --- | --- | --- | --- |
+| Strategy plan (pianificazione calendario) | `strategy` | `claude-opus-4-7` | 1 chiamata, pianifica l'intero calendario prima della scrittura dei post (solo se attivo il flag `services.anthropic.strategy_split`) |
+| Copy batch (scrittura post) | `copy` | `claude-opus-4-8` | 1 chiamata per batch di post (con prompt caching abilitato — l'unico step per cui la cache ha effetto) |
+| Generazione buyer personas | `personas` | `claude-opus-4-8` | eseguita una volta per progetto, prima della generazione del calendario |
+| Rigenerazione singolo post | `regenerate` | `claude-haiku-4-5` | rigenerazione mirata di un post già esistente |
+| Prompt immagine (da post → prompt DALL·E) | `image_prompt` | `claude-haiku-4-5` | trasforma il copy del post in un prompt visivo dettagliato |
+| Post evento territoriale (Pro Loco) | `event_post` | `claude-opus-4-7` | generazione post da evento territoriale |
+| Digest mensile eventi territoriali | `event_digest` | `claude-opus-4-7` | riepilogo mensile eventi per i Comuni/Pro Loco |
+| Enhance prompt immagine (percorso legacy) | — | `gpt-4o` (OpenAI) o `claude-sonnet-4-5` | percorso alternativo dentro `DalleImageGenerator`, usato in alcuni flussi di rigenerazione immagine singola |
+| Generazione immagine | — | `gpt-image-1` (tier per piano: `gpt-image-1-mini`/`gpt-image-1`/qualità alta) → fallback `dall-e-3` | modello e qualità scelti da `ImageModelRouter` in base al piano dell'organizzazione (small/standard-pro/unlimited) e al pillar del post (bump automatico per contenuti "hero") |
+| Generazione immagine (provider alternativo) | — | Gemini `gemini-2.5-flash-image` | selezionabile per singolo brand al posto di OpenAI, richiede chiave Gemini del brand |
+
+Pricing di riferimento (config `ai_pricing.php`, USD per 1M token): `claude-opus-4-8`/`4-7` input $5 / output $25 / cache creation $6.25 / cache read $0.50; `claude-haiku-4-5` input $0.80 / output $4.00; immagini `gpt-image-1` da $0.011 (mini) a $0.167 (qualità alta) a chiamata.
 
 ### Fase 2 — Pubblicazione automatica e integrazioni aziendali
 

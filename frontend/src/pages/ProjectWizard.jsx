@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/dataStore';
 import BrandDocuments from '../components/BrandDocuments';
 import { generation } from '../services/api';
+import { apiErrorMessage } from '../services/apiError';
 import { 
   ArrowLeft, ArrowRight, Check, Calendar, FileText, File, Link, 
   Target, Sparkles, Loader2, Plus, X, Globe, Linkedin, Instagram,
@@ -136,8 +137,7 @@ export default function ProjectWizard() {
       });
       
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore generazione personas');
+        throw new Error(await apiErrorMessage(res, 'Errore generazione personas'));
       }
       
       const data = await res.json();
@@ -175,7 +175,7 @@ export default function ProjectWizard() {
         body: JSON.stringify({ feedback: personasFeedback })
       });
       
-      if (!res.ok) throw new Error('Errore rigenerazione');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Errore rigenerazione'));
       
       const data = await res.json();
       setPersonasData(data.personas);

@@ -69,7 +69,7 @@ class PlanResource extends Resource
                 ]),
 
             Section::make('Limiti')
-                ->columns(3)
+                ->columns(2)
                 ->schema([
                     Forms\Components\TextInput::make('max_brands')
                         ->label('Max brand')
@@ -80,21 +80,6 @@ class PlanResource extends Resource
                         ->label('Max utenti')
                         ->numeric()
                         ->default(1),
-
-                    Forms\Components\TextInput::make('monthly_calendar_generations')
-                        ->label('Generazioni/mese')
-                        ->numeric()
-                        ->default(3),
-
-                    Forms\Components\TextInput::make('monthly_text_tokens')
-                        ->label('Token testo/mese')
-                        ->numeric()
-                        ->default(50000),
-
-                    Forms\Components\TextInput::make('monthly_images')
-                        ->label('Immagini/mese')
-                        ->numeric()
-                        ->default(20),
                 ]),
 
             Section::make('Funzionalità')
@@ -134,6 +119,18 @@ class PlanResource extends Resource
                         ->prefix('€')
                         ->step(0.0001),
                 ]),
+
+            Section::make('Wallet crediti-post')
+                ->columns(1)
+                ->schema([
+                    Forms\Components\TextInput::make('post_credit_price_eur')
+                        ->label('Prezzo per post (€)')
+                        ->helperText('Prezzo di vendita di 1 credito-post per questo piano. Non assegna crediti automaticamente: la ricarica del wallet di una organizzazione si fa dalla pagina "Wallet Crediti-Post".')
+                        ->numeric()
+                        ->prefix('€')
+                        ->step(0.01)
+                        ->default(2.00),
+                ]),
         ]);
     }
 
@@ -167,8 +164,9 @@ class PlanResource extends Resource
                     ->label('Utenti')
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('monthly_calendar_generations')
-                    ->label('Gen/mese')
+                Tables\Columns\TextColumn::make('post_credit_price_eur')
+                    ->label('€/post')
+                    ->money('eur')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('organizations_count')

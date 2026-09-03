@@ -158,13 +158,38 @@ export const projects = {
   },
 };
 
+// Il form di creazione manuale raccoglie gli hashtag come testo libero
+// ("#tag1 #tag2" o "tag1, tag2"), ma il backend richiede un array di stringhe.
+function normalizeHashtags(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  return value
+    .split(/[\s,]+/)
+    .map((tag) => tag.trim().replace(/^#/, ''))
+    .filter(Boolean);
+}
+
+// Laravel converte ogni stringa vuota "" in null su tutte le richieste
+// (middleware ConvertEmptyStringsToNull); il DTO backend tratta questi campi
+// come "opzionali se assenti dalla richiesta", non come "nullable", quindi un
+// campo lasciato vuoto nel form (es. CTA, Suggerimento Visual) va omesso del
+// tutto dal payload invece di essere inviato come stringa vuota.
+const OPTIONAL_STRING_FIELDS = ['title', 'pillar', 'visual_suggestion', 'visual_prompt', 'cta', 'call_to_action'];
+function stripEmptyOptionalFields(data) {
+  const cleaned = { ...data };
+  for (const key of OPTIONAL_STRING_FIELDS) {
+    if (cleaned[key] === '') delete cleaned[key];
+  }
+  return cleaned;
+}
+
 export const posts = {
   list: (projectId) => api.get(`/posts/project/${projectId}`),
   listByProject: (projectId) => api.get(`/posts/project/${projectId}`),
   get: (id) => api.get(`/posts/${id}`),
   update: (id, data) => api.patch(`/posts/${id}`, data),
   delete: (id) => api.delete(`/posts/${id}`),
-  createManual: (data) => api.post('/posts/manual', data),
+  createManual: (data) => api.post('/posts/manual', { ...stripEmptyOptionalFields(data), hashtags: normalizeHashtags(data.hashtags) }),
   generateAI: (data) => api.post('/posts/generate-ai', data),
   batchDelete: (postIds) => api.post('/posts/batch-delete', { post_ids: postIds }),
   generateImage: (postId, data) => api.post(`/posts/${postId}/generate-image`, data),

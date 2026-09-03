@@ -11,6 +11,7 @@ use App\Domain\Generation\Services\GenerationProgressService;
 use App\Domain\Generation\Services\GenerationTracker;
 use App\Domain\Notification\Models\Notification;
 use App\Domain\Subscription\Models\UsageLog;
+use App\Domain\Subscription\Services\PostCreditService;
 use App\Domain\Post\Models\Post;
 use App\Domain\Project\Enums\ProjectStatus;
 use App\Domain\Project\Models\Project;
@@ -189,7 +190,7 @@ final class GenerateCalendarJob implements ShouldQueue
         }
 
         // Configura i client AI per usare le chiavi del brand (lancia MissingBrandApiKeyException se assenti)
-        $generator->useBrandKeys($brand);
+        $generator->useBrandKeys($brand, $project->id);
 
         Log::info("[GEN] Starting generation for project {$this->projectId} — Brand: {$brand->name}");
 
@@ -325,8 +326,11 @@ final class GenerateCalendarJob implements ShouldQueue
             );
 
             // Inserisci in chunk da 100 per sicurezza su VPS con poca RAM
+            // Post::insert() bypassa gli eventi Eloquent (quindi PostObserver::created()):
+            // debito esplicito del wallet crediti-post, una riga di ledger per chunk.
             foreach (array_chunk($bulkRows, 100) as $chunk) {
                 Post::insert($chunk);
+                app(PostCreditService::class)->debit($organizationId, count: count($chunk));
             }
         }
 

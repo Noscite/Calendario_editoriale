@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Generation\Services;
 
 use App\Domain\AiUsage\Data\UsageRecord;
+use App\Domain\AiUsage\Services\AiUsageLogger;
 use App\Domain\AiUsage\Services\UsageCostCalculator;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Brand\Services\BrandApiKeyService;
@@ -37,6 +38,13 @@ TXT;
     private string $apiKey;
     private int    $requestsPerMinute;
 
+    // Contesto per l'attribuzione del costo in ai_usage_events. Popolato da
+    // withBrand()/withBrandOrSystemFallback()/withProject(), letto da
+    // logUsageIfNeeded() dopo ogni chiamata completata con successo.
+    private ?int $organizationId = null;
+    private ?int $brandId        = null;
+    private ?int $projectId      = null;
+
     public function __construct()
     {
         $this->apiKey            = config('services.anthropic.api_key', '');
@@ -51,11 +59,24 @@ TXT;
                 BrandApiKeyService::ANTHROPIC_API_KEY,
                 'services.anthropic.api_key'
             );
-            $clone         = clone $this;
-            $clone->apiKey = $key;
+            $clone                   = clone $this;
+            $clone->apiKey           = $key;
+            $clone->brandId          = $brand->id;
+            $clone->organizationId   = $brand->organization_id;
             return $clone;
         }
         return $this;
+    }
+
+    /**
+     * Imposta il project_id per l'attribuzione del costo. Non tocca la
+     * chiave API: va combinato con withBrand()/withBrandOrSystemFallback().
+     */
+    public function withProject(?int $projectId): static
+    {
+        $clone             = clone $this;
+        $clone->projectId  = $projectId;
+        return $clone;
     }
 
     /**
@@ -72,14 +93,18 @@ TXT;
             return $this;
         }
 
-        $key = app(BrandApiKeyService::class)->get($brand, BrandApiKeyService::ANTHROPIC_API_KEY);
+        // Contesto per l'attribuzione costi: va impostato anche quando si
+        // resta sulla chiave di sistema, altrimenti gli eventi di questo
+        // brand non verrebbero mai loggati.
+        $clone                 = clone $this;
+        $clone->brandId        = $brand->id;
+        $clone->organizationId = $brand->organization_id;
 
-        if ($key === null || $key === '') {
-            return $this; // nessuna chiave brand-level → resta sulla chiave di sistema
+        $key = app(BrandApiKeyService::class)->get($brand, BrandApiKeyService::ANTHROPIC_API_KEY);
+        if ($key !== null && $key !== '') {
+            $clone->apiKey = $key;
         }
 
-        $clone         = clone $this;
-        $clone->apiKey = $key;
         return $clone;
     }
 
@@ -94,6 +119,10 @@ TXT;
         string  $model = 'claude-opus-4-8',
         ?string $systemPrompt = null,
         array   $mcpServers = [],
+        ?string $purpose = null,
+        ?float  $temperature = null,
+        ?float  $topP = null,
+        ?int    $topK = null,
     ): array {
         $system        = $systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT;
         $lastException = null;
@@ -120,6 +149,9 @@ TXT;
                         ['role' => 'user', 'content' => $prompt],
                     ],
                 ];
+                if ($temperature !== null) $body['temperature'] = $temperature;
+                if ($topP !== null)         $body['top_p']       = $topP;
+                if ($topK !== null)         $body['top_k']       = $topK;
 
                 $formattedMcp = $this->formatMcpServers($mcpServers);
                 if (! empty($formattedMcp)) {
@@ -145,7 +177,9 @@ TXT;
                     continue;
                 }
 
-                return $response->json();
+                $data = $response->json();
+                $this->logUsageIfNeeded($data, $model, $purpose);
+                return $data;
 
             } catch (\Throwable $e) {
                 $lastException = $e;
@@ -167,6 +201,10 @@ TXT;
         ?string $systemPrompt = null,
         ?string $secondStaticContent = null,
         array   $mcpServers = [],
+        ?string $purpose = null,
+        ?float  $temperature = null,
+        ?float  $topP = null,
+        ?int    $topK = null,
     ): array {
         $system        = $systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT;
         $lastException = null;
@@ -202,6 +240,9 @@ TXT;
                     'system'     => $systemBlocks,
                     'messages'   => [['role' => 'user', 'content' => $content]],
                 ];
+                if ($temperature !== null) $body['temperature'] = $temperature;
+                if ($topP !== null)         $body['top_p']       = $topP;
+                if ($topK !== null)         $body['top_k']       = $topK;
 
                 $formattedMcp = $this->formatMcpServers($mcpServers);
                 if (! empty($formattedMcp)) {
@@ -235,6 +276,7 @@ TXT;
                 $data  = $response->json();
                 $usage = $data['usage'] ?? [];
                 Log::info('[ANTHROPIC] Cache — created=' . ($usage['cache_creation_input_tokens'] ?? 0) . ' read=' . ($usage['cache_read_input_tokens'] ?? 0));
+                $this->logUsageIfNeeded($data, $model, $purpose);
 
                 return $data;
 
@@ -290,8 +332,11 @@ TXT;
         ?string $systemPrompt = null,
         ?string $purpose = null,
         array   $mcpServers = [],
+        ?float  $temperature = null,
+        ?float  $topP = null,
+        ?int    $topK = null,
     ): array {
-        $response = $this->call($prompt, $maxTokens, $model, $systemPrompt, $mcpServers);
+        $response = $this->call($prompt, $maxTokens, $model, $systemPrompt, $mcpServers, $purpose, $temperature, $topP, $topK);
         $usage    = app(UsageCostCalculator::class)->fromAnthropic($response, $model, $purpose);
         return ['response' => $response, 'usage' => $usage];
     }
@@ -308,9 +353,13 @@ TXT;
         ?string $secondStaticContent = null,
         ?string $purpose = null,
         array   $mcpServers = [],
+        ?float  $temperature = null,
+        ?float  $topP = null,
+        ?int    $topK = null,
     ): array {
         $response = $this->callCached(
-            $staticContent, $dynamicContent, $maxTokens, $model, $systemPrompt, $secondStaticContent, $mcpServers
+            $staticContent, $dynamicContent, $maxTokens, $model, $systemPrompt, $secondStaticContent, $mcpServers,
+            $purpose, $temperature, $topP, $topK,
         );
         $usage = app(UsageCostCalculator::class)->fromAnthropic($response, $model, $purpose);
         return ['response' => $response, 'usage' => $usage];
@@ -351,5 +400,22 @@ TXT;
         }
 
         return $out;
+    }
+
+    /**
+     * Traccia il costo reale di OGNI chiamata in ai_usage_events, a
+     * prescindere da chi chiama (call/callCached, con o senza wrapper
+     * *WithUsage). Best-effort: se manca il purpose o il contesto
+     * organization non fa nulla, non solleva mai eccezioni verso il caller.
+     */
+    private function logUsageIfNeeded(array $responseData, string $model, ?string $purpose): void
+    {
+        if ($purpose === null || $this->organizationId === null) {
+            return;
+        }
+
+        $record = app(UsageCostCalculator::class)->fromAnthropic($responseData, $model, $purpose);
+
+        app(AiUsageLogger::class)->log($record, $this->organizationId, $this->brandId, $this->projectId);
     }
 }

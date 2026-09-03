@@ -9,6 +9,7 @@ use App\Domain\Campaign\Models\Campaign;
 use App\Domain\Campaign\Models\CampaignAttachment;
 use App\Domain\Generation\Services\ClaudeContentGenerator;
 use App\Domain\Project\Models\Project;
+use App\Domain\Subscription\Services\PostCreditService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -61,6 +62,23 @@ final class GenerateCampaignPostsJob implements ShouldQueue
         $platforms = $this->platformsRequested
             ?? ($project->platforms ?? config('territorial.default_platforms', ['linkedin', 'instagram', 'facebook']));
         $count = $this->postsCountRequested ?? $this->estimateOptimalCount($campaign);
+
+        // Guardia difensiva: le campagne non passano dalla preflight del
+        // calendario principale, quindi il controllo credito va ripetuto qui
+        // prima di spendere token AI per una generazione che poi non si può salvare.
+        $creditService = app(PostCreditService::class);
+        if (! $creditService->hasSufficientCredit($project->organization_id, $count)) {
+            $message = "Credito insufficiente: servono ~{$count} post, ne restano " . $creditService->balance($project->organization_id) . '.';
+            Log::warning("[CAMPAIGN GEN] Campaign {$campaign->id} bloccata per credito insufficiente", [
+                'needed'  => $count,
+                'balance' => $creditService->balance($project->organization_id),
+            ]);
+            $campaign->update([
+                'status'           => CampaignStatus::Draft,
+                'generation_error' => $message,
+            ]);
+            return;
+        }
 
         // 3. Genera. Il generator crea i Post con campaign_id valorizzato.
         try {

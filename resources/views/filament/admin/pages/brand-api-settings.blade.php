@@ -34,6 +34,9 @@
                             placeholder="{{ isset($formData[$keyName]) && $formData[$keyName] ? '••••••••  (impostata)' : 'Non impostata' }}"
                             class="w-full rounded-lg border-gray-300 shadow-sm text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-primary-500 focus:ring-primary-500"
                             autocomplete="new-password"
+                            autocapitalize="off"
+                            autocorrect="off"
+                            spellcheck="false"
                         />
                     </div>
                     @endforeach

@@ -14,6 +14,7 @@ use App\Domain\Project\Models\Project;
 use App\Domain\Brand\Models\Brand;
 use App\Domain\Social\Models\PostPublication;
 use App\Domain\Social\Models\SocialConnection;
+use App\Domain\Subscription\Services\PostCreditService;
 use App\Http\Controllers\Api\GenerationController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -230,6 +231,19 @@ final class PostController extends Controller
             $post->save();
         }
 
+        // Il post include di default 1 immagine (già scalata dal credito del
+        // post stesso alla creazione). Solo la RIgenerazione di un'immagine
+        // già presente consuma credito extra dal wallet.
+        $isRegeneration = $this->postAlreadyHasImage($post);
+        if ($isRegeneration) {
+            $creditService = app(PostCreditService::class);
+            if (! $creditService->hasSufficientCredit($post->organization_id, 1)) {
+                return response()->json([
+                    'detail' => 'Credito insufficiente per rigenerare l\'immagine. Saldo: ' . $creditService->balance($post->organization_id) . ' post.',
+                ], 422);
+            }
+        }
+
         try {
             $imageUrl = $this->imageGenerator->generateImage($id, $data['visual_suggestion'] ?? null, $data['provider'] ?? null);
         } catch (\InvalidArgumentException $e) {
@@ -241,7 +255,21 @@ final class PostController extends Controller
             return response()->json(['detail' => $e->getMessage()], 422);
         }
 
+        if ($isRegeneration) {
+            app(PostCreditService::class)->debit($post->organization_id, count: 1, postId: $post->id);
+        }
+
         return response()->json(['image_url' => $imageUrl]);
+    }
+
+    /**
+     * True se il post ha già un'immagine (singola o carosello): la prossima
+     * generazione è quindi una rigenerazione, da scalare dal wallet.
+     * Il primo scatto è già coperto dal credito consumato alla creazione del post.
+     */
+    private function postAlreadyHasImage(Post $post): bool
+    {
+        return ! empty($post->image_url) || ! empty($post->carousel_images);
     }
 
     // ── Scheduling ─────────────────────────────────────────────
@@ -467,6 +495,18 @@ final class PostController extends Controller
 
         $post = $this->postService->getById($id);
 
+        // Vedi generateImage(): solo la rigenerazione di un'immagine già
+        // presente consuma credito, il primo scatto è già nel prezzo del post.
+        $isRegeneration = $this->postAlreadyHasImage($post);
+        if ($isRegeneration) {
+            $creditService = app(PostCreditService::class);
+            if (! $creditService->hasSufficientCredit($post->organization_id, 1)) {
+                return response()->json([
+                    'detail' => 'Credito insufficiente per rigenerare l\'immagine. Saldo: ' . $creditService->balance($post->organization_id) . ' post.',
+                ], 422);
+            }
+        }
+
         try {
             $result = $this->imageGenerator->generateCarouselImages($id, $data);
         } catch (\Throwable $e) {
@@ -477,6 +517,10 @@ final class PostController extends Controller
 
         if (empty($result['images'])) {
             return response()->json(['detail' => 'Generazione immagine fallita. Riprova tra qualche secondo.'], 422);
+        }
+
+        if ($isRegeneration) {
+            app(PostCreditService::class)->debit($post->organization_id, count: 1, postId: $post->id);
         }
 
         return response()->json($result);

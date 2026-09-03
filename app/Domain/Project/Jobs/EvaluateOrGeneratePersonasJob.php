@@ -78,7 +78,7 @@ final class EvaluateOrGeneratePersonasJob implements ShouldQueue
         $newBrief = (string) ($project->brief ?? '');
 
         try {
-            $generator->useBrandKeys($brand);
+            $generator->useBrandKeys($brand, $this->projectId);
             $embedClient = $embedClient->withBrand($brand);
 
             // Force = bypass evaluation, vai diretto a generate_new

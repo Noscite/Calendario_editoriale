@@ -6,6 +6,7 @@ namespace App\Domain\Territorial\Generators;
 
 use App\Domain\AiUsage\Data\UsageRecord;
 use App\Domain\Brand\Models\Brand;
+use App\Domain\Generation\Services\AiGenerationSettingsService;
 use App\Domain\Generation\Services\AnthropicApiClient;
 use App\Domain\Post\Enums\Platform;
 use App\Domain\Territorial\Models\TerritorialEvent;
@@ -15,7 +16,8 @@ use RuntimeException;
 class EventPostGenerator
 {
     public function __construct(
-        private readonly AnthropicApiClient $apiClient,
+        private AnthropicApiClient $apiClient,
+        private readonly AiGenerationSettingsService $aiSettings,
     ) {}
 
     /**
@@ -27,14 +29,25 @@ class EventPostGenerator
     public function generate(TerritorialEvent $event, Brand $brand, string $phase, Platform $platform): array
     {
         $prompt = $this->buildPrompt($event, $brand, $phase, $platform);
+        $params = $this->prepare($brand, AiGenerationSettingsService::STEP_EVENT_POST);
 
         $response = $this->apiClient->call(
-            prompt:    $prompt,
-            maxTokens: 1024,
-            model:     config('services.anthropic.opus_model', 'claude-opus-4-7'),
+            prompt:      $prompt,
+            maxTokens:   $params->maxTokens,
+            model:       $params->model,
+            purpose:     AiGenerationSettingsService::STEP_EVENT_POST,
+            temperature: $params->temperature,
+            topP:        $params->topP,
+            topK:        $params->topK,
         );
 
         return $this->parseResponse($response);
+    }
+
+    private function prepare(Brand $brand, string $step): \App\Domain\Generation\Data\AiGenerationParams
+    {
+        $this->apiClient = $this->apiClient->withBrandOrSystemFallback($brand);
+        return $this->aiSettings->resolve($brand, $step);
     }
 
     /**
@@ -45,13 +58,16 @@ class EventPostGenerator
     public function generateWithUsage(TerritorialEvent $event, Brand $brand, string $phase, Platform $platform): array
     {
         $prompt = $this->buildPrompt($event, $brand, $phase, $platform);
-        $model = config('services.anthropic.opus_model', 'claude-opus-4-7');
+        $params = $this->prepare($brand, AiGenerationSettingsService::STEP_EVENT_POST);
 
         $result = $this->apiClient->callWithUsage(
-            prompt:    $prompt,
-            maxTokens: 1024,
-            model:     $model,
-            purpose:   'territorial_event_post',
+            prompt:      $prompt,
+            maxTokens:   $params->maxTokens,
+            model:       $params->model,
+            purpose:     AiGenerationSettingsService::STEP_EVENT_POST,
+            temperature: $params->temperature,
+            topP:        $params->topP,
+            topK:        $params->topK,
         );
 
         return [
@@ -128,11 +144,16 @@ PROMPT;
         Platform $platform,
     ): array {
         $prompt = $this->buildMonthlyDigestPrompt($events, $brand, $monthStart, $platform);
+        $params = $this->prepare($brand, AiGenerationSettingsService::STEP_EVENT_DIGEST);
 
         $response = $this->apiClient->call(
-            prompt:    $prompt,
-            maxTokens: 1536,
-            model:     config('services.anthropic.opus_model', 'claude-opus-4-7'),
+            prompt:      $prompt,
+            maxTokens:   $params->maxTokens,
+            model:       $params->model,
+            purpose:     AiGenerationSettingsService::STEP_EVENT_DIGEST,
+            temperature: $params->temperature,
+            topP:        $params->topP,
+            topK:        $params->topK,
         );
 
         return $this->parseResponse($response);
@@ -151,13 +172,16 @@ PROMPT;
         Platform $platform,
     ): array {
         $prompt = $this->buildMonthlyDigestPrompt($events, $brand, $monthStart, $platform);
-        $model = config('services.anthropic.opus_model', 'claude-opus-4-7');
+        $params = $this->prepare($brand, AiGenerationSettingsService::STEP_EVENT_DIGEST);
 
         $result = $this->apiClient->callWithUsage(
-            prompt:    $prompt,
-            maxTokens: 1536,
-            model:     $model,
-            purpose:   'territorial_monthly_digest',
+            prompt:      $prompt,
+            maxTokens:   $params->maxTokens,
+            model:       $params->model,
+            purpose:     AiGenerationSettingsService::STEP_EVENT_DIGEST,
+            temperature: $params->temperature,
+            topP:        $params->topP,
+            topK:        $params->topK,
         );
 
         return [
